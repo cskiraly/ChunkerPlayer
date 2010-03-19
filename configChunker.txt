@@ -1,0 +1,3 @@
+#use [strategy]:1|2
+[strategy]
+numframes:10

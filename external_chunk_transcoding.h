@@ -4,7 +4,6 @@
 #include <stdlib.h>
 
 #include <chunk.h>
-#include <chunk_external_interface.h>
 
 #include "external_chunk.h"
 
