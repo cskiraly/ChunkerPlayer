@@ -72,7 +72,7 @@ void SaveFrame(AVFrame *pFrame, int width, int height, int iFrame) {
 
 void saveChunkOnFile(ExternalChunk *chunk) {
 	char buf[1024], outfile[1024];
-	FILE *fp;
+/*	FILE *fp;
 	
 	strcpy(buf,"chunks//CHUNK");
 	strcat(buf,"\0");
@@ -89,7 +89,7 @@ void saveChunkOnFile(ExternalChunk *chunk) {
 	fwrite(&(chunk->_refcnt),sizeof(int),1,fp);
 	fwrite(chunk->data,sizeof(uint8_t),sizeof(uint8_t)*chunk->payload_len,fp);
 	fclose(fp);
-
+*/
 	/* send the chunk to the GRAPES peer application via HTTP */
 	sprintf(buf, "%slocalhost:%d%s", UL_HTTP_PREFIX, UL_DEFAULT_CHUNKBUFFER_PORT, UL_DEFAULT_CHUNKBUFFER_PATH);
 	pushChunkHttp(chunk, buf);
@@ -123,7 +123,8 @@ int main(int argc, char *argv[]) {
 	
 	uint8_t *buffer,*outbuf,*outbuf_audio;
 	uint8_t *outbuf_audi_audio,*tempdata;
-	uint8_t audio_buf[(AVCODEC_MAX_AUDIO_FRAME_SIZE * 3) / 2];
+	//uint8_t audio_buf[(AVCODEC_MAX_AUDIO_FRAME_SIZE * 3) / 2]; //TRIPLO
+	uint16_t *audio_buf=NULL;; //TRIPLO
 	unsigned int audio_buf_size = 0;
 	long double newtimestamp;
 	
@@ -150,7 +151,7 @@ int main(int argc, char *argv[]) {
 	struct dirent **namelist;
 	
 	if(argc < 4) {
-		printf("execute ./ingestion moviefile audiobitrate videobitrate\n");
+		printf("execute ./chunker_streamer moviefile audiobitrate videobitrate\n");
 		return -1;
 	}
 	sscanf(argv[2],"%d",&audio_bitrate);
@@ -220,9 +221,10 @@ int main(int argc, char *argv[]) {
 	if(audioStream!=-1) {
 		aCodecCtx=pFormatCtx->streams[audioStream]->codec;
 		printf("AUDIO Codecid: %d %d\n",aCodecCtx->codec_id,aCodecCtx->sample_rate);
+		printf("AUDIO channels %d samplerate %d\n",aCodecCtx->channels,aCodecCtx->sample_rate);
 	}
 
-	printf("AUDIO channels %d samplerate %d\n",aCodecCtx->channels,aCodecCtx->sample_rate);
+
 
 	pCodecCtxEnc=avcodec_alloc_context();
 	//pCodecCtxEnc->me_range=16;
@@ -329,7 +331,7 @@ int main(int argc, char *argv[]) {
 	initChunk(chunkaudio,&seq_current_chunk);
 	stime = -1;
 	
-	//av_init_packet(&packet);
+	av_init_packet(&packet); //TRIPLO
 	
 	if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
 		fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
@@ -338,7 +340,8 @@ int main(int argc, char *argv[]) {
 
 
 	/* initialize the HTTP chunk pusher */
-	initChunkPusher();
+	initChunkPusher(); //TRIPLO
+	audio_buf = (uint16_t *)av_malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE); //TRIPLO
 
 
 	while(av_read_frame(pFormatCtx, &packet)>=0) {
@@ -552,7 +555,7 @@ int main(int argc, char *argv[]) {
 
 
 	/* initialize the HTTP chunk pusher */
-	initChunkPusher();
+	finalizeChunkPusher();
 
 
 	free(chunk);
@@ -568,6 +571,8 @@ int main(int argc, char *argv[]) {
 
 	// Free the YUV frame
 	av_free(pFrame);
+
+	av_free(audio_buf); //TRIPLO
   
 	// Close the codec
 	avcodec_close(pCodecCtx);
