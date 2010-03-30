@@ -16,7 +16,10 @@ rm chunker_streamer
 rm chunker_player
 rm *.o
 
-LOCAL_FFMPEG=./ExternalDependancies/ffmpeg-export-2010-01-04
+
+LOCAL_LIBEVENT=~/local/git/GRAPES/libevent-2-build/64bit/
+
+LOCAL_FFMPEG=ffmpeg
 LOCAL_AVCODEC="$LOCAL_FFMPEG/libavcodec"
 LOCAL_AVDEVICE="$LOCAL_FFMPEG/libavdevice"
 LOCAL_AVFILTER="$LOCAL_FFMPEG/libavfilter"
@@ -26,19 +29,20 @@ LOCAL_POSTPROC="$LOCAL_FFMPEG/libpostproc"
 LOCAL_SWSCALE="$LOCAL_FFMPEG/libswscale"
 
 
-LOCAL_VIDEO_ENV="-I$LOCAL_FFMPEG -L$LOCAL_AVCODEC -L$LOCAL_AVDEVICE -L$LOCAL_AVFILTER -L$LOCAL_AVFORMAT -L$LOCAL_AVUTIL -L$LOCAL_POSTPROC -L$LOCAL_SWSCALE -L$LOCAL_X264 -Wl,--warn-common -Wl,--as-needed -Wl,-Bsymbolic"
+LOCAL_VIDEO_ENV="-I$LOCAL_LIBEVENT/include -I$LOCAL_FFMPEG -L$LOCAL_AVCODEC -L$LOCAL_AVDEVICE -L$LOCAL_AVFILTER -L$LOCAL_AVFORMAT -L$LOCAL_AVUTIL -L$LOCAL_POSTPROC -L$LOCAL_SWSCALE -L$LOCAL_X264 -Wl,--warn-common -Wl,--as-needed -Wl,-Bsymbolic"
 
-LOCAL_VIDEO_FLAGS="-lavdevice -lavformat -lavcodec -lavutil -lswscale -lz -lm -lpthread -ldl `sdl-config --libs --cflags` -DHAVE_OPENGL -lbz2 -lmp3lame -lx264"
+LOCAL_VIDEO_FLAGS="-lavdevice -lavformat -lavcodec -lavutil -lswscale -lz -lm -lpthread -ldl `sdl-config --libs --cflags` -DHAVE_OPENGL -lbz2 -lmp3lame"
+# -lx264"
 
-LOCAL_GRAPES="../../GRAPES"
+LOCAL_GRAPES="GRAPES"
 LOCAL_GRAPES_ENV="-I$LOCAL_GRAPES/ul -I$LOCAL_GRAPES/include -L$LOCAL_GRAPES/som"
 LOCAL_GRAPES_FLAGS="-lsom"
 
 LOCAL_CURL_ENV=""
 LOCAL_CURL_FLAGS="-lcurl"
 
-LOCAL_MHD="./ExternalDependancies/libmicrohttpd"
-LOCAL_MHD_ENV="-I$LOCAL_MHD -I$LOCAL_MHD/src/daemon -I$LOCAL_MHD/src/include -L$LOCAL_MHD/src/daemon"
+LOCAL_MHD="./libmicrohttpd"
+LOCAL_MHD_ENV="-I$LOCAL_MHD -I$LOCAL_MHD/src/daemon -I$LOCAL_MHD/src/include -L$LOCAL_MHD/src/daemon -L$LOCAL_MHD/src/daemon/.libs/"
 LOCAL_MHD_FLAGS="-lmicrohttpd"
 
 LOCAL_ENV="$LOCAL_VIDEO_ENV $LOCAL_GRAPES_ENV $LOCAL_CURL_ENV $LOCAL_MHD_ENV"
