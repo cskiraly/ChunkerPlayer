@@ -51,8 +51,8 @@ LOCAL_FLAGS="$LOCAL_VIDEO_FLAGS $LOCAL_GRAPES_FLAGS $LOCAL_CURL_FLAGS $LOCAL_MHD
 echo "USING LOCAL ENVIRONMENT $LOCAL_ENV"
 echo "USING LOCAL FLAGS $LOCAL_FLAGS"
 
-gcc $LOCAL_ENV chunk_puller.c chunker_player.c external_chunk_transcoding.c $LOCAL_FLAGS -g -O0 -o chunker_player
-gcc $LOCAL_ENV chunk_pusher.c chunker_metadata.c external_chunk_transcoding.c chunker_streamer.c $LOCAL_FLAGS -g -O0 -o chunker_streamer
+gcc $LOCAL_ENV chunk_puller_stdin.c chunker_player.c external_chunk_transcoding.c $LOCAL_FLAGS -g -O0 -o chunker_player
+gcc $LOCAL_ENV chunk_pusher_stdout.c chunker_metadata.c external_chunk_transcoding.c chunker_streamer.c $LOCAL_FLAGS -g -O0 -o chunker_streamer
 
 echo ""
 echo "done!"
