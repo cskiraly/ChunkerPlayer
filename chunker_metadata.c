@@ -44,7 +44,7 @@ struct chunker_metadata *chunkerInit(const char *config) {
 	int isstrategy;
 	char str[1000];
 	char *p;
-	printf("Calling chunkerInit...\n");
+	fprintf(stderr,"Calling chunkerInit...\n");
 	FILE *fp = fopen(config,"r");
 	ChunkerMetadata *cmeta = (ChunkerMetadata *)malloc(sizeof(ChunkerMetadata));
 	cmeta->echunk = NULL;
@@ -71,7 +71,7 @@ struct chunker_metadata *chunkerInit(const char *config) {
 		}
 	}
 	fclose(fp);
-	printf("done!\n");
+	fprintf(stderr,"done!\n");
 	return cmeta;
 }
 

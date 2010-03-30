@@ -24,15 +24,15 @@ static inline void bit32_encoded_push(uint32_t v, uint8_t *p)
 
 void print_block(const uint8_t *b, int size) {
 int i=0;
-printf("BEGIN OF %d BYTES---\n", size);
+fprintf(stderr,"BEGIN OF %d BYTES---\n", size);
 for(i=0; i<size; i++) {
-printf("%d ", *(b+i));
+fprintf(stderr,"%d ", *(b+i));
 }
-printf("END OF %d BYTES---\n", size);
+fprintf(stderr,"END OF %d BYTES---\n", size);
 }
 
 void chunker_logger(const char *s) {
-	printf("%s\n", s);
+	fprintf(stderr,"%s\n", s);
 }
 
 
@@ -83,7 +83,7 @@ ExternalChunk *grapesChunkToExternalChunk(Chunk *gchunk) {
 	uint64_t tmp_prio;
 	ExternalChunk *echunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
 	if(!echunk) {
-		printf("Memory error in chunkToExternalchunk!\n");
+		fprintf(stderr,"Memory error in chunkToExternalchunk!\n");
 		return NULL;
 	}
 	/* pull out info from the attributes block from the grapes chunk */
