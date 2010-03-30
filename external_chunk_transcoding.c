@@ -46,7 +46,7 @@ void *packExternalChunkToAttributes(ExternalChunk *echunk, size_t attr_size) {
 	
 	if(attr_size != needed_space) {
 		chunker_logger("space mismatch in expected allocation of attrib block size!");
-		return NULL;
+		//return NULL;
 	}
 	
 	if( (attr_block = malloc(needed_space)) == NULL ) {
