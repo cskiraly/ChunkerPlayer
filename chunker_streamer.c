@@ -24,6 +24,10 @@
 #undef main /* Prevents SDL from overriding main() */
 #endif
 
+#define DEBUG_AUDIO_FRAMES
+#define DEBUG_VIDEO_FRAMES
+//#define DEBUG_CHUNKER
+
 #define SDL_AUDIO_BUFFER_SIZE 1024
 
 int alphasortNew(const struct dirent **a, const struct dirent **b) {
@@ -120,11 +124,13 @@ int main(int argc, char *argv[]) {
 	int dir_entries;
 	int audio_bitrate;
 	int video_bitrate;
+	int contFrameAudio=0,contFrameVideo=0;
 	
 	uint8_t *buffer,*outbuf,*outbuf_audio;
 	uint8_t *outbuf_audi_audio,*tempdata;
-	//uint8_t audio_buf[(AVCODEC_MAX_AUDIO_FRAME_SIZE * 3) / 2]; //TRIPLO
-	uint16_t *audio_buf=NULL;; //TRIPLO
+	//uint8_t audio_buf[(AVCODEC_MAX_AUDIO_FRAME_SIZE * 3) / 2];
+	uint16_t *audio_buf = NULL;
+
 	unsigned int audio_buf_size = 0;
 	long double newtimestamp;
 	
@@ -151,11 +157,16 @@ int main(int argc, char *argv[]) {
 	struct dirent **namelist;
 	
 	if(argc < 4) {
-		printf("execute ./chunker_streamer moviefile audiobitrate videobitrate\n");
+		fprintf(stderr, "execute ./chunker_streamer moviefile audiobitrate videobitrate\n");
 		return -1;
 	}
 	sscanf(argv[2],"%d",&audio_bitrate);
 	sscanf(argv[3],"%d",&video_bitrate);
+
+	audio_buf = (uint16_t *)av_malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
+	outbuf_audio_size = 10000;
+	outbuf_audio = malloc(outbuf_audio_size);
+
 
 	cmeta = chunkerInit("configChunker.txt");
 	
@@ -175,9 +186,7 @@ int main(int argc, char *argv[]) {
 	}
 	mkdir("chunks",0777);
 	
-	outbuf_audio_size = 10000;
-	outbuf_audio = malloc(outbuf_audio_size);
-	fprintf(stderr,"Chunkbuffer Strategy:%d Value Strategy:%d\n", cmeta->strategy, cmeta->val_strategy);
+	fprintf(stderr, "Chunkbuffer Strategy:%d Value Strategy:%d\n", cmeta->strategy, cmeta->val_strategy);
 	f1 = fopen("original.mpg","wb");
 
 	// Register all formats and codecs
@@ -197,7 +206,7 @@ int main(int argc, char *argv[]) {
 	// Find the first video stream
 	videoStream=-1;
 	audioStream=-1;
-	fprintf(stderr,"Num streams : %d\n",pFormatCtx->nb_streams);
+	fprintf(stderr, "Num streams : %d\n",pFormatCtx->nb_streams);
 	for(i=0; i<pFormatCtx->nb_streams; i++) {
 		if(pFormatCtx->streams[i]->codec->codec_type==CODEC_TYPE_VIDEO && videoStream<0) {
 			videoStream=i;
@@ -206,8 +215,8 @@ int main(int argc, char *argv[]) {
 			audioStream=i;
 		}
 	}
-	fprintf(stderr,"Video stream has id : %d\n",videoStream);
-	fprintf(stderr,"Audio stream has id : %d\n",audioStream);
+	fprintf(stderr, "Video stream has id : %d\n",videoStream);
+	fprintf(stderr, "Audio stream has id : %d\n",audioStream);
 
 	if(videoStream==-1 && audioStream==-1)
 		return -1; // Didn't find a video stream
@@ -216,46 +225,48 @@ int main(int argc, char *argv[]) {
 	pCodecCtx=pFormatCtx->streams[videoStream]->codec;
 	pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
 
-	fprintf(stderr,"Width:%d Height:%d\n",pCodecCtx->width,pCodecCtx->height);
+	fprintf(stderr, "Width:%d Height:%d\n",pCodecCtx->width,pCodecCtx->height);
 
 	if(audioStream!=-1) {
 		aCodecCtx=pFormatCtx->streams[audioStream]->codec;
-		fprintf(stderr,"AUDIO Codecid: %d %d\n",aCodecCtx->codec_id,aCodecCtx->sample_rate);
-		fprintf(stderr,"AUDIO channels %d samplerate %d\n",aCodecCtx->channels,aCodecCtx->sample_rate);
+		fprintf(stderr, "AUDIO Codecid: %d %d\n",aCodecCtx->codec_id,aCodecCtx->sample_rate);
+		fprintf(stderr, "AUDIO channels %d samplerate %d\n",aCodecCtx->channels,aCodecCtx->sample_rate);
 	}
 
 
 
 	pCodecCtxEnc=avcodec_alloc_context();
-	//pCodecCtxEnc->me_range=16;
-	//pCodecCtxEnc->max_qdiff=4;
-	//pCodecCtxEnc->qmin=10;
-	//pCodecCtxEnc->qmax=51;
-	//pCodecCtxEnc->qcompress=0.6;
+	pCodecCtxEnc->me_range=16;
+	pCodecCtxEnc->max_qdiff=4;
+	pCodecCtxEnc->qmin=10;
+	pCodecCtxEnc->qmax=51;
+	pCodecCtxEnc->qcompress=0.6;
 	pCodecCtxEnc->codec_type = CODEC_TYPE_VIDEO;
-	pCodecCtxEnc->codec_id   = 13;//CODEC_ID_H264;//pCodecCtx->codec_id;
+	pCodecCtxEnc->codec_id   = CODEC_ID_H264;//13;//pCodecCtx->codec_id;
 	pCodecCtxEnc->bit_rate = video_bitrate;///400000;
 	// resolution must be a multiple of two 
 	pCodecCtxEnc->width = pCodecCtx->width;
 	pCodecCtxEnc->height = pCodecCtx->height;
 	// frames per second 
-	pCodecCtxEnc->time_base= (AVRational){1,25};
+	pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
+	fprintf(stderr, "CIC:%d %d %d %d\n",pCodecCtxEnc->time_base.num,pCodecCtxEnc->time_base.den,pCodecCtx->time_base.num,pCodecCtx->time_base.den);
 	pCodecCtxEnc->gop_size = 10; // emit one intra frame every ten frames 
 	//pCodecCtxEnc->max_b_frames=1;
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
 
 	aCodecCtxEnc = avcodec_alloc_context();
-	aCodecCtxEnc->bit_rate = 64000;//audio_bitrate; //256000
+	aCodecCtxEnc->bit_rate = audio_bitrate; //256000
 	aCodecCtxEnc->sample_fmt = SAMPLE_FMT_S16;
-	aCodecCtxEnc->sample_rate = 44100;//aCodecCtx->sample_rate;
-	aCodecCtxEnc->channels = 2; //aCodecCtx->channels;
-        fprintf(stderr,"InitAUDIOFRAMESIZE:%d %d\n",aCodecCtxEnc->frame_size,av_rescale(44100,1,25));
+	aCodecCtxEnc->sample_rate = aCodecCtx->sample_rate;
+	aCodecCtxEnc->channels = aCodecCtx->channels;
+        //fprintf(stderr, "InitAUDIOFRAMESIZE:%d %d\n",aCodecCtxEnc->frame_size,av_rescale(44100,1,25));
+	fprintf(stderr, "bitrate:%d sample_rate:%d channels:%d\n",aCodecCtxEnc->bit_rate,aCodecCtxEnc->sample_rate,aCodecCtxEnc->channels);
 
 	// Find the decoder for the video stream
 	
 	if(audioStream!=-1) {
 		aCodec = avcodec_find_decoder(aCodecCtx->codec_id);
-		aCodecEnc = avcodec_find_encoder(CODEC_ID_MP2);//CODEC_ID_MP3
+		aCodecEnc = avcodec_find_encoder(CODEC_ID_MP3);
 		if(aCodec==NULL) {
 			fprintf(stderr,"Unsupported acodec!\n");
 			return -1;
@@ -276,8 +287,8 @@ int main(int argc, char *argv[]) {
 
 	}
 
-	//printf("%d %d",pCodecCtx->codec_id,CODEC_ID_H264);
-	pCodecEnc =avcodec_find_encoder(13);//(CODEC_ID_H264);//pCodecCtx->codec_id);
+	fprintf(stderr, "Setting codecID to H264: %d %d",pCodecCtx->codec_id,CODEC_ID_H264);
+	pCodecEnc =avcodec_find_encoder(CODEC_ID_H264);//pCodecCtx->codec_id);
 
 	if(pCodec==NULL) {
 		fprintf(stderr, "Unsupported pcodec!\n");
@@ -299,7 +310,7 @@ int main(int argc, char *argv[]) {
 	// Allocate video frame
 	pFrame=avcodec_alloc_frame();
 	if(pFrame==NULL) {
-		fprintf(stderr,"Memory error!!!\n");
+		fprintf(stderr, "Memory error!!!\n");
 		return -1;
 	}
   
@@ -307,31 +318,31 @@ int main(int argc, char *argv[]) {
 	outbuf_size = 100000;
 	outbuf = malloc(outbuf_size);
 	if(!outbuf) {
-		fprintf(stderr,"Memory error!!!\n");
+		fprintf(stderr, "Memory error!!!\n");
 		return -1;
 	}
 	frame = (Frame *)malloc(sizeof(Frame));
 	if(!frame) {
-		fprintf(stderr,"Memory error!!!\n");
+		fprintf(stderr, "Memory error!!!\n");
 		return -1;
 	}
 	sizeFrame = 3*sizeof(int)+sizeof(struct timeval);
 	chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
 	if(!chunk) {
-		fprintf(stderr,"Memory error!!!\n");
+		fprintf(stderr, "Memory error!!!\n");
 		return -1;
 	}
 	sizeChunk = 6*sizeof(int)+2*sizeof(struct timeval)+sizeof(double);
 	initChunk(chunk,&seq_current_chunk);
 	chunkaudio = (ExternalChunk *)malloc(sizeof(ExternalChunk));
 	if(!chunkaudio) {
-		fprintf(stderr,"Memory error!!!\n");
+		fprintf(stderr, "Memory error!!!\n");
 		return -1;
 	}
 	initChunk(chunkaudio,&seq_current_chunk);
 	stime = -1;
 	
-	av_init_packet(&packet); //TRIPLO
+	//av_init_packet(&packet);
 	
 	if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
 		fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
@@ -341,69 +352,211 @@ int main(int argc, char *argv[]) {
 
 	/* initialize the HTTP chunk pusher */
 	initChunkPusher(); //TRIPLO
-	audio_buf = (uint16_t *)av_malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE); //TRIPLO
 
 
 	while(av_read_frame(pFormatCtx, &packet)>=0) {
-		//printf("reading\n");
 		// Is this a packet from the video stream?
 		if(packet.stream_index==videoStream) {
-			//printf("Videostream\n");
 			// Decode video frame
-			avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet);
+#ifdef DEBUG_VIDEO_FRAMES
+			//fprintf(stderr,"readingQUIDARIO\n");
+#endif
+			if(avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet)>0) {
 
-			// Did we get a video frame?
-			//stime = (int)packet.dts;
-			//printf("VIDEO: stime:%d %d\n",stime,(int)packet.dts);
-			if(frameFinished) { // it must be true all the time else error
-				out_size = avcodec_encode_video(pCodecCtxEnc, outbuf, outbuf_size, pFrame);
-			        //printf("video frame size nuovo pippo : %d\n",pCodecCtxEnc->frame_size);
-				frame->number = pCodecCtx->frame_number;
-				
+				// Did we get a video frame?
+				//stime = (int)packet.dts;
+				//fprintf(stderr, "VIDEO: stime:%d %d\n",stime,(int)packet.dts);
+				if(frameFinished) { // it must be true all the time else error
+					out_size = avcodec_encode_video(pCodecCtxEnc, outbuf, outbuf_size, pFrame);
+
+					frame->number = contFrameVideo++;//pCodecCtx->frame_number;
+					
+					Now=(long long)SDL_GetTicks();
+#ifdef DEBUG_VIDEO_FRAMES
+					//fprintf(stderr, "video frame size nuovo pippo : %d\n",pCodecCtxEnc->frame_size);
+					//fprintf(stderr, "dtsvideo:%f %d %d %d\n",(double)packet.dts,(int)packet.duration,pCodecCtxEnc->time_base.den,pCodecCtxEnc->time_base.num);
+#endif
+					if(packet.duration>0)
+						newtimestamp = ((double)((packet.dts)*pCodecCtxEnc->time_base.num))/((double)(packet.duration*(pCodecCtxEnc->time_base.den)));
+					else
+						newtimestamp =((double)((packet.dts)*pCodecCtxEnc->time_base.num)/((double)pCodecCtxEnc->time_base.den));
+#ifdef DEBUG_VIDEO_FRAMES
+					//frame->timestamp.tv_sec = (long)packet.dts*1.e-5;
+					//frame->timestamp.tv_usec = ((long)packet.dts%100000/100);
+					//fprintf(stderr, "ts:%llf\n",newtimestamp);
+#endif
+					if(FirstTimeVideo) {
+						DeltaTimeVideo=Now-((unsigned int)newtimestamp*(unsigned long long)1000+(newtimestamp-(unsigned int)newtimestamp)*1000);
+						FirstTimeVideo = 0;
+#ifdef DEBUG_VIDEO_FRAMES
+						//fprintf(stderr, "%lld\n",Now);
+						//fprintf(stderr, "DeltaTimeVideo : %lld\n",DeltaTimeVideo);
+#endif
+					}
+	
+					newTime = DeltaTimeVideo+((unsigned int)newtimestamp*(unsigned long long)1000+(newtimestamp-(unsigned int)newtimestamp)*1000);
+#ifdef DEBUG_VIDEO_FRAMES	
+					fprintf(stderr, "newTime : %d\n",newTime);
+#endif
+					if(newTime < 0) {
+#ifdef DEBUG_VIDEO_FRAMES
+						fprintf(stderr, "Skipping illegal video frame %d. Bad timestamp!!!\n", contFrameVideo);
+#endif
+						goto skipvideoframe;
+					}
+
+					frame->timestamp.tv_sec = (unsigned int)newTime/1000;
+					frame->timestamp.tv_usec = newTime%1000;
+	
+					frame->size = out_size;
+					frame->type = pFrame->pict_type;
+#ifdef DEBUG_VIDEO_FRAMES
+					//fprintf(stderr, "video newt:%lf dts:%ld dur:%d sec:%d usec%d pts:%d\n",newtimestamp,(long)packet.dts,packet.duration,frame->timestamp.tv_sec,frame->timestamp.tv_usec,packet.pts);
+					//fprintf(stderr, "num:%d size:%d type:%d\n",frame->number,frame->size,frame->type);
+					//fprintf(stderr,"VIDEO: tvsec:%d tvusec:%d\n",frame->timestamp.tv_sec,frame->timestamp.tv_usec);
+#endif
+					// Save the frame to disk
+					++i;
+					//SaveFrame(pFrame, pCodecCtx->width, pCodecCtx->height, i);
+#ifdef DEBUG_VIDEO_FRAMES	
+					//fprintf(stderr, "out_size:%d outbuf_size:%d packet.size:%d\n",out_size,outbuf_size,packet.size);
+					//fprintf(stderr, "%d %d\n",pCodecCtxEnc->width,pCodecCtxEnc->height);
+#endif
+					chunk->frames_num++; // number of frames in the current chunk
+					chunk->data = (uint8_t *)realloc(chunk->data,sizeof(uint8_t)*(chunk->payload_len+out_size+sizeFrame));
+					if(!chunk->data)  {
+						fprintf(stderr, "Memory error!!!\n");
+						return -1;
+					}
+#ifdef DEBUG_VIDEO_FRAMES
+					//fprintf(stderr, "QUI1\n");
+					//fprintf(stderr, "rialloco data di dim:%d con nuova dim:%d\n",chunk->payload_len,out_size);
+#endif
+					tempdata = chunk->data+chunk->payload_len;
+					*((int *)tempdata) = frame->number;
+					tempdata+=sizeof(int);
+					*((struct timeval *)tempdata) = frame->timestamp;
+					tempdata+=sizeof(struct timeval);
+					*((int *)tempdata) = frame->size;
+					tempdata+=sizeof(int);
+					*((int *)tempdata) = frame->type;
+					tempdata+=sizeof(int);
+					
+					memcpy(chunk->data+chunk->payload_len+sizeFrame,outbuf,out_size); // insert new data
+					chunk->payload_len += out_size + sizeFrame; // update payload length
+					//fprintf(stderr, "outsize:%d payload_len:%d\n",out_size,chunk->payload_len);
+					chunk->len = sizeChunk+chunk->payload_len ; // update overall length
+					
+					if(((int)frame->timestamp.tv_sec < (int)chunk->start_time.tv_sec) || ((int)frame->timestamp.tv_sec==(int)chunk->start_time.tv_sec && (int)frame->timestamp.tv_usec < (int)chunk->start_time.tv_usec) || (int)chunk->start_time.tv_sec==-1) {
+						chunk->start_time.tv_sec = frame->timestamp.tv_sec;
+						chunk->start_time.tv_usec = frame->timestamp.tv_usec;
+					}
+					if(((int)frame->timestamp.tv_sec > (int)chunk->end_time.tv_sec) || ((int)frame->timestamp.tv_sec==(int)chunk->end_time.tv_sec && (int)frame->timestamp.tv_usec > (int)chunk->end_time.tv_usec) || (int)chunk->end_time.tv_sec==-1) {
+						chunk->end_time.tv_sec = frame->timestamp.tv_sec;
+						chunk->end_time.tv_usec = frame->timestamp.tv_usec;
+					}
+					stime = -1;
+	
+					//fprintf(stderr, "Frame video %d stime:%d frame num:%d\n",stime,pCodecCtxEnc->frame_number);
+					if(chunkFilled(chunk,cmeta)) { // is chunk filled using current strategy?
+						//chbAddChunk(chunkbuffer,chunk); // add a chunk to the chunkbuffer
+						//SAVE ON FILE
+						saveChunkOnFile(chunk);
+						initChunk(chunk,&seq_current_chunk);
+					}
+					/* pict_type maybe 1 (I), 2 (P), 3 (B), 5 (AUDIO)*/
+	
+					fwrite(outbuf, 1, out_size, f1); // reconstructing original video
+	
+				}
+skipvideoframe:
+				;
+			}
+		}
+		else if(packet.stream_index==audioStream) {
+#ifdef DEBUG_AUDIO_FRAMES
+			//fprintf(stderr,"readingQUIAUDIO\n");
+#endif
+			//fprintf(stderr, "packet audio dts:%d dts:%d\n",(int)packet.dts,(int)packet.dts);
+			data_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
+			if(avcodec_decode_audio3(aCodecCtx, audio_buf, &data_size, &packet)>0) {
+#ifdef DEBUG_AUDIO_FRAMES
+				//fprintf(stderr,"readingQUIAUDIODOPODECODE\n");
+#endif
+				if(data_size>0) {
+					/* if a frame has been decoded, output it */
+					//fwrite(audio_buf, 1, data_size, outfileaudio);
+				}
+				else {
+#ifdef DEBUG_AUDIO_FRAMES
+					fprintf(stderr, "Skipping illegal audio frame %d. Error data_size!!!!!\n", contFrameAudio);
+#endif
+					goto skipaudioframe;
+				}
+				audio_size = avcodec_encode_audio(aCodecCtxEnc,outbuf_audio,data_size,audio_buf);
+#ifdef DEBUG_AUDIO_FRAMES
+				//fprintf(stderr,"readingQUIAUDIODOPOENCODEE\n");
+				//fprintf(stderr, "audio frame size nuovo pippo : %d %d datasize:%d %d %d\n",aCodecCtxEnc->frame_size,aCodecCtxEnc->time_base.den,data_size,packet.size, len1);
+				//fprintf(stderr, "oldaudiosize:%d Audio size : %d\n",len1,audio_size);
+				//fprintf(stderr, "stream_index:%d flags:%d pos:%d conv_duration:%d dts:%d dts:%d duration:%d\n",packet.stream_index,packet.flags,packet.pos,packet.convergence_duration,packet.dts,packet.dts,packet.duration);
+#endif				
+				frame->number = contFrameAudio++;//aCodecCtx->frame_number;
+	
+				//newtimestamp = (double)((float)packet.dts/(packet.duration*34.100));
 				Now=(long long)SDL_GetTicks();
-				fprintf(stderr,"dts:%d %d %d\n",(int)packet.dts,(int)packet.duration,pCodecCtxEnc->time_base.den);
 				if(packet.duration>0)
-					newtimestamp = (((int)(packet.dts))/((double)(packet.duration*pCodecCtxEnc->time_base.den)));
+					newtimestamp = ((double)((packet.dts)*aCodecCtxEnc->time_base.num))/((double)(packet.duration*(aCodecCtxEnc->time_base.den)));
 				else
-					newtimestamp =(long double)(((double)(packet.dts))/1000);
+					newtimestamp =((double)((packet.dts)*aCodecCtxEnc->time_base.num)/((double)aCodecCtxEnc->time_base.den));
+				newtimestamp = (double)((double)packet.dts/(packet.duration*aCodecCtxEnc->time_base.den));
+#ifdef DEBUG_AUDIO_FRAMES
+				//fprintf(stderr, "ts:%llf\n",newtimestamp);
+#endif
 				//frame->timestamp.tv_sec = (long)packet.dts*1.e-5;
 				//frame->timestamp.tv_usec = ((long)packet.dts%100000/100);
-				fprintf(stderr,"ts:%llf\n",newtimestamp);
-				if(FirstTimeVideo) {
-					//printf("%lld\n",Now);
-					DeltaTimeVideo=Now-((unsigned int)newtimestamp*(unsigned long long)1000+(newtimestamp-(unsigned int)newtimestamp)*1000);
-					FirstTimeVideo = 0;
-					//printf("DeltaTimeVideo : %lld\n",DeltaTimeVideo);
+	
+				if(FirstTimeAudio) {
+					DeltaTimeAudio=Now-((unsigned int)newtimestamp*(unsigned long long)1000+(newtimestamp-(unsigned int)newtimestamp)*1000);
+					FirstTimeAudio = 0;
 				}
+	
+				newTime = DeltaTimeAudio+((unsigned int)newtimestamp*(unsigned long long)1000+(newtimestamp-(unsigned int)newtimestamp)*1000);
 
-				newTime = DeltaTimeVideo+((unsigned int)newtimestamp*(unsigned long long)1000+(newtimestamp-(unsigned int)newtimestamp)*1000);
+#ifdef DEBUG_AUDIO_FRAMES
+				//fprintf(stderr, "%lld %lld\n",newTime/1000,newTime%1000);
+				fprintf(stderr, "newTime : %d\n",newTime);
+#endif
 
-				fprintf(stderr,"newTime : %d\n",newTime);
-
+				if(newTime < 0) {
+#ifdef DEBUG_AUDIO_FRAMES
+					fprintf(stderr, "Skipping illegal audio frame %d. Bad timestamp!!!\n", contFrameAudio);
+#endif
+					goto skipaudioframe;
+				}
+	
 				frame->timestamp.tv_sec = (unsigned int)newTime/1000;
 				frame->timestamp.tv_usec = newTime%1000;
-
-				frame->size = out_size;
-				frame->type = pFrame->pict_type;
-				//printf("video newt:%lf dts:%ld dur:%d sec:%d usec%d pts:%d\n",newtimestamp,(long)packet.dts,packet.duration,frame->timestamp.tv_sec,frame->timestamp.tv_usec,packet.pts);
-				//printf("num:%d size:%d type:%d\n",frame->number,frame->size,frame->type);
-
-				fprintf(stderr,"VIDEO: tvsec:%d tvusec:%d\n",frame->timestamp.tv_sec,frame->timestamp.tv_usec);
-				// Save the frame to disk
-				++i;
-				//SaveFrame(pFrame, pCodecCtx->width, pCodecCtx->height, i);
+#ifdef DEBUG_AUDIO_FRAMES
+				//fprintf(stderr,"readingQUIPEPPE\n");
+				//fprintf(stderr, "AUDIO: tvsec:%d tvusec:%d\n",frame->timestamp.tv_sec,frame->timestamp.tv_usec);
+#endif
+				//frame->timestamp.tv_sec = (unsigned int)newtimestamp;
+				//frame->timestamp.tv_usec = (newtimestamp-frame->timestamp.tv_sec)*1000;
+	
+				//fprintf(stderr, "Audio time nuovo :%lld %lld\n",Now,DeltaTimeAudio+((long long)frame->timestamp.tv_sec*(unsigned long long)1000+frame->timestamp.tv_usec));
+	
+				//fprintf(stderr, "audio newt:%lf dts:%ld dur:%d sec:%d usec%d pts:%d\n",newtimestamp,(long)packet.dts,packet.duration,frame->timestamp.tv_sec,frame->timestamp.tv_usec,packet.pts);
+				frame->size = audio_size;
+				frame->type = 5; // 5 is audio type
 				
-				//printf("out_size:%d outbuf_size:%d packet.size:%d\n",out_size,outbuf_size,packet.size);
-				//        printf("%d %d\n",pCodecCtxEnc->width,pCodecCtxEnc->height);
-				chunk->frames_num++; // number of frames in the current chunk
-				chunk->data = (uint8_t *)realloc(chunk->data,sizeof(uint8_t)*(chunk->payload_len+out_size+sizeFrame));
-				if(!chunk->data)  {
-					fprintf(stderr,"Memory error!!!\n");
+				chunkaudio->frames_num++; // number of frames in the current chunk
+				
+				chunkaudio->data = (uint8_t *)realloc(chunkaudio->data,sizeof(uint8_t)*(chunkaudio->payload_len+audio_size+sizeFrame));
+				if(!chunkaudio->data) {
+					fprintf(stderr, "Memory error!!!\n");
 					return -1;
 				}
-        //printf("rialloco data di dim:%d con nuova dim:%d\n",chunk->payload_len,out_size);
-
-				tempdata = chunk->data+chunk->payload_len;
+				tempdata = chunkaudio->data+chunkaudio->payload_len;
 				*((int *)tempdata) = frame->number;
 				tempdata+=sizeof(int);
 				*((struct timeval *)tempdata) = frame->timestamp;
@@ -412,131 +565,49 @@ int main(int argc, char *argv[]) {
 				tempdata+=sizeof(int);
 				*((int *)tempdata) = frame->type;
 				tempdata+=sizeof(int);
+					
+				memcpy(chunkaudio->data+chunkaudio->payload_len+sizeFrame,outbuf_audio,audio_size);
+				chunkaudio->payload_len += audio_size + sizeFrame; // update payload length
+					//fprintf(stderr, "outsize:%d payload_len:%d\n",out_size,chunk->payload_len);
+				chunkaudio->len = sizeChunk+chunkaudio->payload_len ; // update overall length
 				
-				memcpy(chunk->data+chunk->payload_len+sizeFrame,outbuf,out_size); // insert new data
-				chunk->payload_len += out_size + sizeFrame; // update payload length
-				//printf("outsize:%d payload_len:%d\n",out_size,chunk->payload_len);
-				chunk->len = sizeChunk+chunk->payload_len ; // update overall length
-				
-				if(((int)frame->timestamp.tv_sec < (int)chunk->start_time.tv_sec) || ((int)frame->timestamp.tv_sec==(int)chunk->start_time.tv_sec && (int)frame->timestamp.tv_usec < (int)chunk->start_time.tv_usec) || (int)chunk->start_time.tv_sec==-1) {
-					chunk->start_time.tv_sec = frame->timestamp.tv_sec;
-					chunk->start_time.tv_usec = frame->timestamp.tv_usec;
+	//			stime = (int)packet.dts;
+				//fprintf(stderr, "AUDIO: stime:%d\n",stime);
+				if(((int)frame->timestamp.tv_sec < (int)chunkaudio->start_time.tv_sec) || ((int)frame->timestamp.tv_sec==(int)chunkaudio->start_time.tv_sec && (int)frame->timestamp.tv_usec < (int)chunkaudio->start_time.tv_usec) || (int)chunkaudio->start_time.tv_sec==-1) {
+					chunkaudio->start_time.tv_sec = frame->timestamp.tv_sec;
+					chunkaudio->start_time.tv_usec = frame->timestamp.tv_usec;
 				}
-				if(((int)frame->timestamp.tv_sec > (int)chunk->end_time.tv_sec) || ((int)frame->timestamp.tv_sec==(int)chunk->end_time.tv_sec && (int)frame->timestamp.tv_usec > (int)chunk->end_time.tv_usec) || (int)chunk->end_time.tv_sec==-1) {
-					chunk->end_time.tv_sec = frame->timestamp.tv_sec;
-					chunk->end_time.tv_usec = frame->timestamp.tv_usec;
+				if(((int)frame->timestamp.tv_sec > (int)chunkaudio->end_time.tv_sec) || ((int)frame->timestamp.tv_sec==(int)chunkaudio->end_time.tv_sec && (int)frame->timestamp.tv_usec > (int)chunkaudio->end_time.tv_usec) || (int)chunkaudio->end_time.tv_sec==-1) {
+					chunkaudio->end_time.tv_sec = frame->timestamp.tv_sec;
+					chunkaudio->end_time.tv_usec = frame->timestamp.tv_usec;
 				}
-				stime = -1;
-				//printf("Frame video %d stime:%d frame num:%d\n",stime,pCodecCtxEnc->frame_number);
-				if(chunkFilled(chunk, cmeta)) { // is chunk filled using current strategy?
-					//chbAddChunk(chunkbuffer,chunk); // add a chunk to the chunkbuffer
+		//		if(stime < chunkaudio->start_time.tv_usec || chunkaudio->start_time.tv_usec==-1)
+			//		chunkaudio->start_time.tv_usec = stime;
+			//	if(stime > chunkaudio->end_time.tv_usec || chunkaudio->end_time.tv_usec==-1)
+			//		chunkaudio->end_time.tv_usec = stime;
+				stime=-1;
+				chunkaudio->priority = 1;
+#ifdef DEBUG_AUDIO_FRAMES
+				//fprintf(stderr,"readingQUIPEPPE2\n");
+#endif
+				//fprintf(stderr, "Frame audio stime:%d frame_num:%d\n",stime,aCodecCtxEnc->frame_number);
+				if(chunkFilled(chunkaudio,cmeta)) { // is chunk filled using current strategy?
+					//chbAddChunk(chunkbuffer,chunkaudio); // add a chunk to the chunkbuffer
 					//SAVE ON FILE
-					saveChunkOnFile(chunk);
-					initChunk(chunk,&seq_current_chunk);
+					saveChunkOnFile(chunkaudio);
+					initChunk(chunkaudio,&seq_current_chunk);
 				}
-				/* pict_type maybe 1 (I), 2 (P), 3 (B), 4 (AUDIO)*/
-
-				fwrite(outbuf, 1, out_size, f1); // reconstructing original video
+#ifdef DEBUG_AUDIO_FRAMES
+				//fprintf(stderr,"readingQUIPEPPE3\n");
+#endif
 			}
-		}
-		else if(packet.stream_index==audioStream) {
-
-			//printf("packet audio dts:%d dts:%d\n",(int)packet.dts,(int)packet.dts);
-			data_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
-			len1 = avcodec_decode_audio3(aCodecCtx, (short *)audio_buf, &data_size, &packet);
-			if(len1<0) {
-				fprintf(stderr, "Error while decoding\n");
-				return -1;
-			}
-			if(data_size>0) {
-				/* if a frame has been decoded, output it */
-				//fwrite(audio_buf, 1, data_size, outfileaudio);
-			}
-			else
-				fprintf(stderr,"Error data_size!!\n");
-			audio_size = avcodec_encode_audio(aCodecCtxEnc,outbuf_audio,data_size,(short *)audio_buf);
-			//printf("audio frame size nuovo pippo : %d %d datasize:%d %d %d\n",aCodecCtxEnc->frame_size,aCodecCtxEnc->time_base.den,data_size,packet.size, len1);
-			//printf("oldaudiosize:%d Audio size : %d\n",len1,audio_size);
-			//printf("stream_index:%d flags:%d pos:%d conv_duration:%d dts:%d dts:%d duration:%d\n",packet.stream_index,packet.flags,packet.pos,packet.convergence_duration,packet.dts,packet.dts,packet.duration);
-			
-			frame->number = aCodecCtx->frame_number;
-
-			//newtimestamp = (double)((float)packet.dts/(packet.duration*34.100));
-			Now=(long long)SDL_GetTicks();
-			newtimestamp = (double)((double)packet.dts/(packet.duration*aCodecCtxEnc->time_base.den));
-			//frame->timestamp.tv_sec = (long)packet.dts*1.e-5;
-			//frame->timestamp.tv_usec = ((long)packet.dts%100000/100);
-
-			if(FirstTimeAudio) {
-				DeltaTimeAudio=Now-((unsigned int)newtimestamp*(unsigned long long)1000+(newtimestamp-(unsigned int)newtimestamp)*1000);
-				FirstTimeAudio = 0;
-			}
-
-			newTime = DeltaTimeAudio+((unsigned int)newtimestamp*(unsigned long long)1000+(newtimestamp-(unsigned int)newtimestamp)*1000);
-                        //printf("%lld %lld\n",newTime/1000,newTime%1000);
-
-                        frame->timestamp.tv_sec = (unsigned int)newTime/1000;
-                        frame->timestamp.tv_usec = newTime%1000;
-
-			fprintf(stderr,"AUDIO: tvsec:%d tvusec:%d\n",frame->timestamp.tv_sec,frame->timestamp.tv_usec);
-
-			//frame->timestamp.tv_sec = (unsigned int)newtimestamp;
-			//frame->timestamp.tv_usec = (newtimestamp-frame->timestamp.tv_sec)*1000;
-
-			//printf("Audio time nuovo :%lld %lld\n",Now,DeltaTimeAudio+((long long)frame->timestamp.tv_sec*(unsigned long long)1000+frame->timestamp.tv_usec));
-
-			//printf("audio newt:%lf dts:%ld dur:%d sec:%d usec%d pts:%d\n",newtimestamp,(long)packet.dts,packet.duration,frame->timestamp.tv_sec,frame->timestamp.tv_usec,packet.pts);
-			frame->size = audio_size;
-			frame->type = 5; // 5 is audio type
-			
-			chunkaudio->frames_num++; // number of frames in the current chunk
-			
-			chunkaudio->data = (uint8_t *)realloc(chunkaudio->data,sizeof(uint8_t)*(chunkaudio->payload_len+audio_size+sizeFrame));
-			if(!chunkaudio->data) {
-				fprintf(stderr,"Memory error!!!\n");
-				return -1;
-			}
-			tempdata = chunkaudio->data+chunkaudio->payload_len;
-			*((int *)tempdata) = frame->number;
-			tempdata+=sizeof(int);
-			*((struct timeval *)tempdata) = frame->timestamp;
-			tempdata+=sizeof(struct timeval);
-			*((int *)tempdata) = frame->size;
-			tempdata+=sizeof(int);
-			*((int *)tempdata) = frame->type;
-			tempdata+=sizeof(int);
-				
-			memcpy(chunkaudio->data+chunkaudio->payload_len+sizeFrame,outbuf_audio,audio_size);
-			chunkaudio->payload_len += audio_size + sizeFrame; // update payload length
-				//printf("outsize:%d payload_len:%d\n",out_size,chunk->payload_len);
-			chunkaudio->len = sizeChunk+chunkaudio->payload_len ; // update overall length
-			
-//			stime = (int)packet.dts;
-			//printf("AUDIO: stime:%d\n",stime);
-			if(((int)frame->timestamp.tv_sec < (int)chunkaudio->start_time.tv_sec) || ((int)frame->timestamp.tv_sec==(int)chunkaudio->start_time.tv_sec && (int)frame->timestamp.tv_usec < (int)chunkaudio->start_time.tv_usec) || (int)chunkaudio->start_time.tv_sec==-1) {
-				chunkaudio->start_time.tv_sec = frame->timestamp.tv_sec;
-				chunkaudio->start_time.tv_usec = frame->timestamp.tv_usec;
-			}
-			if(((int)frame->timestamp.tv_sec > (int)chunkaudio->end_time.tv_sec) || ((int)frame->timestamp.tv_sec==(int)chunkaudio->end_time.tv_sec && (int)frame->timestamp.tv_usec > (int)chunkaudio->end_time.tv_usec) || (int)chunkaudio->end_time.tv_sec==-1) {
-				chunkaudio->end_time.tv_sec = frame->timestamp.tv_sec;
-				chunkaudio->end_time.tv_usec = frame->timestamp.tv_usec;
-			}
-	//		if(stime < chunkaudio->start_time.tv_usec || chunkaudio->start_time.tv_usec==-1)
-		//		chunkaudio->start_time.tv_usec = stime;
-		//	if(stime > chunkaudio->end_time.tv_usec || chunkaudio->end_time.tv_usec==-1)
-		//		chunkaudio->end_time.tv_usec = stime;
-			stime=-1;
-			chunkaudio->priority = 1;
-			//printf("Frame audio stime:%d frame_num:%d\n",stime,aCodecCtxEnc->frame_number);
-			if(chunkFilled(chunkaudio, cmeta)) { // is chunk filled using current strategy?
-				//chbAddChunk(chunkbuffer,chunkaudio); // add a chunk to the chunkbuffer
-				//SAVE ON FILE
-				saveChunkOnFile(chunkaudio);
-				initChunk(chunkaudio,&seq_current_chunk);
-			}
+skipaudioframe:
+			;
 		}
 		else {
-			// Free the packet that was allocated by av_read_frame
+#ifdef DEBUG_AUDIO_FRAMES
+			fprintf(stderr,"Free the packet that was allocated by av_read_frame\n");
+#endif
 			av_free_packet(&packet);
 		}
 	}
@@ -544,7 +615,7 @@ int main(int argc, char *argv[]) {
 	if(chunk->frames_num>0) {
 		//chbAddChunk(chunkbuffer,chunk);
 		//SAVE ON FILE
-		saveChunkOnFile(chunk);	
+		saveChunkOnFile(chunk);
 	}
 	if(chunkaudio->frames_num>0) {
 		//chbAddChunk(chunkbuffer,chunkaudio);
@@ -564,15 +635,16 @@ int main(int argc, char *argv[]) {
 	fclose(f1);
 
 	// Writing chunk files
-	fprintf(stderr,"cmetasize:%d\n",cmeta->size);
+#ifdef DEBUG_CHUNKER
+	fprintf(stderr, "cmetasize:%d\n",cmeta->size);
 	for(i=0;i<cmeta->size;i++) {
-		fprintf(stderr,"seq:%d pay_len:%d frames_num:%d priority:%f ssec:%d susec:%d esec:%d eusec:%d\n",cmeta->echunk[i].seq,cmeta->echunk[i].payload_len,cmeta->echunk[i].frames_num,cmeta->echunk[i].priority,(int)cmeta->echunk[i].start_time.tv_sec,(int)cmeta->echunk[i].start_time.tv_usec,(int)cmeta->echunk[i].end_time.tv_sec,(int)cmeta->echunk[i].end_time.tv_usec);
+		fprintf(stderr, "seq:%d pay_len:%d frames_num:%d priority:%f ssec:%d susec:%d esec:%d eusec:%d\n",cmeta->echunk[i].seq,cmeta->echunk[i].payload_len,cmeta->echunk[i].frames_num,cmeta->echunk[i].priority,(int)cmeta->echunk[i].start_time.tv_sec,(int)cmeta->echunk[i].start_time.tv_usec,(int)cmeta->echunk[i].end_time.tv_sec,(int)cmeta->echunk[i].end_time.tv_usec);
 	}
+#endif
 
 	// Free the YUV frame
 	av_free(pFrame);
-
-	av_free(audio_buf); //TRIPLO
+	av_free(audio_buf);
   
 	// Close the codec
 	avcodec_close(pCodecCtx);
