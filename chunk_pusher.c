@@ -60,16 +60,18 @@ int pushChunkHttp(ExternalChunk *echunk, char *url) {
 			if(curl_handle) {
 				curl_easy_setopt(curl_handle, CURLOPT_URL, url);
 				/* fill the headers */
-//				headers = curl_slist_append(headers, "Content-Type: application/octet-stream");
+				headers = curl_slist_append(headers, "Content-Type: application/octet-stream");
+				/* disable Expect: header */
+				headers = curl_slist_append(headers, "Expect:");
 				/* post binary data */
 				curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, buffer);
 				/* set the size of the postfields data */
 				curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDSIZE, buffer_size);
 				/* pass our list of custom made headers */
-//				curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, headers);
+				curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, headers);
 //print_block(buffer, buffer_size);
 				curl_easy_perform(curl_handle); /* post away! */
-//				curl_slist_free_all(headers); /* free the header list */
+				curl_slist_free_all(headers); /* free the header list */
 				ret = STREAMER_OK_RETURN;
 			}
 			/* always cleanup curl */ 
