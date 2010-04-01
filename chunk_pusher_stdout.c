@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <string.h>
-#include <curl/curl.h>
 
 #include "external_chunk_transcoding.h"
 #include "chunker_streamer.h"
@@ -14,18 +13,12 @@ void chunker_logger(const char *s);
 
 
 void initChunkPusher() {	
-	/* In windows, this will init the winsock stuff */ 
-	curl_global_init(CURL_GLOBAL_ALL);
 }
 
 void finalizeChunkPusher() {
-	curl_global_cleanup();
 }
 
 int pushChunkHttp(ExternalChunk *echunk, char *url) {
-	//MAKE THE CURL EASY HANDLE GLOBAL? TO REUSE IT?
-	CURL *curl_handle;
-	struct curl_slist *headers=NULL;
 	void *grapes_chunk_attributes_block=NULL;
 	uint8_t *buffer=NULL;
 	static size_t attr_size = 0;
