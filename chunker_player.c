@@ -884,13 +884,16 @@ int main(int argc, char *argv[]) {
 	SDL_WaitThread(video_thread,NULL);
 	SDL_PauseAudio(1);
 	SDL_CloseAudio();
+	SDL_Quit();
 
 	//SDL_DestroyMutex(lock);
 	av_free(aCodecCtx);
 	free(AudioPkt.data);
 	free(VideoPkt.data);
 	free(namelist);
+  free(outbuf_audio);
 
+	finalizeChunkPuller();
 
 	return 0;
 }

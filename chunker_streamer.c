@@ -104,6 +104,8 @@ void initChunk(ExternalChunk *chunk,int *seq_num) {
 	chunk->frames_num = 0;
 	chunk->payload_len = 0;
 	chunk->len=0;
+  if(chunk->data != NULL)
+    free(chunk->data);
 	chunk->data = NULL;
 	chunk->start_time.tv_sec = -1;
 	chunk->start_time.tv_usec = -1;
@@ -333,12 +335,14 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 	sizeChunk = 6*sizeof(int)+2*sizeof(struct timeval)+sizeof(double);
+  chunk->data=NULL;
 	initChunk(chunk,&seq_current_chunk);
 	chunkaudio = (ExternalChunk *)malloc(sizeof(ExternalChunk));
 	if(!chunkaudio) {
 		fprintf(stderr, "Memory error!!!\n");
 		return -1;
 	}
+  chunkaudio->data=NULL;
 	initChunk(chunkaudio,&seq_current_chunk);
 	stime = -1;
 	
@@ -632,6 +636,8 @@ skipaudioframe:
 	free(chunk);
 	free(chunkaudio);
 	free(frame);
+	free(outbuf);
+	free(outbuf_audio);
 	fclose(f1);
 
 	// Writing chunk files
@@ -658,5 +664,6 @@ skipaudioframe:
 	// Close the video file
 	av_close_input_file(pFormatCtx);
   
+  SDL_Quit();
 	return 0;
 }
