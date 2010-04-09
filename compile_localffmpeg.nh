@@ -36,7 +36,7 @@ LOCAL_VIDEO_FLAGS="-lavdevice -lavformat -lavcodec -lavutil -lswscale -lz -lm -l
 
 LOCAL_GRAPES="GRAPES"
 LOCAL_GRAPES_ENV="-I$LOCAL_GRAPES/ul -I$LOCAL_GRAPES/include -L$LOCAL_GRAPES/som"
-LOCAL_GRAPES_FLAGS="-lsom GRAPES/som/Tests/net_helper.o"
+LOCAL_GRAPES_FLAGS="-lsom GRAPES/som/net_helper.o"
 
 LOCAL_CURL_ENV=""
 LOCAL_CURL_FLAGS="-lcurl"
