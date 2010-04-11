@@ -67,6 +67,7 @@ int answer_to_connection(void *cls, struct MHD_Connection *connection,
 
         memcpy(block, con_info->block, con_info->block_size);
         memcpy(block+con_info->block_size, upload_data, *upload_data_size);
+        free(con_info->block); //free the old referenced memory
         con_info->block = block;
         con_info->block_size += *upload_data_size;
         *upload_data_size = 0;
@@ -75,6 +76,7 @@ int answer_to_connection(void *cls, struct MHD_Connection *connection,
       else {
 				// i do not mind about return value or problems into the enqueueBlock()
         enqueueBlock(con_info->block, con_info->block_size); //this might take some time
+        free(con_info->block); //the enqueueBlock makes a copy of block into a chunk->data
         return send_response(connection, MHD_HTTP_OK);
       }
     }
