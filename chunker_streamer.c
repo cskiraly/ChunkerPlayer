@@ -19,6 +19,7 @@
 #include <SDL_thread.h>
 
 #include "chunker_streamer.h"
+#include "codec_definitions.h"
 
 #ifdef __MINGW32__
 #undef main /* Prevents SDL from overriding main() */
@@ -142,6 +143,7 @@ int main(int argc, char *argv[]) {
 	AVFrame         *pFrame; 
 	AVFrame         *pFrameRGB;
 	AVPacket         packet;
+	int64_t		last_pkt_dts=0,delta=0,delta_audio=0,last_pkt_dts_audio=0;
 
 	Frame *frame=NULL;
 
@@ -155,6 +157,8 @@ int main(int argc, char *argv[]) {
 	long long Now;
 	short int FirstTimeAudio=1, FirstTimeVideo=1;
 	long long DeltaTimeAudio=0, DeltaTimeVideo=0, newTime;
+
+	double ptsvideo1,ptsaudio1;
 	
 	struct dirent **namelist;
 	
@@ -172,6 +176,7 @@ int main(int argc, char *argv[]) {
 
 	cmeta = chunkerInit("configChunker.txt");
 	
+/*
 	dir_entries = scandir("chunks",&namelist,NULL,alphasortNew);
 	if(dir_entries>0) {
 		strcpy(basedelfile,"chunks/");
@@ -187,6 +192,7 @@ int main(int argc, char *argv[]) {
 		rmdir("chunks");
 	}
 	mkdir("chunks",0777);
+*/
 	
 	fprintf(stderr, "Chunkbuffer Strategy:%d Value Strategy:%d\n", cmeta->strategy, cmeta->val_strategy);
 	f1 = fopen("original.mpg","wb");
@@ -208,7 +214,7 @@ int main(int argc, char *argv[]) {
 	// Find the first video stream
 	videoStream=-1;
 	audioStream=-1;
-	fprintf(stderr, "Num streams : %d\n",pFormatCtx->nb_streams);
+	
 	for(i=0; i<pFormatCtx->nb_streams; i++) {
 		if(pFormatCtx->streams[i]->codec->codec_type==CODEC_TYPE_VIDEO && videoStream<0) {
 			videoStream=i;
@@ -217,6 +223,8 @@ int main(int argc, char *argv[]) {
 			audioStream=i;
 		}
 	}
+	fprintf(stderr, "Num streams : %d TBR: %d %d RFRAMERATE:%d %d Duration:%d\n",pFormatCtx->nb_streams,pFormatCtx->streams[videoStream]->time_base.num,pFormatCtx->streams[videoStream]->time_base.den,pFormatCtx->streams[videoStream]->r_frame_rate.num,pFormatCtx->streams[videoStream]->r_frame_rate.den,pFormatCtx->streams[videoStream]->duration);
+
 	fprintf(stderr, "Video stream has id : %d\n",videoStream);
 	fprintf(stderr, "Audio stream has id : %d\n",audioStream);
 
@@ -238,6 +246,7 @@ int main(int argc, char *argv[]) {
 
 
 	pCodecCtxEnc=avcodec_alloc_context();
+#ifdef H264_VIDEO_ENCODER
 	pCodecCtxEnc->me_range=16;
 	pCodecCtxEnc->max_qdiff=4;
 	pCodecCtxEnc->qmin=10;
@@ -251,10 +260,23 @@ int main(int argc, char *argv[]) {
 	pCodecCtxEnc->height = pCodecCtx->height;
 	// frames per second 
 	pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
-	fprintf(stderr, "CIC:%d %d %d %d\n",pCodecCtxEnc->time_base.num,pCodecCtxEnc->time_base.den,pCodecCtx->time_base.num,pCodecCtx->time_base.den);
 	pCodecCtxEnc->gop_size = 10; // emit one intra frame every ten frames 
 	//pCodecCtxEnc->max_b_frames=1;
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
+#else
+	pCodecCtxEnc->codec_type = CODEC_TYPE_VIDEO;
+	pCodecCtxEnc->codec_id   = CODEC_ID_MPEG4;
+	pCodecCtxEnc->bit_rate = video_bitrate;
+	pCodecCtxEnc->width = pCodecCtx->width;
+	pCodecCtxEnc->height = pCodecCtx->height;
+	// frames per second 
+	pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
+	pCodecCtxEnc->gop_size = 10; // emit one intra frame every ten frames 
+	//pCodecCtxEnc->max_b_frames=1;
+	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
+#endif
+	fprintf(stderr, "CIC:%d %d %d %d\n", pCodecCtxEnc->time_base.num, pCodecCtxEnc->time_base.den, pCodecCtx->time_base.num, pCodecCtx->time_base.den);
+
 
 	aCodecCtxEnc = avcodec_alloc_context();
 	aCodecCtxEnc->bit_rate = audio_bitrate; //256000
@@ -268,7 +290,11 @@ int main(int argc, char *argv[]) {
 	
 	if(audioStream!=-1) {
 		aCodec = avcodec_find_decoder(aCodecCtx->codec_id);
+#ifdef MP3_AUDIO_ENCODER
 		aCodecEnc = avcodec_find_encoder(CODEC_ID_MP3);
+#else
+		aCodecEnc = avcodec_find_encoder(CODEC_ID_MP2);
+#endif
 		if(aCodec==NULL) {
 			fprintf(stderr,"Unsupported acodec!\n");
 			return -1;
@@ -288,10 +314,13 @@ int main(int argc, char *argv[]) {
 		}
 
 	}
-
-	fprintf(stderr, "Setting codecID to H264: %d %d",pCodecCtx->codec_id,CODEC_ID_H264);
-	pCodecEnc =avcodec_find_encoder(CODEC_ID_H264);//pCodecCtx->codec_id);
-
+#ifdef H264_VIDEO_ENCODER
+	fprintf(stderr, "Setting codecID to H264: %d %d\n",pCodecCtx->codec_id, CODEC_ID_H264);
+	pCodecEnc = avcodec_find_encoder(CODEC_ID_H264);//pCodecCtx->codec_id);
+#else
+	fprintf(stderr, "Setting codecID to mpeg4: %d %d\n",pCodecCtx->codec_id, CODEC_ID_MPEG4);
+	pCodecEnc = avcodec_find_encoder(CODEC_ID_MPEG4);
+#endif
 	if(pCodec==NULL) {
 		fprintf(stderr, "Unsupported pcodec!\n");
 		return -1; // Codec not found
@@ -335,14 +364,14 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 	sizeChunk = 6*sizeof(int)+2*sizeof(struct timeval)+sizeof(double);
-  chunk->data=NULL;
+    chunk->data=NULL;
 	initChunk(chunk,&seq_current_chunk);
 	chunkaudio = (ExternalChunk *)malloc(sizeof(ExternalChunk));
 	if(!chunkaudio) {
 		fprintf(stderr, "Memory error!!!\n");
 		return -1;
 	}
-  chunkaudio->data=NULL;
+    chunkaudio->data=NULL;
 	initChunk(chunkaudio,&seq_current_chunk);
 	stime = -1;
 	
@@ -362,62 +391,117 @@ int main(int argc, char *argv[]) {
 		// Is this a packet from the video stream?
 		if(packet.stream_index==videoStream) {
 			// Decode video frame
-#ifdef DEBUG_VIDEO_FRAMES
-			//fprintf(stderr,"readingQUIDARIO\n");
-#endif
+			double PTS,glob_PTS;
+
+			PTS = 0;
+			glob_PTS = packet.pts;
 			if(avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet)>0) {
+#ifdef DEBUG_VIDEO_FRAMES
+				fprintf(stderr, "Tipo Frame: %d %lld\n",pFrame->pict_type,AV_NOPTS_VALUE);
+#endif
+/*				if(packet.dts==AV_NOPTS_VALUE && pFrame->opaque && *(uint64_t*)pFrame->opaque!=AV_NOPTS_VALUE) {
+					PTS = *(uint64_t *)pFrame->opaque;
+				}
+				else if(packet.dts!=AV_NOPTS_VALUE) {
+					PTS = packet.dts;
+				}
+				else
+					PTS = 0;
+				PTS *= av_q2d(pCodecCtx->time_base);*/
 
 				// Did we get a video frame?
 				//stime = (int)packet.dts;
-				//fprintf(stderr, "VIDEO: stime:%d %d\n",stime,(int)packet.dts);
+#ifdef DEBUG_VIDEO_FRAMES
+				fprintf(stderr, "VIDEO: stime DTS:%d %d\n",stime,(int)packet.dts);
+#endif
 				if(frameFinished) { // it must be true all the time else error
-					out_size = avcodec_encode_video(pCodecCtxEnc, outbuf, outbuf_size, pFrame);
-
 					frame->number = contFrameVideo++;//pCodecCtx->frame_number;
+#ifdef DEBUG_VIDEO_FRAMES
+					fprintf(stderr, "DENTROFRAMEFINISHED %lf\n",PTS);
+#endif
+					if(frame->number==0) {
+						if(packet.dts==AV_NOPTS_VALUE)
+							continue;
+						last_pkt_dts = packet.dts;
+						newTime = 0;
+					}
+					else {
+						if(packet.dts!=AV_NOPTS_VALUE) {
+							delta = packet.dts-last_pkt_dts;
+							last_pkt_dts = packet.dts;
+						}
+						else if(delta==0)
+							continue;
+					}
+#ifdef DEBUG_VIDEO_FRAMES
+					fprintf(stderr, "deltavideo : %lld\n",delta);
+#endif
+					out_size = avcodec_encode_video(pCodecCtxEnc, outbuf, outbuf_size, pFrame);
+#ifdef DEBUG_VIDEO_FRAMES
+					fprintf(stderr, "video frame size nuovo : %d\n",pCodecCtx->frame_number);
+#endif
 					
 					Now=(long long)SDL_GetTicks();
 #ifdef DEBUG_VIDEO_FRAMES
-					//fprintf(stderr, "video frame size nuovo pippo : %d\n",pCodecCtxEnc->frame_size);
-					//fprintf(stderr, "dtsvideo:%f %d %d %d\n",(double)packet.dts,(int)packet.duration,pCodecCtxEnc->time_base.den,pCodecCtxEnc->time_base.num);
+					fprintf(stderr, "ptsvideo:%lld %d %d %d %f %d\n", packet.pts, (int)packet.duration, pCodecCtxEnc->time_base.den, pCodecCtxEnc->time_base.num, (double)packet.dts, pCodecCtx->time_base.den);
 #endif
-					if(packet.duration>0)
+
+/*					if(packet.duration>0)
 						newtimestamp = ((double)((packet.dts)*pCodecCtxEnc->time_base.num))/((double)(packet.duration*(pCodecCtxEnc->time_base.den)));
 					else
 						newtimestamp =((double)((packet.dts)*pCodecCtxEnc->time_base.num)/((double)pCodecCtxEnc->time_base.den));
-#ifdef DEBUG_VIDEO_FRAMES
 					//frame->timestamp.tv_sec = (long)packet.dts*1.e-5;
 					//frame->timestamp.tv_usec = ((long)packet.dts%100000/100);
+#ifdef DEBUG_VIDEO_FRAMES
 					//fprintf(stderr, "ts:%llf\n",newtimestamp);
 #endif
 					if(FirstTimeVideo) {
 						DeltaTimeVideo=Now-((unsigned int)newtimestamp*(unsigned long long)1000+(newtimestamp-(unsigned int)newtimestamp)*1000);
 						FirstTimeVideo = 0;
 #ifdef DEBUG_VIDEO_FRAMES
-						//fprintf(stderr, "%lld\n",Now);
 						//fprintf(stderr, "DeltaTimeVideo : %lld\n",DeltaTimeVideo);
+						//printf("%lld\n",Now);
 #endif
 					}
 	
 					newTime = DeltaTimeVideo+((unsigned int)newtimestamp*(unsigned long long)1000+(newtimestamp-(unsigned int)newtimestamp)*1000);
-#ifdef DEBUG_VIDEO_FRAMES	
-					fprintf(stderr, "newTime : %d\n",newTime);
-#endif
-					if(newTime < 0) {
-#ifdef DEBUG_VIDEO_FRAMES
-						fprintf(stderr, "Skipping illegal video frame %d. Bad timestamp!!!\n", contFrameVideo);
-#endif
-						goto skipvideoframe;
+*/
+/*					char countzeros[10];
+					int countz=0,ic;
+					sprintf(countzeros,"%d",pCodecCtxEnc->time_base.den);
+					for(ic=0;ic<strlen(countzeros);ic++) {
+
+						if(countzeros[ic]=='0')
+							countz++;
+					}*/
+
+					//newTime = (((double)((packet.dts)-dtsvideo1))*1000.0*(double)pCodecCtxEnc->time_base.num)/(pCodecCtxEnc->time_base.den*((double)(packet.duration)));						
+					
+					if(FirstTimeVideo && packet.pts>0) {
+						ptsvideo1 = packet.pts;
+						FirstTimeVideo = 0;
 					}
 
-					frame->timestamp.tv_sec = (unsigned int)newTime/1000;
+					if(frame->number>0)
+						newTime = ((double)packet.pts-ptsvideo1)*1000.0/((double)delta*(double)av_q2d(pFormatCtx->streams[videoStream]->r_frame_rate));
+					
+					//newTime = ((double)((packet.dts)))/(1000*av_q2d(pCodecCtxEnc->time_base));
+					
+#ifdef DEBUG_VIDEO_FRAMES
+					fprintf(stderr, "newTime : %d\n",newTime);
+#endif
+					if(newTime<0)
+						continue; //SKIP THIS FRAME (E.G. INTERLACE)
+	
+					frame->timestamp.tv_sec = (long long)newTime/1000;
 					frame->timestamp.tv_usec = newTime%1000;
 	
 					frame->size = out_size;
 					frame->type = pFrame->pict_type;
 #ifdef DEBUG_VIDEO_FRAMES
 					//fprintf(stderr, "video newt:%lf dts:%ld dur:%d sec:%d usec%d pts:%d\n",newtimestamp,(long)packet.dts,packet.duration,frame->timestamp.tv_sec,frame->timestamp.tv_usec,packet.pts);
-					//fprintf(stderr, "num:%d size:%d type:%d\n",frame->number,frame->size,frame->type);
-					//fprintf(stderr,"VIDEO: tvsec:%d tvusec:%d\n",frame->timestamp.tv_sec,frame->timestamp.tv_usec);
+					fprintf(stderr, "num:%d size:%d type:%d\n",frame->number,frame->size,frame->type);
+					fprintf(stderr, "VIDEO: tvsec:%d tvusec:%d\n",frame->timestamp.tv_sec,frame->timestamp.tv_usec);
 #endif
 					// Save the frame to disk
 					++i;
@@ -433,9 +517,9 @@ int main(int argc, char *argv[]) {
 						return -1;
 					}
 #ifdef DEBUG_VIDEO_FRAMES
-					//fprintf(stderr, "QUI1\n");
 					//fprintf(stderr, "rialloco data di dim:%d con nuova dim:%d\n",chunk->payload_len,out_size);
 #endif
+
 					tempdata = chunk->data+chunk->payload_len;
 					*((int *)tempdata) = frame->number;
 					tempdata+=sizeof(int);
@@ -473,76 +557,96 @@ int main(int argc, char *argv[]) {
 					fwrite(outbuf, 1, out_size, f1); // reconstructing original video
 	
 				}
-skipvideoframe:
-				;
 			}
 		}
 		else if(packet.stream_index==audioStream) {
 #ifdef DEBUG_AUDIO_FRAMES
-			//fprintf(stderr,"readingQUIAUDIO\n");
-#endif
 			//fprintf(stderr, "packet audio dts:%d dts:%d\n",(int)packet.dts,(int)packet.dts);
+#endif
 			data_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
 			if(avcodec_decode_audio3(aCodecCtx, audio_buf, &data_size, &packet)>0) {
 #ifdef DEBUG_AUDIO_FRAMES
-				//fprintf(stderr,"readingQUIAUDIODOPODECODE\n");
+				fprintf(stderr, "newTimeaudioSTART : %lf\n",(double)(packet.pts)*av_q2d(pFormatCtx->streams[audioStream]->time_base));
 #endif
 				if(data_size>0) {
+#ifdef DEBUG_AUDIO_FRAMES
+					fprintf(stderr, "datasizeaudio:%d\n",data_size);
+#endif
 					/* if a frame has been decoded, output it */
 					//fwrite(audio_buf, 1, data_size, outfileaudio);
 				}
-				else {
-#ifdef DEBUG_AUDIO_FRAMES
-					fprintf(stderr, "Skipping illegal audio frame %d. Error data_size!!!!!\n", contFrameAudio);
-#endif
-					goto skipaudioframe;
-				}
+				else
+					printf("Error data_size!!\n");
+	
 				audio_size = avcodec_encode_audio(aCodecCtxEnc,outbuf_audio,data_size,audio_buf);
 #ifdef DEBUG_AUDIO_FRAMES
-				//fprintf(stderr,"readingQUIAUDIODOPOENCODEE\n");
 				//fprintf(stderr, "audio frame size nuovo pippo : %d %d datasize:%d %d %d\n",aCodecCtxEnc->frame_size,aCodecCtxEnc->time_base.den,data_size,packet.size, len1);
 				//fprintf(stderr, "oldaudiosize:%d Audio size : %d\n",len1,audio_size);
 				//fprintf(stderr, "stream_index:%d flags:%d pos:%d conv_duration:%d dts:%d dts:%d duration:%d\n",packet.stream_index,packet.flags,packet.pos,packet.convergence_duration,packet.dts,packet.dts,packet.duration);
 #endif				
 				frame->number = contFrameAudio++;//aCodecCtx->frame_number;
-	
+				if(frame->number==0) {
+					if(packet.dts==AV_NOPTS_VALUE)
+						continue;
+					last_pkt_dts_audio = packet.dts;
+					newTime = 0;
+				}
+				else {
+					if(packet.dts!=AV_NOPTS_VALUE) {
+						delta_audio = packet.dts-last_pkt_dts_audio;
+						last_pkt_dts_audio = packet.dts;
+					}
+					else if(delta_audio==0)
+						continue;
+				}
+
 				//newtimestamp = (double)((float)packet.dts/(packet.duration*34.100));
 				Now=(long long)SDL_GetTicks();
+/*
 				if(packet.duration>0)
 					newtimestamp = ((double)((packet.dts)*aCodecCtxEnc->time_base.num))/((double)(packet.duration*(aCodecCtxEnc->time_base.den)));
 				else
 					newtimestamp =((double)((packet.dts)*aCodecCtxEnc->time_base.num)/((double)aCodecCtxEnc->time_base.den));
-				newtimestamp = (double)((double)packet.dts/(packet.duration*aCodecCtxEnc->time_base.den));
+				newtimestamp = ((double)((packet.dts)*aCodecCtxEnc->time_base.num))/((double)(aCodecCtxEnc->time_base.den));
 #ifdef DEBUG_AUDIO_FRAMES
-				//fprintf(stderr, "ts:%llf\n",newtimestamp);
-#endif
+				fprintf(stderr, "ts:%llf\n",newtimestamp);
 				//frame->timestamp.tv_sec = (long)packet.dts*1.e-5;
 				//frame->timestamp.tv_usec = ((long)packet.dts%100000/100);
 	
+				fprintf(stderr, "dtsaudio:%f %d %d %d\n",(double)packet.dts,(int)packet.duration,aCodecCtxEnc->time_base.den,aCodecCtxEnc->time_base.num);
+#endif
 				if(FirstTimeAudio) {
 					DeltaTimeAudio=Now-((unsigned int)newtimestamp*(unsigned long long)1000+(newtimestamp-(unsigned int)newtimestamp)*1000);
 					FirstTimeAudio = 0;
 				}
 	
 				newTime = DeltaTimeAudio+((unsigned int)newtimestamp*(unsigned long long)1000+(newtimestamp-(unsigned int)newtimestamp)*1000);
-
 #ifdef DEBUG_AUDIO_FRAMES
 				//fprintf(stderr, "%lld %lld\n",newTime/1000,newTime%1000);
-				fprintf(stderr, "newTime : %d\n",newTime);
 #endif
-
-				if(newTime < 0) {
-#ifdef DEBUG_AUDIO_FRAMES
-					fprintf(stderr, "Skipping illegal audio frame %d. Bad timestamp!!!\n", contFrameAudio);
-#endif
-					goto skipaudioframe;
+*/
+				if(FirstTimeAudio && packet.pts>0) {
+					ptsaudio1 = packet.pts;
+					FirstTimeAudio = 0;
 				}
+
+				if(frame->number>0)
+					newTime = (((double)packet.pts-ptsaudio1)*1000.0*((double)av_q2d(pFormatCtx->streams[audioStream]->time_base)));//*(double)delta_audio;
+			
+//				newTime = (aCodecCtx->sample_rate/(2*aCodecCtx->channels))*(((double)((packet.pts)-ptsaudio1))/((double)(packet.duration)))*1000.0*(double)pFormatCtx->streams[audioStream]->time_base.num/(double)pFormatCtx->streams[audioStream]->time_base.den;
+//				newTime = (double)(packet.pts)*av_q2d(pFormatCtx->streams[audioStream]->time_base);
+
 	
 				frame->timestamp.tv_sec = (unsigned int)newTime/1000;
 				frame->timestamp.tv_usec = newTime%1000;
-#ifdef DEBUG_AUDIO_FRAMES
-				//fprintf(stderr,"readingQUIPEPPE\n");
-				//fprintf(stderr, "AUDIO: tvsec:%d tvusec:%d\n",frame->timestamp.tv_sec,frame->timestamp.tv_usec);
+#ifdef DEBUG_AUDIO
+				fprintf(stderr, "ptsaudio:%f %d %d %d %f\n",(double)packet.pts,(int)packet.duration,pFormatCtx->streams[audioStream]->time_base.num,pFormatCtx->streams[audioStream]->time_base.den,(double)packet.dts);
+				//fprintf(stderr, "newTio :  %lf\n",(((double)((packet.pts)-ptsaudio1))/((double)(packet.duration)))*1000.0*(double)pFormatCtx->streams[audioStream]->time_base.num/(double)pFormatCtx->streams[audioStream]->time_base.den);
+
+				fprintf(stderr, "AUDIO: tvsec:%d tvusec:%d\n",frame->timestamp.tv_sec,frame->timestamp.tv_usec);
+				fprintf(stderr, "newTimeaudio : %d\n",newTime);
+				fprintf(stderr, "deltaaudio : %lld\n",delta_audio);
+				
 #endif
 				//frame->timestamp.tv_sec = (unsigned int)newtimestamp;
 				//frame->timestamp.tv_usec = (newtimestamp-frame->timestamp.tv_sec)*1000;
@@ -592,9 +696,8 @@ skipvideoframe:
 				stime=-1;
 				chunkaudio->priority = 1;
 #ifdef DEBUG_AUDIO_FRAMES
-				//fprintf(stderr,"readingQUIPEPPE2\n");
-#endif
 				//fprintf(stderr, "Frame audio stime:%d frame_num:%d\n",stime,aCodecCtxEnc->frame_number);
+#endif
 				if(chunkFilled(chunkaudio,cmeta)) { // is chunk filled using current strategy?
 					//chbAddChunk(chunkbuffer,chunkaudio); // add a chunk to the chunkbuffer
 					//SAVE ON FILE
@@ -605,8 +708,6 @@ skipvideoframe:
 				//fprintf(stderr,"readingQUIPEPPE3\n");
 #endif
 			}
-skipaudioframe:
-			;
 		}
 		else {
 #ifdef DEBUG_AUDIO_FRAMES
@@ -664,6 +765,6 @@ skipaudioframe:
 	// Close the video file
 	av_close_input_file(pFormatCtx);
   
-  SDL_Quit();
+    SDL_Quit();
 	return 0;
 }
