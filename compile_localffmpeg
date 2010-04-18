@@ -39,7 +39,8 @@ LOCAL_CURL_FLAGS="-lcurl"
 
 LOCAL_MHD="./ExternalDependancies/libmicrohttpd"
 LOCAL_MHD_ENV="-I$LOCAL_MHD -I$LOCAL_MHD/src/daemon -I$LOCAL_MHD/src/include -L$LOCAL_MHD/src/daemon"
-LOCAL_MHD_FLAGS="-lmicrohttpd"
+#LOCAL_MHD_FLAGS="-lmicrohttpd"
+LOCAL_MHD_FLAGS="$LOCAL_MHD/src/daemon/.libs/libmicrohttpd.a"
 
 LOCAL_ENV="$LOCAL_VIDEO_ENV $LOCAL_GRAPES_ENV $LOCAL_CURL_ENV $LOCAL_MHD_ENV"
 LOCAL_FLAGS="$LOCAL_VIDEO_FLAGS $LOCAL_GRAPES_FLAGS $LOCAL_CURL_FLAGS $LOCAL_MHD_FLAGS"
@@ -47,8 +48,8 @@ LOCAL_FLAGS="$LOCAL_VIDEO_FLAGS $LOCAL_GRAPES_FLAGS $LOCAL_CURL_FLAGS $LOCAL_MHD
 echo "USING LOCAL ENVIRONMENT $LOCAL_ENV"
 echo "USING LOCAL FLAGS $LOCAL_FLAGS"
 
-gcc $LOCAL_ENV chunk_puller.c chunker_player.c external_chunk_transcoding.c $LOCAL_FLAGS -g -O0 -o chunker_player
-gcc $LOCAL_ENV chunk_pusher.c chunker_metadata.c external_chunk_transcoding.c chunker_streamer.c $LOCAL_FLAGS -g -O0 -o chunker_streamer
+gcc $LOCAL_ENV chunk_puller.c chunker_player.c external_chunk_transcoding.c $LOCAL_FLAGS -pthread -g -O0 -o chunker_player
+gcc $LOCAL_ENV chunk_pusher.c chunker_metadata.c external_chunk_transcoding.c chunker_streamer.c $LOCAL_FLAGS -pthread -g -O0 -o chunker_streamer
 
 echo ""
 echo "done!"
