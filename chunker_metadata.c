@@ -13,65 +13,70 @@
 #include "chunker_metadata.h"
 
 
-void chunker_trim(char *s) {
-	// Trim spaces and tabs from beginning:
-	int i=0,j;
-	while((s[i]==' ')||(s[i]=='\t')) {
-		i++;
-	}
-	if(i>0) {
-		for(j=0;j<strlen(s);j++) {
-			s[j]=s[j+i];
-		}
-		s[j]='\0';
-	}
-
-	// Trim spaces and tabs from end:
-	i=strlen(s)-1;
-	while((s[i]==' ')||(s[i]=='\t') || s[i]=='\n') {
-		i--;
-	}
-	if(i<(strlen(s)-1)) {
-		s[i+1]='\0';
-	}
-}
-
 /* Read config file for chunk strategy [numframes:num|size:num] and create a new chunk_buffer object
 	numframes:num	fill each chunk with the same number of frame
 	size:num	fill each chunk with the size of bytes no bigger than num
 */
-struct chunker_metadata *chunkerInit(const char *config) {
-	int isstrategy;
-	char str[1000];
-	char *p;
-	fprintf(stderr,"Calling chunkerInit...\n");
-	FILE *fp = fopen(config,"r");
-	ChunkerMetadata *cmeta = (ChunkerMetadata *)malloc(sizeof(ChunkerMetadata));
-	cmeta->echunk = NULL;
-	cmeta->size = 0;
-	cmeta->val_strategy = 0;
-	while(fgets(str,100,fp)!=NULL) {
-		chunker_trim(str);
-		if(str[0]=='#')
-			continue;
-		if(!strcmp(str,"[strategy]")) {
-			isstrategy=1;
-			continue;
-		}
-		if(isstrategy==1) {
-			p = strtok(str,":");
-			chunker_trim(p);
-			if(!(strcmp(p,"numframes")))
-				cmeta->strategy=0;
-			if(!(strcmp(p,"size")))
-				cmeta->strategy=1;
-			p = strtok(NULL,":");
-			sscanf(p,"%d",&cmeta->val_strategy);
-			isstrategy=0;
-		}
+struct chunker_metadata *chunkerInit() {
+	ChunkerMetadata *cmeta=NULL;
+	cfg_opt_t opts[] =
+	{
+		CFG_STR("strategyType", "frames", CFGF_NONE), //"frames" or "size"
+		CFG_INT("strategyValue", 10, CFGF_NONE),
+		CFG_STR("chunkID", "sequence", CFGF_NONE), //"sequence" or "starttime"
+		CFG_STR("outsideWorldUrl", "http://localhost:5557/externalplayer", CFGF_NONE),
+		CFG_END()
+	};
+	cfg_t *cfg;
+
+	fprintf(stderr, "CONFIG: Calling chunkerInit...\n");
+	cmeta = (ChunkerMetadata *)malloc(sizeof(ChunkerMetadata));
+	if(cmeta == NULL) {
+		fprintf(stdout, "CONFIG: Error in memory for cmeta. Exiting.\n");
+		exit(-1);
 	}
-	fclose(fp);
-	fprintf(stderr,"done!\n");
+
+	cfg = cfg_init(opts, CFGF_NONE);
+	if(cfg_parse(cfg, "chunker.conf") == CFG_PARSE_ERROR) {
+		fprintf(stdout, "CONFIG: Error in parsing config file chunker.conf. Exiting.\n");
+		exit(-1);
+	}
+
+	cmeta->val_strategy = cfg_getint(cfg, "strategyValue");
+
+	if(!(strcmp(cfg_getstr(cfg, "strategyType"), "frames"))) {
+		// a fixed number of frames inside every chunk
+		cmeta->strategy = 0;
+		fprintf(stdout, "CONFIG: Will pack %d FRAMES in each chunk\n", cmeta->val_strategy);
+	}
+	else if(!(strcmp(cfg_getstr(cfg, "strategyType"), "size"))) {
+		// each chunk of approx same size of bytes
+		cmeta->strategy = 1;
+		fprintf(stdout, "CONFIG: Will pack %d BYTES in each chunk\n", cmeta->val_strategy);
+	}
+	else {
+		fprintf(stdout, "CONFIG: Unknown strategyType in config file chunker.conf. Exiting.\n");
+		exit(-1);
+	}
+
+	if(!(strcmp(cfg_getstr(cfg, "chunkID"), "sequence"))) {
+		// the chunkID is an increasing sequence of integers
+		cmeta->cid = 0;
+		fprintf(stdout, "CONFIG: Will give increasing SEQUENCE of integers as chunk IDs\n");
+	}
+	else if(!(strcmp(cfg_getstr(cfg, "chunkID"), "starttime"))) {
+		// the chunkID is the chunk start time
+		cmeta->cid = 1;
+		fprintf(stdout, "CONFIG: Will give TIMESTAMP of start time as chunk IDs\n");
+	}
+	else {
+		fprintf(stdout, "CONFIG: Unknown chunkID in config file chunker.conf. Exiting.\n");
+		exit(-1);
+	}
+
+	strcpy(cmeta->outside_world_url, cfg_getstr(cfg, "outsideWorldUrl"));
+	fprintf(stdout, "CONFIG: Chunk destination is %s\n", cmeta->outside_world_url);
+	cfg_free(cfg);
+
 	return cmeta;
 }
-
