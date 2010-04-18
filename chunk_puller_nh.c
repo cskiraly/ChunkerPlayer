@@ -61,7 +61,7 @@ void *initChunkPuller() {
     return;
   }
   pthread_create(&stdin_thread, NULL, receive, NULL); 
-  pthread_join(stdin_thread, NULL);
+//  pthread_join(stdin_thread, NULL);
 
 }
 
