@@ -5,12 +5,16 @@
 #include "external_chunk_transcoding.h"
 #include "chunker_streamer.h"
 
+#define DEBUG_PUSHER
+
 void initChunkPusher();
 void finalizeChunkPusher();
 int pushChunkHttp(ExternalChunk *echunk, char *url);
 void *chunkToAttributes(ExternalChunk *echunk, size_t attr_size);
 static inline void bit32_encoded_push(uint32_t v, uint8_t *p);
 void chunker_logger(const char *s);
+
+extern ChunkerMetadata *cmeta;
 
 
 void initChunkPusher() {	
@@ -40,12 +44,25 @@ int pushChunkHttp(ExternalChunk *echunk, char *url) {
 	if(	(grapes_chunk_attributes_block = packExternalChunkToAttributes(echunk, attr_size)) != NULL ) {
 		/* then fill-up a proper GRAPES chunk */
 		Chunk gchunk;
-		gchunk.id = echunk->seq;
 		gchunk.size = echunk->payload_len;
 		/* convert external_chunk start_time in milliseconds and put it in grapes chunk */
 		ts1e3 = (double)(echunk->start_time.tv_sec*1e3);
 		tus3e1 = (double)(echunk->start_time.tv_usec/1e3);
 		gchunk.timestamp = ts1e3+tus3e1;
+
+		//decide how to create the chunk ID
+		if(cmeta->cid == 0) {
+			gchunk.id = echunk->seq;
+#ifdef DEBUG_PUSHER
+			fprintf(stderr, "CHUNKER: packaged SEQ chunkID %d\n", gchunk.id);
+#endif
+		}
+		else if(cmeta->cid == 1) {
+			gchunk.id = ts1e3+tus3e1; //its ID is its start time
+#ifdef DEBUG_PUSHER
+			fprintf(stderr, "CHUNKER: packaged TS chunkID %d\n", gchunk.id);
+#endif
+		}
 		gchunk.attributes = grapes_chunk_attributes_block;
 		gchunk.attributes_size = attr_size;
 		gchunk.data = echunk->data;
