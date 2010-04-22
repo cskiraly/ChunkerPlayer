@@ -13,22 +13,14 @@
 
 #include <stdio.h>
 
-#include <SDL.h>
-#include <SDL_thread.h>
-
 #include "chunker_streamer.h"
 #include "codec_definitions.h"
-
-#ifdef __MINGW32__
-#undef main /* Prevents SDL from overriding main() */
-#endif
 
 //#define DEBUG_AUDIO_FRAMES
 //#define DEBUG_VIDEO_FRAMES
 //#define DEBUG_CHUNKER
 //#define DEBUG_TIME
 
-#define SDL_AUDIO_BUFFER_SIZE 1024
 
 /*
 int alphasortNew(const struct dirent **a, const struct dirent **b) {
@@ -361,22 +353,12 @@ int main(int argc, char *argv[]) {
 	initChunk(chunkaudio, &seq_current_chunk);
 	
 	//av_init_packet(&packet);
-	
-	if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
-		fprintf(stderr, "INIT: Could not initialize SDL - %s\n", SDL_GetError());
-		return -1;
-	}
-
 
 	/* initialize the HTTP chunk pusher */
 	initChunkPusher(); //TRIPLO
 
 
 	while(av_read_frame(pFormatCtx, &packet)>=0) {
-#ifdef DEBUG_TIME
-		long long Now=(long long)SDL_GetTicks();
-		fprintf(stderr, "\nTIME: %ld\n", Now);
-#endif
 		// Is this a packet from the video stream?
 		if(packet.stream_index==videoStream) {
 			// Decode video frame
@@ -741,6 +723,5 @@ int main(int argc, char *argv[]) {
   
 	// Close the video file
 	av_close_input_file(pFormatCtx);
-	SDL_Quit();
 	return 0;
 }
