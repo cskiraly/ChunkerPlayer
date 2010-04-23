@@ -21,7 +21,7 @@ typedef struct {
          * (although i would rather prefer to call this ID
          * (giuseppe tropea)
          */
-        int seq;
+        int32_t seq;
 
 //        /** Presentation timestamp */
 //        obsoleted by the start and end times
@@ -31,7 +31,7 @@ typedef struct {
         /** How many frames are in this chunk.
          * (giuseppe tropea)
          */
-        int frames_num;
+        int32_t frames_num;
 
         /**
          * The timestamp of the first frame in the chunk.
@@ -52,21 +52,21 @@ typedef struct {
          * payload_length + sizeof(Chunk) makes the chunk length
          * (giuseppe tropea)
          */
-        int payload_len;
+        int32_t payload_len;
 
         /**
          * Length in bytes.
          * (although this might be redundant since we have payload_len which is more useful
          * (giuseppe tropea)
          */
-        int len;
+        int32_t len;
 
         /**
          * An integer representing the class or group of this chunk.
          * used for example in the layered and MDC coding
          * (giuseppe tropea)
          */
-        int category;
+        int32_t category;
 
         /**
          * A double float representing the priority of this chunk.
