@@ -37,19 +37,19 @@
 
 #define SDL_AUDIO_BUFFER_SIZE 1024
 
-#define QUEUE_FILLING_THRESHOLD 500
+#define QUEUE_FILLING_THRESHOLD 200
 #define MAX_TOLLERANCE 40
 #define AUDIO	1
 #define VIDEO	2
 
-#define DEBUG_AUDIO
-#define DEBUG_VIDEO
-#define DEBUG_QUEUE
-#define DEBUG_SOURCE
-#define DEBUG_ENQUEUE
-#define DEBUG_STATS
-#define DEBUG_AUDIO_BUFFER
-#define DEBUG_ENQUEUE
+//#define DEBUG_AUDIO
+//#define DEBUG_VIDEO
+//#define DEBUG_QUEUE
+//#define DEBUG_SOURCE
+//#define DEBUG_ENQUEUE
+//#define DEBUG_STATS
+//#define DEBUG_AUDIO_BUFFER
+//#define DEBUG_ENQUEUE
 
 short int QueueFillingMode=1;
 short int QueueStopped=0;
@@ -102,7 +102,7 @@ void packet_queue_init(PacketQueue *q, short int Type) {
 	//q->cond = SDL_CreateCond();
 	QueueFillingMode=1;
 	q->queueType=Type;
-	q->last_frame_extracted = 0;
+	q->last_frame_extracted = 3;
 	q->total_lost_frames = 0;
 	q->first_pkt= NULL;
 	//q->last_pkt = NULL;
@@ -137,7 +137,7 @@ void packet_queue_reset(PacketQueue *q, short int Type) {
 #endif
 
 	QueueFillingMode=1;
-	q->last_frame_extracted = 0;
+	q->last_frame_extracted = 3;
 	q->total_lost_frames = 0;
 	q->first_pkt= NULL;
 	//q->last_pkt = NULL;
@@ -1136,7 +1136,7 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 	int data_sizeQ;
 	int lenQ;
 	int sizeFrame = 0;
-	sizeFrame = 3*sizeof(int)+sizeof(struct timeval);
+	sizeFrame = 3*sizeof(int32_t)+sizeof(struct timeval);
 #ifdef DEBUG_ENQUEUE
 printf("O\n");
 #endif
@@ -1200,14 +1200,14 @@ printf("O\n");
 	j=echunk->payload_len;
 	while(j>0 && !quit) {
 		//usleep(30000);
-		frame->number = *((int *)tempdata);
-		tempdata+=sizeof(int);
+		frame->number = *((int32_t *)tempdata);
+		tempdata+=sizeof(int32_t);
 		frame->timestamp = *((struct timeval *)tempdata);
 		tempdata += sizeof(struct timeval);
-		frame->size = *((int *)tempdata);
-		tempdata+=sizeof(int);
-		frame->type = *((int *)tempdata);
-		tempdata+=sizeof(int);
+		frame->size = *((int32_t *)tempdata);
+		tempdata+=sizeof(int32_t);
+		frame->type = *((int32_t *)tempdata);
+		tempdata+=sizeof(int32_t);
 
 		buffer = tempdata; // here coded frame information
 		tempdata+=frame->size;

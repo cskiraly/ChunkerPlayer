@@ -335,13 +335,13 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "INIT: Memory error alloc Frame!!!\n");
 		return -1;
 	}
-	sizeFrame = 3*sizeof(int)+sizeof(struct timeval);
+	sizeFrame = 3*sizeof(int32_t)+sizeof(struct timeval);
 	chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
 	if(!chunk) {
 		fprintf(stderr, "INIT: Memory error alloc chunk!!!\n");
 		return -1;
 	}
-	sizeChunk = 6*sizeof(int)+2*sizeof(struct timeval)+sizeof(double);
+	sizeChunk = 6*sizeof(int32_t)+2*sizeof(struct timeval)+sizeof(double);
     chunk->data=NULL;
 	initChunk(chunk, &seq_current_chunk);
 	chunkaudio = (ExternalChunk *)malloc(sizeof(ExternalChunk));
@@ -350,7 +350,7 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
     chunkaudio->data=NULL;
-	initChunk(chunkaudio, &seq_current_chunk);
+	initChunk(chunkaudio, &seq_current_chunk+1);
 	
 	//av_init_packet(&packet);
 
@@ -484,14 +484,14 @@ int main(int argc, char *argv[]) {
 #endif
 
 					tempdata = chunk->data+chunk->payload_len;
-					*((int *)tempdata) = frame->number;
-					tempdata+=sizeof(int);
+					*((int32_t *)tempdata) = frame->number;
+					tempdata+=sizeof(int32_t);
 					*((struct timeval *)tempdata) = frame->timestamp;
 					tempdata+=sizeof(struct timeval);
-					*((int *)tempdata) = frame->size;
-					tempdata+=sizeof(int);
-					*((int *)tempdata) = frame->type;
-					tempdata+=sizeof(int);
+					*((int32_t *)tempdata) = frame->size;
+					tempdata+=sizeof(int32_t);
+					*((int32_t *)tempdata) = frame->type;
+					tempdata+=sizeof(int32_t);
 					
 					memcpy(chunk->data+chunk->payload_len+sizeFrame,outbuf,out_size); // insert new data
 					chunk->payload_len += out_size + sizeFrame; // update payload length
@@ -642,14 +642,14 @@ int main(int argc, char *argv[]) {
 				chunkaudio->frames_num++; // number of frames in the current chunk
 				contFrameAudio++;
 				tempdata = chunkaudio->data+chunkaudio->payload_len;
-				*((int *)tempdata) = frame->number;
-				tempdata+=sizeof(int);
+				*((int32_t *)tempdata) = frame->number;
+				tempdata+=sizeof(int32_t);
 				*((struct timeval *)tempdata) = frame->timestamp;
 				tempdata+=sizeof(struct timeval);
-				*((int *)tempdata) = frame->size;
-				tempdata+=sizeof(int);
-				*((int *)tempdata) = frame->type;
-				tempdata+=sizeof(int);
+				*((int32_t *)tempdata) = frame->size;
+				tempdata+=sizeof(int32_t);
+				*((int32_t *)tempdata) = frame->type;
+				tempdata+=sizeof(int32_t);
 					
 				memcpy(chunkaudio->data+chunkaudio->payload_len+sizeFrame,outbuf_audio,audio_size);
 				chunkaudio->payload_len += audio_size + sizeFrame; // update payload length
@@ -673,7 +673,7 @@ int main(int argc, char *argv[]) {
 					//saveChunkOnFile(chunkaudio);
 					//Send the chunk via http to an external transport/player
 					pushChunkHttp(chunkaudio, cmeta->outside_world_url);
-					initChunk(chunkaudio, &seq_current_chunk);
+					initChunk(chunkaudio, &seq_current_chunk+1);
 				}
 			}
 		}

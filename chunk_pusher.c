@@ -4,7 +4,7 @@
 #include "external_chunk_transcoding.h"
 #include "chunker_streamer.h"
 
-#define DEBUG_PUSHER
+//#define DEBUG_PUSHER
 
 
 int pushChunkHttp(ExternalChunk *echunk, char *url);
@@ -20,7 +20,7 @@ int pushChunkHttp(ExternalChunk *echunk, char *url) {
 	int tus3e1 = 0.0;
 	int ret = STREAMER_FAIL_RETURN;
 	
-	attr_size = 5*sizeof(int) + 2*sizeof(time_t) + 2*sizeof(suseconds_t) + 1*sizeof(double);
+	attr_size = 5*sizeof(int32_t) + 2*sizeof(time_t) + 2*sizeof(suseconds_t) + 1*sizeof(double);
 
 	/* first pack the chunk info that we get from the streamer into an "attributes" block of a regular GRAPES chunk */
 	if(	(grapes_chunk_attributes_block = packExternalChunkToAttributes(echunk, attr_size)) != NULL ) {

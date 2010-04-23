@@ -9,7 +9,7 @@
 #define MY_IP "127.0.0.1"
 #define MY_PORT 8888
 
-#define BUFFSIZE 512000
+#define BUFFSIZE 1024000
 
 static struct nodeID *myID;
 
@@ -31,19 +31,22 @@ fprintf(stderr,"receive called\n");
     struct nodeID *remote;
     static uint8_t buff[BUFFSIZE];
 
-fprintf(stderr,"calling recv_from_peer\n");
+//fprintf(stderr,"calling recv_from_peer\n");
     len = recv_from_peer(myID, &remote, buff, BUFFSIZE);
-fprintf(stderr,"recv_from_peer returned\n");
+//fprintf(stderr,"recv_from_peer returned\n");
     if (len < 0) {
       fprintf(stderr,"Error receiving message. Maybe larger than %d bytes\n", BUFFSIZE);
       nodeid_free(remote);
       continue;
     }
     //dprintf("Received message (%c) from %s\n", buff[0], node_addr(remote));
-fprintf(stderr,"msglen: %d\n", len);
-fprintf(stderr,"msgtype: %x\n", buff[0]);
+//fprintf(stderr,"msglen: %d\n", len);
+//fprintf(stderr,"msgtype: %x\n", buff[0]);
     switch (buff[0] /* Message Type */) {
       case MSG_TYPE_CHUNK:
+if(len>510000) {
+fprintf(stderr,"warning: big message %d\n", len);
+}
         enqueueBlock(buff+1, len-1);
         break;
       default:
