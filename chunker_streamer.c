@@ -113,7 +113,7 @@ void initChunk(ExternalChunk *chunk, int *seq_num) {
 
 int main(int argc, char *argv[]) {
 	int i=0;
-	int videoStream, outbuf_size, out_size, seq_current_chunk = 0, audioStream; //HINT MORE BYTES IN SEQ
+	int videoStream, outbuf_size, out_size, seq_current_chunk = 1, audioStream; //HINT MORE BYTES IN SEQ
 	int len1, data_size;
 	int frameFinished;
 	int numBytes, outbuf_audio_size, audio_size;
@@ -344,14 +344,19 @@ int main(int argc, char *argv[]) {
 	sizeChunk = 6*sizeof(int32_t)+2*sizeof(struct timeval)+sizeof(double);
     chunk->data=NULL;
 	initChunk(chunk, &seq_current_chunk);
+#ifdef DEBUG_CHUNKER
+	fprintf(stderr, "INIT: chunk video %d\n", chunk->seq);
+#endif
 	chunkaudio = (ExternalChunk *)malloc(sizeof(ExternalChunk));
 	if(!chunkaudio) {
 		fprintf(stderr, "INIT: Memory error alloc chunkaudio!!!\n");
 		return -1;
 	}
     chunkaudio->data=NULL;
-	initChunk(chunkaudio, &seq_current_chunk+1);
-	
+	initChunk(chunkaudio, &seq_current_chunk);
+#ifdef DEBUG_CHUNKER
+	fprintf(stderr, "INIT: chunk audio %d\n", chunkaudio->seq);
+#endif
 	//av_init_packet(&packet);
 
 	/* initialize the HTTP chunk pusher */
@@ -513,6 +518,9 @@ int main(int argc, char *argv[]) {
 						//Send the chunk via http to an external transport/player
 						pushChunkHttp(chunk, cmeta->outside_world_url);
 						initChunk(chunk, &seq_current_chunk);
+#ifdef DEBUG_CHUNKER
+						fprintf(stderr, "VIDEO: chunk video %d\n", chunk->seq);
+#endif
 					}
 					/* pict_type maybe 1 (I), 2 (P), 3 (B), 5 (AUDIO)*/
 				}
@@ -673,7 +681,10 @@ int main(int argc, char *argv[]) {
 					//saveChunkOnFile(chunkaudio);
 					//Send the chunk via http to an external transport/player
 					pushChunkHttp(chunkaudio, cmeta->outside_world_url);
-					initChunk(chunkaudio, &seq_current_chunk+1);
+					initChunk(chunkaudio, &seq_current_chunk);
+#ifdef DEBUG_CHUNKER
+					fprintf(stderr, "AUDIO: chunk audio %d\n", chunkaudio->seq);
+#endif
 				}
 			}
 		}
