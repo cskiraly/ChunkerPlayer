@@ -23,8 +23,6 @@ typedef struct Frame
    */
   struct timeval timestamp;
 
-  int64_t pts;
-
   /**
    * the size in bytes of this frame.
    */
