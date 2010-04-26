@@ -4,8 +4,7 @@
 
 #include "external_chunk_transcoding.h"
 
-static inline int bit32_encoded_pull(uint8_t *p)
-{
+int bit32_encoded_pull(uint8_t *p) {
 	int tmp;
   
 	memcpy(&tmp, p, CHUNK_TRANSCODING_INT_SIZE);
@@ -14,13 +13,14 @@ static inline int bit32_encoded_pull(uint8_t *p)
 	return tmp;
 }
 
-static inline void bit32_encoded_push(uint32_t v, uint8_t *p)
-{
+
+void bit32_encoded_push(uint32_t v, uint8_t *p) {
 	uint32_t tmp;
   
 	tmp = htonl(v);
 	memcpy(p, &tmp, CHUNK_TRANSCODING_INT_SIZE);
 }
+
 
 void print_block(const uint8_t *b, int size) {
 int i=0;
@@ -31,6 +31,7 @@ fprintf(stderr,"%d ", *(b+i));
 fprintf(stderr,"END OF %d BYTES---\n", size);
 }
 
+
 void chunker_logger(const char *s) {
 	fprintf(stderr,"%s\n", s);
 }
@@ -40,16 +41,8 @@ void *packExternalChunkToAttributes(ExternalChunk *echunk, size_t attr_size) {
 	void *attr_block = NULL;
 	int64_t half_prio;
 	int64_t prio = 0.0;
-	static size_t needed_space = 0;
 	
-	needed_space = 5*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 1*CHUNK_TRANSCODING_INT_SIZE*2;
-	
-	if(attr_size != needed_space) {
-		chunker_logger("space mismatch in expected allocation of attrib block size!");
-		//return NULL;
-	}
-	
-	if( (attr_block = malloc(needed_space)) == NULL ) {
+	if( (attr_block = malloc(attr_size)) == NULL ) {
 		chunker_logger("attrib block malloc failed!");
 		return NULL;
 	}
@@ -78,6 +71,7 @@ void *packExternalChunkToAttributes(ExternalChunk *echunk, size_t attr_size) {
 	
 	return attr_block;
 }
+
 
 ExternalChunk *grapesChunkToExternalChunk(Chunk *gchunk) {
 	uint64_t tmp_prio;

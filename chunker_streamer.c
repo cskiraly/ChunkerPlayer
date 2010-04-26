@@ -15,6 +15,8 @@
 
 #include "chunker_streamer.h"
 #include "codec_definitions.h"
+#include "external_chunk_transcoding.h"
+
 
 //#define DEBUG_AUDIO_FRAMES
 //#define DEBUG_VIDEO_FRAMES
@@ -37,53 +39,6 @@ int chunkFilled(ExternalChunk *echunk, ChunkerMetadata *cmeta) {
 	return 0;
 }
 
-/*
-void SaveFrame(AVFrame *pFrame, int width, int height, int iFrame) {
-	FILE *pFile;
-	char szFilename[32];
-	int  y;
-  
-  // Open file
-	sprintf(szFilename, "frame%d.ppm", iFrame);
-
-  	pFile=fopen(szFilename, "wb");
-  	if(pFile==NULL)
-    		return;
-  
-  // Write header
-	fprintf(pFile, "P5\n%d %d\n255\n", width, height);
-  
-  // Write pixel data
-  	for(y=0; y<height; y++)
-    		fwrite(pFrame->data[0]+y*pFrame->linesize[0], 1, width, pFile);
-  
-  // Close file
-  	fclose(pFile);
-}
-*/
-
-/*
-void saveChunkOnFile(ExternalChunk *chunk) {
-	char buf[1024], outfile[1024];
-	FILE *fp;
-	
-	strcpy(buf,"chunks//CHUNK");
-	strcat(buf,"\0");
-	sprintf(outfile,"%s%d",buf,chunk->seq);
-	fp = fopen(outfile,"wb");
-	fwrite(&(chunk->seq),sizeof(int),1,fp);
-	fwrite(&(chunk->frames_num),sizeof(int),1,fp);
-	fwrite(&(chunk->start_time),sizeof(struct timeval),1,fp);
-	fwrite(&(chunk->end_time),sizeof(struct timeval),1,fp);
-	fwrite(&(chunk->payload_len),sizeof(int),1,fp);
-	fwrite(&(chunk->len),sizeof(int),1,fp);
-	fwrite(&(chunk->category),sizeof(int),1,fp);
-	fwrite(&(chunk->priority),sizeof(double),1,fp);
-	fwrite(&(chunk->_refcnt),sizeof(int),1,fp);
-	fwrite(chunk->data,sizeof(uint8_t),sizeof(uint8_t)*chunk->payload_len,fp);
-	fclose(fp);
-}
-*/
 
 void initChunk(ExternalChunk *chunk, int *seq_num) {
 	chunk->seq = (*seq_num)++;
@@ -101,6 +56,7 @@ void initChunk(ExternalChunk *chunk, int *seq_num) {
 	chunk->category = 0;
 	chunk->_refcnt = 0;
 }
+
 
 int main(int argc, char *argv[]) {
 	int i=0;
@@ -138,19 +94,17 @@ int main(int argc, char *argv[]) {
 	AVCodec         *pCodec,*pCodecEnc,*aCodec,*aCodecEnc;
 	AVPacket         packet;
 
-	//Napa-Wine specific Frame and Chunk structures for transport
-	Frame *frame = NULL;
-	ExternalChunk *chunk = NULL;
-	ExternalChunk *chunkaudio = NULL;
-	
-	//char buf[1024], outfile[1024];
-
 	//stuff needed to compute the right timestamps
 	short int FirstTimeAudio=1, FirstTimeVideo=1;
 	long long newTime;
 	double ptsvideo1=0.0;
 	double ptsaudio1=0.0;
 	int64_t last_pkt_dts=0, delta_video=0, delta_audio=0, last_pkt_dts_audio=0, target_pts=0;
+
+	//Napa-Wine specific Frame and Chunk structures for transport
+	Frame *frame = NULL;
+	ExternalChunk *chunk = NULL;
+	ExternalChunk *chunkaudio = NULL;
 
 
 	//scan the command line
@@ -665,8 +619,8 @@ int main(int argc, char *argv[]) {
 
 
 int update_chunk(ExternalChunk *chunk, Frame *frame, uint8_t *outbuf) {
-	static int sizeFrameHeader = 3*sizeof(int32_t)+sizeof(struct timeval);
-	static int sizeChunkHeader = 6*sizeof(int32_t)+2*sizeof(struct timeval)+sizeof(double);
+	//the frame.h gets encoded into 5 slots of 32bits (3 ints plus 2 more for the timeval struct
+	static int sizeFrameHeader = 5*sizeof(int32_t);
 
 	//moving temp pointer to encode Frame on the wire
 	uint8_t *tempdata = NULL;
@@ -679,6 +633,7 @@ int update_chunk(ExternalChunk *chunk, Frame *frame, uint8_t *outbuf) {
 	}
 	chunk->frames_num++; // number of frames in the current chunk
 
+/*
 	//package the Frame header
 	tempdata = chunk->data+chunk->payload_len;
 	*((int32_t *)tempdata) = frame->number;
@@ -689,11 +644,21 @@ int update_chunk(ExternalChunk *chunk, Frame *frame, uint8_t *outbuf) {
 	tempdata+=sizeof(int32_t);
 	*((int32_t *)tempdata) = frame->type;
 	tempdata+=sizeof(int32_t);
+*/
+	//package the Frame header: network order and platform independent
+	tempdata = chunk->data+chunk->payload_len;
+	bit32_encoded_push(frame->number, tempdata);
+	bit32_encoded_push(frame->timestamp.tv_sec, tempdata + CHUNK_TRANSCODING_INT_SIZE);
+	bit32_encoded_push(frame->timestamp.tv_usec, tempdata + CHUNK_TRANSCODING_INT_SIZE*2);
+	bit32_encoded_push(frame->size, tempdata + CHUNK_TRANSCODING_INT_SIZE*3);
+	bit32_encoded_push(frame->type, tempdata + CHUNK_TRANSCODING_INT_SIZE*4);
 
 	 //insert the new frame data
 	memcpy(chunk->data + chunk->payload_len + sizeFrameHeader, outbuf, frame->size);
 	chunk->payload_len += frame->size + sizeFrameHeader; // update payload length
-	chunk->len = sizeChunkHeader + chunk->payload_len; // update overall length
+	//chunk lenght is updated just prior to pushing it out because
+	//the chunk header len is better calculated there
+	//chunk->len = sizeChunkHeader + chunk->payload_len; // update overall length
 
 	//update timestamps
 	if(((int)frame->timestamp.tv_sec < (int)chunk->start_time.tv_sec) || ((int)frame->timestamp.tv_sec==(int)chunk->start_time.tv_sec && (int)frame->timestamp.tv_usec < (int)chunk->start_time.tv_usec) || (int)chunk->start_time.tv_sec==-1) {

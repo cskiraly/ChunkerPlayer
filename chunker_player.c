@@ -1098,11 +1098,11 @@ int main(int argc, char *argv[]) {
 
 
 int enqueueBlock(const uint8_t *block, const int block_size) {
-	Chunk *gchunk=NULL;
-	ExternalChunk *echunk=NULL;
+	Chunk *gchunk = NULL;
+	ExternalChunk *echunk = NULL;
 	uint8_t *tempdata, *buffer;
 	int i, j;
-	Frame *frame=NULL;
+	Frame *frame = NULL;
 	AVPacket packet, packetaudio;
 
 	//uint8_t *video_bufQ = NULL;
@@ -1111,8 +1111,9 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 	int16_t *dataQ = NULL;
 	int data_sizeQ;
 	int lenQ;
-	int sizeFrame = 0;
-	sizeFrame = 3*sizeof(int32_t)+sizeof(struct timeval);
+	//the frame.h gets encoded into 5 slots of 32bits (3 ints plus 2 more for the timeval struct
+	static int sizeFrameHeader = 5*sizeof(int32_t);
+
 	audio_bufQ = (uint16_t *)av_malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
 	gchunk = (Chunk *)malloc(sizeof(Chunk));
 	if(!gchunk) {
@@ -1139,10 +1140,11 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 		return -1;
 	}
 
-	tempdata = echunk->data;
+	tempdata = echunk->data; //let it point to first frame of payload
 	j=echunk->payload_len;
 	while(j>0 && !quit) {
 		//usleep(30000);
+/*
 		frame->number = *((int32_t *)tempdata);
 		tempdata+=sizeof(int32_t);
 		frame->timestamp = *((struct timeval *)tempdata);
@@ -1151,12 +1153,23 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 		tempdata+=sizeof(int32_t);
 		frame->type = *((int32_t *)tempdata);
 		tempdata+=sizeof(int32_t);
+*/
+		frame->number = bit32_encoded_pull(tempdata);
+		tempdata += CHUNK_TRANSCODING_INT_SIZE;
+		frame->timestamp.tv_sec = bit32_encoded_pull(tempdata);
+		tempdata += CHUNK_TRANSCODING_INT_SIZE;
+		frame->timestamp.tv_usec = bit32_encoded_pull(tempdata);
+		tempdata += CHUNK_TRANSCODING_INT_SIZE;
+		frame->size = bit32_encoded_pull(tempdata);
+		tempdata += CHUNK_TRANSCODING_INT_SIZE;
+		frame->type = bit32_encoded_pull(tempdata);
+		tempdata += CHUNK_TRANSCODING_INT_SIZE;
 
 		buffer = tempdata; // here coded frame information
-		tempdata+=frame->size;
+		tempdata += frame->size; //let it point to the next frame
 		//printf("%d %d %d %d\n",frame->number,frame->timestamp.tv_usec,frame->size,frame->type);
 
-		if(frame->type!=5) { // video frame
+		if(frame->type != 5) { // video frame
 			av_init_packet(&packet);
 				packet.data = buffer;//video_bufQ;
 				packet.size = frame->size;
@@ -1192,7 +1205,7 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 			printf("SOURCE: Insert audio in queue pts=%lld sindex:%d\n", packetaudio.pts, packetaudio.stream_index);
 #endif
 		}
-		j = j - sizeFrame - frame->size;
+		j = j - sizeFrameHeader - frame->size;
 	}
 	if(echunk->data)
 		free(echunk->data);
