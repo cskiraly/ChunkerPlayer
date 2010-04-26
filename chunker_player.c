@@ -46,7 +46,6 @@
 //#define DEBUG_VIDEO
 #define DEBUG_QUEUE
 #define DEBUG_SOURCE
-//#define DEBUG_ENQUEUE
 //#define DEBUG_STATS
 #define DEBUG_AUDIO_BUFFER
 
@@ -1114,34 +1113,16 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 	int lenQ;
 	int sizeFrame = 0;
 	sizeFrame = 3*sizeof(int32_t)+sizeof(struct timeval);
-#ifdef DEBUG_ENQUEUE
-printf("O\n");
-#endif
 	audio_bufQ = (uint16_t *)av_malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
-#ifdef DEBUG_ENQUEUE
-printf("O\n");
-#endif
 	gchunk = (Chunk *)malloc(sizeof(Chunk));
-#ifdef DEBUG_ENQUEUE
-printf("O\n");
-#endif
 	if(!gchunk) {
 		printf("Memory error in gchunk!\n");
 		return PLAYER_FAIL_RETURN;
 	}
-#ifdef DEBUG_ENQUEUE
-printf("O\n");
-#endif
 
 	decodeChunk(gchunk, block, block_size);
-#ifdef DEBUG_ENQUEUE
-printf("O\n");
-#endif
 
 	echunk = grapesChunkToExternalChunk(gchunk);
-#ifdef DEBUG_ENQUEUE
-printf("O\n");
-#endif
 	if(echunk == NULL) {
 		printf("Memory error in echunk!\n");
 		free(gchunk->attributes);
@@ -1149,29 +1130,14 @@ printf("O\n");
 		free(gchunk);
 		return PLAYER_FAIL_RETURN;
 	}
-#ifdef DEBUG_ENQUEUE
-printf("O\n");
-#endif
 	free(gchunk->attributes);
-#ifdef DEBUG_ENQUEUE
-printf("O\n");
-#endif
 	free(gchunk);
-#ifdef DEBUG_ENQUEUE
-printf("O\n");
-#endif
 
 	frame = (Frame *)malloc(sizeof(Frame));
-#ifdef DEBUG_ENQUEUE
-printf("O\n");
-#endif
 	if(!frame) {
 		printf("Memory error!\n");
 		return -1;
 	}
-#ifdef DEBUG_ENQUEUE
-printf("O\n");
-#endif
 
 	tempdata = echunk->data;
 	j=echunk->payload_len;
@@ -1191,40 +1157,22 @@ printf("O\n");
 		//printf("%d %d %d %d\n",frame->number,frame->timestamp.tv_usec,frame->size,frame->type);
 
 		if(frame->type!=5) { // video frame
-#ifdef DEBUG_ENQUEUE
-printf("VVVVVO\n");
-#endif
 			av_init_packet(&packet);
-#ifdef DEBUG_ENQUEUE
-printf("O\n");
-#endif
 				packet.data = buffer;//video_bufQ;
 				packet.size = frame->size;
 				packet.pts = frame->timestamp.tv_sec*(unsigned long long)1000+frame->timestamp.tv_usec;
 				packet.dts = frame->timestamp.tv_sec*(unsigned long long)1000+frame->timestamp.tv_usec;
 				packet.stream_index = frame->number; // use of stream_index for number frame
 				//packet.duration = frame->timestamp.tv_sec;
-#ifdef DEBUG_ENQUEUE
-printf("BBBBBBBO\n");
-#endif
 			if(packet.size > 0)
 				packet_queue_put(&videoq, &packet); //the _put makes a copy of the packet
-#ifdef DEBUG_ENQUEUE
-printf("AAAAAAAAAAO\n");
-#endif
 #ifdef DEBUG_SOURCE
 				printf("SOURCE: Insert video in queue pts=%lld %d %d sindex:%d\n",packet.pts,(int)frame->timestamp.tv_sec,(int)frame->timestamp.tv_usec,packet.stream_index);
 #endif
 		}
 		else { // audio frame
-#ifdef DEBUG_ENQUEUE
-printf("AUDIOO\n");
-#endif
 
 			av_init_packet(&packetaudio);
-#ifdef DEBUG_ENQUEUE
-printf("O\n");
-#endif
 			packetaudio.data = buffer;
 			packetaudio.size = frame->size;
 			packetaudio.pts = frame->timestamp.tv_sec*(unsigned long long)1000+frame->timestamp.tv_usec;
@@ -1238,14 +1186,8 @@ printf("O\n");
 			packetaudio.convergence_duration = 0;
 
 			// insert the audio frame into the queue
-#ifdef DEBUG_ENQUEUE
-printf("BEFORAO\n");
-#endif
 			if(packetaudio.size > 0)
 				packet_queue_put(&audioq, &packetaudio);//makes a copy of the packet so i can free here
-#ifdef DEBUG_ENQUEUE
-printf("AFTAO\n");
-#endif
 #ifdef DEBUG_SOURCE
 			printf("SOURCE: Insert audio in queue pts=%lld sindex:%d\n", packetaudio.pts, packetaudio.stream_index);
 #endif
