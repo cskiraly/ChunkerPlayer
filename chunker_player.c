@@ -37,19 +37,19 @@
 
 #define SDL_AUDIO_BUFFER_SIZE 1024
 
-#define QUEUE_FILLING_THRESHOLD 200
+#define QUEUE_FILLING_THRESHOLD 30
 #define MAX_TOLLERANCE 40
 #define AUDIO	1
 #define VIDEO	2
 
-//#define DEBUG_AUDIO
+#define DEBUG_AUDIO
 //#define DEBUG_VIDEO
-//#define DEBUG_QUEUE
-//#define DEBUG_SOURCE
+#define DEBUG_QUEUE
+#define DEBUG_SOURCE
 //#define DEBUG_ENQUEUE
 //#define DEBUG_STATS
-//#define DEBUG_AUDIO_BUFFER
-//#define DEBUG_ENQUEUE
+#define DEBUG_AUDIO_BUFFER
+
 
 short int QueueFillingMode=1;
 short int QueueStopped=0;
@@ -60,7 +60,6 @@ typedef struct PacketQueue {
 	int nb_packets;
 	int size;
 	SDL_mutex *mutex;
-	//SDL_cond *cond;
 	short int queueType;
 	int last_frame_extracted; //HINT THIS SHOULD BE MORE THAN 4 BYTES
 	int total_lost_frames;
@@ -99,10 +98,9 @@ void packet_queue_init(PacketQueue *q, short int Type) {
 #endif
 	memset(q,0,sizeof(PacketQueue));
 	q->mutex = SDL_CreateMutex();
-	//q->cond = SDL_CreateCond();
 	QueueFillingMode=1;
 	q->queueType=Type;
-	q->last_frame_extracted = 3;
+	q->last_frame_extracted = -1;
 	q->total_lost_frames = 0;
 	q->first_pkt= NULL;
 	//q->last_pkt = NULL;
@@ -137,7 +135,7 @@ void packet_queue_reset(PacketQueue *q, short int Type) {
 #endif
 
 	QueueFillingMode=1;
-	q->last_frame_extracted = 3;
+	q->last_frame_extracted = -1;
 	q->total_lost_frames = 0;
 	q->first_pkt= NULL;
 	//q->last_pkt = NULL;
@@ -158,7 +156,7 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 	//make a copy of the incoming packet
 	if(av_dup_packet(pkt) < 0) {
 #ifdef DEBUG_QUEUE
-		printf("QUEUE: PUT in Queue cannot duplicate in packet	: NPackets=%d Type=%d\n",q->nb_packets,q->queueType);
+		printf("QUEUE: PUT in Queue cannot duplicate in packet	: NPackets=%d Type=%d\n",q->nb_packets, q->queueType);
 #endif
 		return -1;
 	}
@@ -173,18 +171,9 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 
 	SDL_LockMutex(q->mutex);
 
-/*
-	if(QueueFillingMode) {
-		q->last_frame_extracted = 0;
-		FirstTime = 1;
-		FirstTimeAudio = 1;
-	}
-*/
-
 	// INSERTION SORT ALGORITHM
 	// before inserting pkt, check if pkt.stream_index is <= current_extracted_frame.
-
-	if(pkt->stream_index>q->last_frame_extracted) {
+	if(pkt->stream_index > q->last_frame_extracted) {
 		// either checking starting from the first_pkt or needed other struct like AVPacketList with next and prev....
 		//if (!q->last_pkt)
 		if(!q->first_pkt)
@@ -197,7 +186,7 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 		}
 		else {
 			tmp = q->first_pkt;
-			while(tmp->pkt.stream_index<pkt->stream_index) {
+			while(tmp->pkt.stream_index < pkt->stream_index) {
 				prevtmp = tmp;
 				tmp = tmp->next;
 
@@ -205,7 +194,7 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 					break;
 				}
 			}
-			if(tmp && tmp->pkt.stream_index==pkt->stream_index) {
+			if(tmp && tmp->pkt.stream_index == pkt->stream_index) {
 				//we already have a frame with that index
 				skip = 1;
 #ifdef DEBUG_QUEUE
@@ -218,7 +207,7 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 			}
 			//q->last_pkt->next = pkt1; // It was uncommented when not insertion sort
 		}
-		if(skip==0) {
+		if(skip == 0) {
 			//q->last_pkt = pkt1;
 			q->nb_packets++;
 			q->size += pkt1->pkt.size;
@@ -228,9 +217,7 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 #ifdef DEBUG_QUEUE
 				printf("QUEUE: PUT: FillingMode set to zero\n");
 #endif
-				//SDL_CondSignal(q->cond);
 			}
-			//WHYq->last_frame_extracted = pkt->stream_index;
 		}
 	}
 	else {
@@ -246,7 +233,7 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 }
 
 
-void decode_enqueued_audio_packet(AVPacket *pkt) {
+int decode_enqueued_audio_packet(AVPacket *pkt, PacketQueue *q) {
 	uint16_t *audio_bufQ = NULL;
 	int16_t *dataQ = NULL;
 	int data_sizeQ = AVCODEC_MAX_AUDIO_FRAME_SIZE;
@@ -258,7 +245,7 @@ void decode_enqueued_audio_packet(AVPacket *pkt) {
 	audio_bufQ = (uint16_t *)av_malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
 	if(audio_bufQ) {
 #ifdef DEBUG_AUDIO_BUFFER
-			printf("AUDIO_BUFFER: about to decode packet %d, size %d, data %d\n", pkt->stream_index, pkt->size, pkt->data);
+		printf("AUDIO_BUFFER: about to decode packet %d, size %d, data %d\n", pkt->stream_index, pkt->size, pkt->data);
 #endif
 		//decode the packet data
 		lenQ = avcodec_decode_audio3(aCodecCtx, (int16_t *)audio_bufQ, &data_sizeQ, pkt);
@@ -266,26 +253,23 @@ void decode_enqueued_audio_packet(AVPacket *pkt) {
 			dataQ = (int16_t *)av_malloc(data_sizeQ); //this will be free later at the time of playback
 			if(dataQ) {
 				memcpy(dataQ, audio_bufQ, data_sizeQ);
-				//discard the encoded bytes
+				//discard the old encoded bytes
 				av_free(pkt->data);
+				//subtract them from queue size
+				q->size -= pkt->size;
 				pkt->data = (int8_t *)dataQ;
 				pkt->size = data_sizeQ;
+				//add new size to queue size
+				q->size += pkt->size;
+				return 1;
 			}
 			else {
-				//discard the encoded bytes
-				av_free(pkt->data);
-				pkt->data = NULL;
-				pkt->size = 0;
 #ifdef DEBUG_AUDIO_BUFFER
 				printf("AUDIO_BUFFER: cannot alloc space for decoded packet %d\n", pkt->stream_index);
 #endif
 			}
 		}
 		else {
-			//discard the encoded bytes
-			av_free(pkt->data);
-			pkt->data = NULL;
-			pkt->size = 0;
 #ifdef DEBUG_AUDIO_BUFFER
 			printf("AUDIO_BUFFER: cannot decode packet %d\n", pkt->stream_index);
 #endif
@@ -293,18 +277,52 @@ void decode_enqueued_audio_packet(AVPacket *pkt) {
 		av_free(audio_bufQ);
 	}
 	else {
-		//discard the encoded bytes
-		av_free(pkt->data);
-		pkt->data = NULL;
-		pkt->size = 0;
 #ifdef DEBUG_AUDIO_BUFFER
 		printf("AUDIO_BUFFER: cannot alloc decode buffer for packet %d\n", pkt->stream_index);
 #endif
 	}
+	return 0; //problems occurred
 }
 
 
+//removes a packet from the list and returns the next
+AVPacketList *remove_from_queue(PacketQueue *q, AVPacketList *p) {
+	AVPacketList *retpk = p->next;
+	q->nb_packets--;
+	//adjust size here and not in the various cases of the dequeue
+	q->size -= p->pkt.size;
+	av_free_packet(&p->pkt);
+	av_free(p);
+	return retpk;
+}
 
+AVPacketList *seek_and_decode_packet_starting_from(AVPacketList *p, PacketQueue *q) {
+	while(p) {
+			//check if audio packet has been already decoded
+			if(p->pkt.convergence_duration == 0) {
+				//not decoded yet, try to decode it
+				if( !decode_enqueued_audio_packet(&(p->pkt), q) ) {
+					//it was not possible to decode this packet, return next one
+					p = remove_from_queue(q, p);
+				}
+				else
+					return p;
+			}
+			else
+				return p;
+	}
+	return NULL;
+}
+
+void update_queue_stats(PacketQueue *q, int packet_index) {
+	//compute lost frame statistics
+	if(q->last_frame_extracted > 0 && packet_index > q->last_frame_extracted) {
+		q->total_lost_frames = q->total_lost_frames + packet_index - q->last_frame_extracted - 1;
+#ifdef DEBUG_STATS
+		printf("  STATS QUEUE stats: stidx %d last %d tot %d\n", packet_index, q->last_frame_extracted, q->total_lost_frames);
+#endif
+	}
+}
 
 int packet_queue_get(PacketQueue *q, AVPacket *pkt, short int av) {
 	//AVPacket tmp;
@@ -322,29 +340,18 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, short int av) {
 	{
 		SDL_UnlockMutex(q->mutex);
 		return -1;
-		//SDL_CondWait(q->cond, q->mutex);
 	}
 
-	pkt1 = q->first_pkt;
-	if (pkt1) {
-		if(av==1) {
-
-
-			//check if audio packet has been alread decoded
-			if(pkt1->pkt.convergence_duration == 0) {
-				//not decoded yet, decode it
-				decode_enqueued_audio_packet(&(pkt1->pkt));
-			}
-
-
-			if(pkt1->pkt.size-AudioQueueOffset>dimAudioQ) {
+	if(av==1) { //somebody requested an audio packet, q is the audio queue
+		//try to dequeue the first packet of the audio queue
+		pkt1 = seek_and_decode_packet_starting_from(q->first_pkt, q);
+		if(pkt1) { //yes we have them!
+			if(pkt1->pkt.size-AudioQueueOffset > dimAudioQ) {
+				//one packet if enough to give us the requested number of bytes by the audio_callback
 #ifdef DEBUG_QUEUE
 				printf("  AV=1 and Extract from the same packet\n");
 #endif
-				//av_init_packet(&tmp);
-				q->size -= dimAudioQ;
 				pkt->size = dimAudioQ;
-				//tmp.data = pkt1->pkt.data+AudioQueueOffset;
 				memcpy(pkt->data,pkt1->pkt.data+AudioQueueOffset,dimAudioQ);
 				pkt->dts = pkt1->pkt.dts;
 				pkt->pts = pkt1->pkt.pts;
@@ -352,11 +359,8 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, short int av) {
 				pkt->flags = 1;
 				pkt->pos = -1;
 				pkt->convergence_duration = -1;
-
-				//*pkt = tmp;
-				//pkt1->pkt.size -= dimAudioQ;
 #ifdef DEBUG_QUEUE
-				printf("   Adjust timestamps Old = %lld New = %lld\n",pkt1->pkt.dts,(int64_t)(pkt1->pkt.dts + deltaAudioQ + deltaAudioQError));
+				printf("   Adjust timestamps Old = %lld New = %lld\n", pkt1->pkt.dts, (int64_t)(pkt1->pkt.dts + deltaAudioQ + deltaAudioQError));
 #endif
 				int64_t Olddts=pkt1->pkt.dts;
 				pkt1->pkt.dts += deltaAudioQ + deltaAudioQError;
@@ -366,38 +370,34 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, short int av) {
 #ifdef DEBUG_QUEUE
 				printf("   deltaAudioQError = %f\n",deltaAudioQError);
 #endif
-				
-				ret = 1;
-				//compute lost frame statistics
-				if(q->last_frame_extracted > 0 && pkt->stream_index > q->last_frame_extracted) {
-					q->total_lost_frames = q->total_lost_frames + pkt->stream_index - q->last_frame_extracted - 1;
-#ifdef DEBUG_STATS
-					printf("  AUDIO stats: stidx %d last %d tot %d\n", pkt->stream_index, q->last_frame_extracted, q->total_lost_frames);
-#endif
-				}
+				//update overall state of queue
+				//size is diminished because we played some audio samples
+				//but packet is not removed since a portion has still to be played
+				//HINT ERRATA we had a size mismatch since size grows with the
+				//number of compressed bytes, and diminishes here with the number
+				//of raw uncompressed bytes, hence we update size during the
+				//real removes and not here anymore
+				//q->size -= dimAudioQ;
+				update_queue_stats(q, pkt->stream_index);
 				//update index of last frame extracted
 				q->last_frame_extracted = pkt->stream_index;
 #ifdef DEBUG_AUDIO_BUFFER
 				printf("1: idx %d    \taqo %d    \tstc %d    \taqe %f    \tpsz %d\n", pkt1->pkt.stream_index, AudioQueueOffset, SizeToCopy, deltaAudioQError, pkt1->pkt.size);
 #endif
+				ret = 1; //OK
 			}
 			else {
+				//we need bytes from two consecutive packets to satisfy the audio_callback
 #ifdef DEBUG_QUEUE
 				printf("  AV = 1 and Extract from 2 packets\n");
 #endif
-				// Check for loss
+				//check for a valid next packet since we will finish the current packet
+				//and also take some bytes from the next one
+				pkt1->next = seek_and_decode_packet_starting_from(pkt1->next, q);
 				if(pkt1->next) {
-
-					//check if next audio packet has been already decoded
-					if(pkt1->next->pkt.convergence_duration == 0) {
-						//not decoded yet, decode it
-						decode_enqueued_audio_packet(&(pkt1->next->pkt));
-					}
-
 #ifdef DEBUG_QUEUE
 					printf("   we have a next...\n");
 #endif
-					//av_init_packet(&tmp);
 					pkt->size = dimAudioQ;
 					pkt->dts = pkt1->pkt.dts;
 					pkt->pts = pkt1->pkt.pts;
@@ -410,8 +410,8 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, short int av) {
 #ifdef DEBUG_QUEUE
 						printf("      SizeToCopy=%d\n",SizeToCopy);
 #endif
-						memcpy(pkt->data,pkt1->pkt.data+AudioQueueOffset,SizeToCopy);
-						memcpy(pkt->data+SizeToCopy,pkt1->next->pkt.data,(dimAudioQ-SizeToCopy)*sizeof(uint8_t));
+						memcpy(pkt->data, pkt1->pkt.data+AudioQueueOffset, SizeToCopy);
+						memcpy(pkt->data+SizeToCopy, pkt1->next->pkt.data, (dimAudioQ-SizeToCopy)*sizeof(uint8_t));
 					}
 #ifdef DEBUG_AUDIO_BUFFER
 					printf("2: idx %d    \taqo %d    \tstc %d    \taqe %f    \tpsz %d\n", pkt1->pkt.stream_index, AudioQueueOffset, SizeToCopy, deltaAudioQError, pkt1->pkt.size);
@@ -422,18 +422,12 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, short int av) {
 					printf("2: NONEXT\n");
 				}
 #endif
-				q->first_pkt = pkt1->next;
-//				if (!q->first_pkt)
-//					q->last_pkt = NULL;
-				q->nb_packets--;
-				q->size -= SizeToCopy;
-				av_free_packet(&pkt1->pkt);//free(pkt1->pkt.data);
-				av_free(pkt1);
+				//HINT SEE before q->size -= SizeToCopy;
+				q->first_pkt = remove_from_queue(q, pkt1);
 
 				// Adjust timestamps
 				pkt1 = q->first_pkt;
-				if(pkt1)
-				{
+				if(pkt1) {
 					int Offset=(dimAudioQ-SizeToCopy)*1000/(spec.freq*2*spec.channels);
 					int64_t LastDts=pkt1->pkt.dts;
 					pkt1->pkt.dts += Offset + deltaAudioQError;
@@ -443,11 +437,10 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, short int av) {
 					printf("   Adjust timestamps Old = %lld New = %lld\n", LastDts, pkt1->pkt.dts);
 #endif
 					AudioQueueOffset = dimAudioQ - SizeToCopy;
-					q->size -= AudioQueueOffset;
+					//SEE BEFORE HINT q->size -= AudioQueueOffset;
 					ret = 1;
 				}
-				else
-				{
+				else {
 					AudioQueueOffset=0;
 #ifdef DEBUG_AUDIO_BUFFER
 					printf("0: idx %d    \taqo %d    \tstc %d    \taqe %f    \tpsz %d\n", pkt1->pkt.stream_index, AudioQueueOffset, SizeToCopy, deltaAudioQError, pkt1->pkt.size);
@@ -456,28 +449,18 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, short int av) {
 #ifdef DEBUG_QUEUE
 				printf("   deltaAudioQError = %f\n",deltaAudioQError);
 #endif
-
-				//compute lost frame statistics
-				if(q->last_frame_extracted > 0 && pkt->stream_index > q->last_frame_extracted) {
-					q->total_lost_frames = q->total_lost_frames + pkt->stream_index - q->last_frame_extracted - 1;
-#ifdef DEBUG_STATS
-					printf("  AUDIO stats: stidx %d last %d tot %d\n", pkt->stream_index, q->last_frame_extracted, q->total_lost_frames);
-#endif
-				}
+				update_queue_stats(q, pkt->stream_index);
 				//update index of last frame extracted
 				q->last_frame_extracted = pkt->stream_index;
 			}
 		}
-		else {
+	}
+	else { //somebody requested a video packet, q is the video queue
+		pkt1 = q->first_pkt;
+		if(pkt1) {
 #ifdef DEBUG_QUEUE
 			printf("  AV not 1\n");
 #endif
-			q->first_pkt = pkt1->next;
-//			if (!q->first_pkt)
-//				q->last_pkt = NULL;
-			q->nb_packets--;
-			q->size -= pkt1->pkt.size;
-			
 			pkt->size = pkt1->pkt.size;
 			pkt->dts = pkt1->pkt.dts;
 			pkt->pts = pkt1->pkt.pts;
@@ -486,26 +469,22 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, short int av) {
 			pkt->pos = pkt1->pkt.pos;
 			pkt->convergence_duration = pkt1->pkt.convergence_duration;
 			//*pkt = pkt1->pkt;
-			memcpy(pkt->data,pkt1->pkt.data,pkt1->pkt.size);
-			av_free_packet(&pkt1->pkt);//free(pkt1->pkt.data);
-			av_free(pkt1);
+			memcpy(pkt->data, pkt1->pkt.data, pkt1->pkt.size);
+
+			//HINT SEE BEFORE q->size -= pkt1->pkt.size;
+			q->first_pkt = remove_from_queue(q, pkt1);
+
 			ret = 1;
-			//compute lost frame statistics
-			if(q->last_frame_extracted > 0 && pkt->stream_index > q->last_frame_extracted) {
-#ifdef DEBUG_STATS
-				//printf("  VIDEO stats: stidx %d last %d tot %d\n", pkt->stream_index, q->last_frame_extracted, q->total_lost_frames);
-#endif
-				q->total_lost_frames = q->total_lost_frames + pkt->stream_index - q->last_frame_extracted - 1;
-			}
+			update_queue_stats(q, pkt->stream_index);
 			//update index of last frame extracted
 			q->last_frame_extracted = pkt->stream_index;
 		}
-	}
 #ifdef DEBUG_QUEUE
-	else {
-		printf("  pk1 NULL!!!!\n");
-	}
+		else {
+			printf("  VIDEO pk1 NULL!!!!\n");
+		}
 #endif
+	}
 
 	if(q->nb_packets==0 && q->queueType==AUDIO) {
 		QueueFillingMode=1;
@@ -693,8 +672,6 @@ int video_callback(void *valthread) {
 
 		DecodeVideo = 0;
 		SkipVideo = 0;
-		//gettimeofday(&now,NULL);
-		//Now = (unsigned long long)now.tv_sec*1000+(unsigned long long)now.tv_usec/1000;
 		Now=(long long)SDL_GetTicks();
 		if(FirstTime==1 && videoq.size>0) {
 			if(videoq.first_pkt->pkt.pts>0)
@@ -713,9 +690,9 @@ int video_callback(void *valthread) {
 		if(videoq.first_pkt)
 		{
 			printf("VIDEO: VideoCallback - Syncro params: Delta:%lld Now:%lld pts=%lld pts+Delta=%lld ",(long long)DeltaTime,Now,(long long)videoq.first_pkt->pkt.pts,(long long)videoq.first_pkt->pkt.pts+DeltaTime);
-			printf("VIDEO: Index=%d ",(int)videoq.first_pkt->pkt.stream_index);
-			printf("VIDEO: QueueLen=%d ",(int)videoq.nb_packets);
-			printf("VIDEO: QueueSize=%d\n",(int)videoq.size);
+			printf("VIDEO: Index=%d ", (int)videoq.first_pkt->pkt.stream_index);
+			printf("VIDEO: QueueLen=%d ", (int)videoq.nb_packets);
+			printf("VIDEO: QueueSize=%d\n", (int)videoq.size);
 		}
 		else
 			printf("VIDEO: VideoCallback - Empty queue\n");
@@ -1221,10 +1198,6 @@ printf("VVVVVO\n");
 #ifdef DEBUG_ENQUEUE
 printf("O\n");
 #endif
-
-			//video_bufQ = (uint8_t *)malloc(frame->size); //this gets freed at the time of packet_queue_get
-			//if(video_bufQ) {
-				//memcpy(video_bufQ, buffer, frame->size);
 				packet.data = buffer;//video_bufQ;
 				packet.size = frame->size;
 				packet.pts = frame->timestamp.tv_sec*(unsigned long long)1000+frame->timestamp.tv_usec;
@@ -1234,14 +1207,14 @@ printf("O\n");
 #ifdef DEBUG_ENQUEUE
 printf("BBBBBBBO\n");
 #endif
-				packet_queue_put(&videoq,&packet);//makes a copy of the packet
+			if(packet.size > 0)
+				packet_queue_put(&videoq, &packet); //the _put makes a copy of the packet
 #ifdef DEBUG_ENQUEUE
 printf("AAAAAAAAAAO\n");
 #endif
 #ifdef DEBUG_SOURCE
 				printf("SOURCE: Insert video in queue pts=%lld %d %d sindex:%d\n",packet.pts,(int)frame->timestamp.tv_sec,(int)frame->timestamp.tv_usec,packet.stream_index);
 #endif
-			//}
 		}
 		else { // audio frame
 #ifdef DEBUG_ENQUEUE
@@ -1252,10 +1225,8 @@ printf("AUDIOO\n");
 #ifdef DEBUG_ENQUEUE
 printf("O\n");
 #endif
-
 			packetaudio.data = buffer;
 			packetaudio.size = frame->size;
-
 			packetaudio.pts = frame->timestamp.tv_sec*(unsigned long long)1000+frame->timestamp.tv_usec;
 			packetaudio.dts = frame->timestamp.tv_sec*(unsigned long long)1000+frame->timestamp.tv_usec;
 			//packetaudio.duration = frame->timestamp.tv_sec;
@@ -1267,40 +1238,17 @@ printf("O\n");
 			packetaudio.convergence_duration = 0;
 
 			// insert the audio frame into the queue
-/*
-			data_sizeQ = AVCODEC_MAX_AUDIO_FRAME_SIZE;
-
-			lenQ = avcodec_decode_audio3(aCodecCtx, (int16_t *)audio_bufQ, &data_sizeQ, &packetaudio);
-
-			if(lenQ>0)
-			{
-
-				// for freeing there is some memory still in tempdata to be freed
-				dataQ = (int16_t *)av_malloc(data_sizeQ);
-				if(dataQ)
-				{
-					memcpy(dataQ,audio_bufQ,data_sizeQ);
-					packetaudio.data = (int8_t *)dataQ;
-					packetaudio.size = data_sizeQ;
-					packetaudio.stream_index = frame->number; // use of stream_index for number frame
-*/
 #ifdef DEBUG_ENQUEUE
 printf("BEFORAO\n");
 #endif
-					packet_queue_put(&audioq, &packetaudio);//makes a copy of the packet so i can free here
+			if(packetaudio.size > 0)
+				packet_queue_put(&audioq, &packetaudio);//makes a copy of the packet so i can free here
 #ifdef DEBUG_ENQUEUE
 printf("AFTAO\n");
 #endif
-/*
-					av_free(dataQ);
-*/
 #ifdef DEBUG_SOURCE
-					printf("SOURCE: Insert audio in queue pts=%lld sindex:%d\n", packetaudio.pts, packetaudio.stream_index);
+			printf("SOURCE: Insert audio in queue pts=%lld sindex:%d\n", packetaudio.pts, packetaudio.stream_index);
 #endif
-/*
-				}
-			}
-*/
 		}
 		j = j - sizeFrame - frame->size;
 	}
