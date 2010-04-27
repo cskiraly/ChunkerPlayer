@@ -239,6 +239,7 @@ int decode_enqueued_audio_packet(AVPacket *pkt, PacketQueue *q) {
 	int16_t *dataQ = NULL;
 	int data_sizeQ = AVCODEC_MAX_AUDIO_FRAME_SIZE;
 	int lenQ;
+	int ret = 0;
 
 	//set the flag to decoded anyway	
 	pkt->convergence_duration = -1;
@@ -262,7 +263,7 @@ int decode_enqueued_audio_packet(AVPacket *pkt, PacketQueue *q) {
 				pkt->size = data_sizeQ;
 				//add new size to queue size
 				q->size += pkt->size;
-				return 1;
+				ret = 1;
 			}
 			else {
 #ifdef DEBUG_AUDIO_BUFFER
@@ -282,7 +283,7 @@ int decode_enqueued_audio_packet(AVPacket *pkt, PacketQueue *q) {
 		printf("AUDIO_BUFFER: cannot alloc decode buffer for packet %d\n", pkt->stream_index);
 #endif
 	}
-	return 0; //problems occurred
+	return ret; //problems occurred
 }
 
 
