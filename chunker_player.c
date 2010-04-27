@@ -37,7 +37,6 @@
 
 #define SDL_AUDIO_BUFFER_SIZE 1024
 
-#define QUEUE_FILLING_THRESHOLD 30
 #define MAX_TOLLERANCE 40
 #define AUDIO	1
 #define VIDEO	2
@@ -74,6 +73,8 @@ PacketQueue audioq;
 PacketQueue videoq;
 AVPacket AudioPkt, VideoPkt;
 int quit = 0;
+
+int queue_filling_threshold = 0;
 
 SDL_Surface *screen;
 SDL_Overlay *yuv_overlay;
@@ -210,7 +211,7 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 			//q->last_pkt = pkt1;
 			q->nb_packets++;
 			q->size += pkt1->pkt.size;
-			if(q->nb_packets>=QUEUE_FILLING_THRESHOLD && QueueFillingMode) // && q->queueType==AUDIO)
+			if(q->nb_packets>=queue_filling_threshold && QueueFillingMode) // && q->queueType==AUDIO)
 			{
 				QueueFillingMode=0;
 #ifdef DEBUG_QUEUE
@@ -928,14 +929,15 @@ int main(int argc, char *argv[]) {
 	ThreadVal *tval;
 	tval = (ThreadVal *)malloc(sizeof(ThreadVal));
 		
-	if(argc<5) {
-		printf("player width height sample_rate channels\n");
+	if(argc<6) {
+		printf("chunker_player width height audio_sample_rate audio_channels queue_thresh\n");
 		exit(1);
 	}
 	sscanf(argv[1],"%d",&width);
 	sscanf(argv[2],"%d",&height);
 	sscanf(argv[3],"%d",&asample_rate);
 	sscanf(argv[4],"%d",&achannels);
+	sscanf(argv[5],"%d",&queue_filling_threshold);
 	tval->width = width;
 	tval->height = height;
 	
