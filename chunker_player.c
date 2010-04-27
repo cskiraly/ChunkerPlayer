@@ -41,12 +41,13 @@
 #define AUDIO	1
 #define VIDEO	2
 
-//#define DEBUG_AUDIO
-//#define DEBUG_VIDEO
-//#define DEBUG_QUEUE
-//#define DEBUG_SOURCE
-//#define DEBUG_STATS
-//#define DEBUG_AUDIO_BUFFER
+#define DEBUG_AUDIO
+#define DEBUG_VIDEO
+#define DEBUG_QUEUE
+#define DEBUG_SOURCE
+#define DEBUG_STATS
+#define DEBUG_AUDIO_BUFFER
+#define DEBUG_CHUNKER
 
 
 short int QueueFillingMode=1;
@@ -291,8 +292,10 @@ AVPacketList *remove_from_queue(PacketQueue *q, AVPacketList *p) {
 	q->nb_packets--;
 	//adjust size here and not in the various cases of the dequeue
 	q->size -= p->pkt.size;
-	av_free_packet(&p->pkt);
-	av_free(p);
+	if(&p->pkt)
+		av_free_packet(&p->pkt);
+	if(p)
+		av_free(p);
 	return retpk;
 }
 
@@ -1102,6 +1105,7 @@ int main(int argc, char *argv[]) {
 int enqueueBlock(const uint8_t *block, const int block_size) {
 	Chunk *gchunk = NULL;
 	ExternalChunk *echunk = NULL;
+	int decoded_size = -1;
 	uint8_t *tempdata, *buffer;
 	int i, j;
 	Frame *frame = NULL;
@@ -1115,6 +1119,7 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 	int lenQ;
 	//the frame.h gets encoded into 5 slots of 32bits (3 ints plus 2 more for the timeval struct
 	static int sizeFrameHeader = 5*sizeof(int32_t);
+	static int ExternalChunk_header_size = 5*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 1*CHUNK_TRANSCODING_INT_SIZE*2;
 
 	audio_bufQ = (uint16_t *)av_malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
 	gchunk = (Chunk *)malloc(sizeof(Chunk));
@@ -1123,7 +1128,16 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 		return PLAYER_FAIL_RETURN;
 	}
 
-	decodeChunk(gchunk, block, block_size);
+	decoded_size = decodeChunk(gchunk, block, block_size);
+#ifdef DEBUG_CHUNKER
+	printf("CHUNKER: enqueueBlock: decoded_size %d target size %d\n", decoded_size, GRAPES_ENCODED_CHUNK_HEADER_SIZE + ExternalChunk_header_size + gchunk->size);
+#endif
+  if(decoded_size < 0 || decoded_size != GRAPES_ENCODED_CHUNK_HEADER_SIZE + ExternalChunk_header_size + gchunk->size) {
+		//HINT here i should differentiate between various return values of the decode
+		//in order to free what has been allocated there
+		printf("chunk probably corrupted!\n");
+		return PLAYER_FAIL_RETURN;
+	}
 
 	echunk = grapesChunkToExternalChunk(gchunk);
 	if(echunk == NULL) {
