@@ -42,12 +42,12 @@
 #define AUDIO	1
 #define VIDEO	2
 
-#define DEBUG_AUDIO
+//#define DEBUG_AUDIO
 //#define DEBUG_VIDEO
-#define DEBUG_QUEUE
-#define DEBUG_SOURCE
+//#define DEBUG_QUEUE
+//#define DEBUG_SOURCE
 //#define DEBUG_STATS
-#define DEBUG_AUDIO_BUFFER
+//#define DEBUG_AUDIO_BUFFER
 
 
 short int QueueFillingMode=1;
