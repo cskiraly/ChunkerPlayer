@@ -446,9 +446,6 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, short int av) {
 				}
 				else {
 					AudioQueueOffset=0;
-#ifdef DEBUG_AUDIO_BUFFER
-					printf("0: idx %d    \taqo %d    \tstc %d    \taqe %f    \tpsz %d\n", pkt1->pkt.stream_index, AudioQueueOffset, SizeToCopy, deltaAudioQError, pkt1->pkt.size);
-#endif
 				}
 #ifdef DEBUG_QUEUE
 				printf("   deltaAudioQError = %f\n",deltaAudioQError);
