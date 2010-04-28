@@ -67,6 +67,7 @@ typedef struct PacketQueue {
 typedef struct threadVal {
 	int width;
 	int height;
+	float aspect_ratio;
 } ThreadVal;
 
 int AudioQueueOffset=0;
@@ -446,6 +447,9 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, short int av) {
 				}
 				else {
 					AudioQueueOffset=0;
+#ifdef DEBUG_AUDIO_BUFFER
+					printf("0: idx %d    \taqo %d    \tstc %d    \taqe %f    \tpsz %d\n", pkt1->pkt.stream_index, AudioQueueOffset, SizeToCopy, deltaAudioQError, pkt1->pkt.size);
+#endif
 				}
 #ifdef DEBUG_QUEUE
 				printf("   deltaAudioQError = %f\n",deltaAudioQError);
@@ -775,11 +779,12 @@ int video_callback(void *valthread) {
 					pict.linesize[0] = yuv_overlay->pitches[0];
 					pict.linesize[1] = yuv_overlay->pitches[2];
 					pict.linesize[2] = yuv_overlay->pitches[1];
+
 					if(img_convert_ctx == NULL) {
-						img_convert_ctx = sws_getContext(tval->width, tval->height, PIX_FMT_YUV420P, tval->width, tval->height, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
+						img_convert_ctx = sws_getContext(tval->width, tval->height, PIX_FMT_YUV420P, rect.w, rect.h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
 						if(img_convert_ctx == NULL) {
 							fprintf(stderr, "Cannot initialize the conversion context!\n");
-        			exit(1);
+							exit(1);
 						}
 					}
 					// let's draw the data (*yuv[3]) on a SDL screen (*screen)
@@ -802,6 +807,24 @@ int video_callback(void *valthread) {
  	printf("VIDEO: video callback end\n");
 #endif
 	return 1;
+}
+
+
+void aspect_ratio_rect(float aspect_ratio, int width, int height) {
+	float aspect = aspect_ratio * (float)width / (float)height;
+	int h, w, x, y;
+	h = height;
+	w = ((int)rint(h * aspect)) & -3;
+	if(w > width) {
+		w = width;
+		h = ((int)rint(w / aspect)) & -3;
+	}
+	x = (width - w) / 2;
+	y = (height - h) / 2;
+	rect.x = 0;//x;
+	rect.y = 0;//y;
+	rect.w = w;
+	rect.h = h;
 }
 
 
@@ -901,10 +924,10 @@ void ProcessKeys() {
 }
 
 int main(int argc, char *argv[]) {
-	int i, j, videoStream,outbuf_size,out_size,out_size_audio,seq_current_chunk = 0,audioStream;
-	int len1, data_size, stime,cont=0;
+	int i, j, videoStream, outbuf_size, out_size, out_size_audio, seq_current_chunk = 0, audioStream;
+	int len1, data_size, stime, cont=0;
 	int frameFinished, len_audio;
-	int numBytes,outbuf_audio_size,audio_size;
+	int numBytes, outbuf_audio_size, audio_size;
 
 	int y;
 	
@@ -926,24 +949,26 @@ int main(int argc, char *argv[]) {
 	char buf[1024],outfile[1024], basereadfile[1024],readfile[1024];
 	FILE *fp;	
 	int width,height,asample_rate,achannels;
+	float ratio;
 
 	ThreadVal *tval;
 	tval = (ThreadVal *)malloc(sizeof(ThreadVal));
 		
-	if(argc<6) {
-		printf("chunker_player width height audio_sample_rate audio_channels queue_thresh\n");
+	if(argc<7) {
+		printf("chunker_player width height aspect_ratio audio_sample_rate audio_channels queue_thresh\n");
 		exit(1);
 	}
 	sscanf(argv[1],"%d",&width);
 	sscanf(argv[2],"%d",&height);
-	sscanf(argv[3],"%d",&asample_rate);
-	sscanf(argv[4],"%d",&achannels);
-	sscanf(argv[5],"%d",&queue_filling_threshold);
+	sscanf(argv[3],"%f",&ratio);
+	sscanf(argv[4],"%d",&asample_rate);
+	sscanf(argv[5],"%d",&achannels);
+	sscanf(argv[6],"%d",&queue_filling_threshold);
 	tval->width = width;
 	tval->height = height;
-	
-	// Register all formats and codecs
+	tval->aspect_ratio = ratio;
 
+	// Register all formats and codecs
 	av_register_all();
 	if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
 		fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
@@ -1002,20 +1027,27 @@ int main(int argc, char *argv[]) {
 	}
 	outbuf_audio = malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
 
+	//initialize the audio and the video queues
 	packet_queue_init(&audioq, AUDIO);
 	packet_queue_init(&videoq, VIDEO);
+
+	//calculate aspect ratio and put updated values in rect
+	aspect_ratio_rect(ratio, width, height);
+
 	SDL_WM_SetCaption("Filling buffer...", NULL);
 	// Make a screen to put our video
 #ifndef __DARWIN__
-	screen = SDL_SetVideoMode(width, height, 0, 0);
+	screen = SDL_SetVideoMode(rect.w, rect.h, 0, 0);
 #else
-	screen = SDL_SetVideoMode(width, height, 24, 0);
+	screen = SDL_SetVideoMode(rect.w, rect.h, 24, 0);
 #endif
 	if(!screen) {
 		fprintf(stderr, "SDL: could not set video mode - exiting\n");
 		exit(1);
 	}
-	yuv_overlay = SDL_CreateYUVOverlay(width, height,SDL_YV12_OVERLAY, screen);
+
+	//create video overlay for display of video frames
+	yuv_overlay = SDL_CreateYUVOverlay(rect.w, rect.h, SDL_YV12_OVERLAY, screen);
 
 	if ( yuv_overlay == NULL ) {
 		fprintf(stderr,"SDL: Couldn't create SDL_yuv_overlay: %s", SDL_GetError());
@@ -1025,14 +1057,7 @@ int main(int argc, char *argv[]) {
 	if ( yuv_overlay->hw_overlay )
 		fprintf(stderr,"SDL: Using hardware overlay.");
 
-	rect.x = 0;
-	rect.y = 0;
-	rect.w = width;
-	rect.h = height;
-
 	SDL_DisplayYUVOverlay(yuv_overlay, &rect);
-
-	//signal (SIGINT, sigint_handler);
 
 	// Init audio and video buffers
 	av_init_packet(&AudioPkt);
@@ -1044,10 +1069,8 @@ int main(int argc, char *argv[]) {
 	
 	SDL_PauseAudio(0);
 	video_thread = SDL_CreateThread(video_callback,tval);
-	//timing_mutex = SDL_CreateMutex();
 
-	//SDL_WaitThread(exit_thread2,NULL);
-
+	//this thread fetches chunks from the network
 	daemon = initChunkPuller();
 
 	// Wait for user input
@@ -1095,6 +1118,7 @@ int main(int argc, char *argv[]) {
 	free(VideoPkt.data);
 	free(outbuf_audio);
 	finalizeChunkPuller(daemon);
+	free(tval);
 	return 0;
 }
 
