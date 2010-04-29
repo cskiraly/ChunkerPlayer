@@ -81,22 +81,22 @@ ExternalChunk *grapesChunkToExternalChunk(Chunk *gchunk) {
 		return NULL;
 	}
 	/* pull out info from the attributes block from the grapes chunk */
-		echunk->seq = bit32_encoded_pull(gchunk->attributes);
-		echunk->frames_num = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE);
-		echunk->start_time.tv_sec = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*2);
-		echunk->start_time.tv_usec = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*3);
-		echunk->end_time.tv_sec = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*4);
-		echunk->end_time.tv_usec = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*5);
-		echunk->payload_len = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*6);
-		echunk->len = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*7);
-		echunk->category = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*8);
-		tmp_prio = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*9);
-		tmp_prio = tmp_prio << 32;
-		tmp_prio |= bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*10);
-		echunk->priority = (double)tmp_prio;
+	echunk->seq = bit32_encoded_pull(gchunk->attributes);
+	echunk->frames_num = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE);
+	echunk->start_time.tv_sec = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*2);
+	echunk->start_time.tv_usec = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*3);
+	echunk->end_time.tv_sec = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*4);
+	echunk->end_time.tv_usec = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*5);
+	echunk->payload_len = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*6);
+	echunk->len = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*7);
+	echunk->category = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*8);
+	tmp_prio = bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*9);
+	tmp_prio = tmp_prio << 32;
+	tmp_prio |= bit32_encoded_pull(gchunk->attributes + CHUNK_TRANSCODING_INT_SIZE*10);
+	echunk->priority = (double)tmp_prio;
 
-		/* pass the payload along */
-		echunk->data = gchunk->data;
+	/* pass the payload along */
+	echunk->data = gchunk->data;
 
 	return echunk;
 }
