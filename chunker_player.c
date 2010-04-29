@@ -1133,20 +1133,25 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 	Frame *frame = NULL;
 	AVPacket packet, packetaudio;
 
-	//uint8_t *video_bufQ = NULL;
 	uint16_t *audio_bufQ = NULL;
-	//uint8_t audio_bufQ[(AVCODEC_MAX_AUDIO_FRAME_SIZE * 3) / 2];
 	int16_t *dataQ = NULL;
 	int data_sizeQ;
 	int lenQ;
+
 	//the frame.h gets encoded into 5 slots of 32bits (3 ints plus 2 more for the timeval struct
 	static int sizeFrameHeader = 5*sizeof(int32_t);
 	static int ExternalChunk_header_size = 5*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 1*CHUNK_TRANSCODING_INT_SIZE*2;
 
 	audio_bufQ = (uint16_t *)av_malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
+	if(!audio_bufQ) {
+		printf("Memory error in audio_bufQ!\n");
+		return PLAYER_FAIL_RETURN;
+	}
+
 	gchunk = (Chunk *)malloc(sizeof(Chunk));
 	if(!gchunk) {
 		printf("Memory error in gchunk!\n");
+		av_free(audio_bufQ);
 		return PLAYER_FAIL_RETURN;
 	}
 
@@ -1158,6 +1163,8 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 		//HINT here i should differentiate between various return values of the decode
 		//in order to free what has been allocated there
 		printf("chunk probably corrupted!\n");
+		av_free(audio_bufQ);
+		free(gchunk);
 		return PLAYER_FAIL_RETURN;
 	}
 
@@ -1174,24 +1181,20 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 
 	frame = (Frame *)malloc(sizeof(Frame));
 	if(!frame) {
-		printf("Memory error!\n");
-		return -1;
+		printf("Memory error in Frame!\n");
+		if(gchunk->attributes)
+			free(gchunk->attributes);
+		if(echunk->data)
+			free(echunk->data);
+		if(echunk)
+			free(echunk);
+		av_free(audio_bufQ);
+		return PLAYER_FAIL_RETURN;
 	}
 
 	tempdata = echunk->data; //let it point to first frame of payload
 	j=echunk->payload_len;
 	while(j>0 && !quit) {
-		//usleep(30000);
-/*
-		frame->number = *((int32_t *)tempdata);
-		tempdata+=sizeof(int32_t);
-		frame->timestamp = *((struct timeval *)tempdata);
-		tempdata += sizeof(struct timeval);
-		frame->size = *((int32_t *)tempdata);
-		tempdata+=sizeof(int32_t);
-		frame->type = *((int32_t *)tempdata);
-		tempdata+=sizeof(int32_t);
-*/
 		frame->number = bit32_encoded_pull(tempdata);
 		tempdata += CHUNK_TRANSCODING_INT_SIZE;
 		frame->timestamp.tv_sec = bit32_encoded_pull(tempdata);
@@ -1205,24 +1208,23 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 
 		buffer = tempdata; // here coded frame information
 		tempdata += frame->size; //let it point to the next frame
-		//printf("%d %d %d %d\n",frame->number,frame->timestamp.tv_usec,frame->size,frame->type);
 
-		if(frame->type != 5) { // video frame
+		if(frame->type < 5) { // video frame
 			av_init_packet(&packet);
-				packet.data = buffer;//video_bufQ;
-				packet.size = frame->size;
-				packet.pts = frame->timestamp.tv_sec*(unsigned long long)1000+frame->timestamp.tv_usec;
-				packet.dts = frame->timestamp.tv_sec*(unsigned long long)1000+frame->timestamp.tv_usec;
-				packet.stream_index = frame->number; // use of stream_index for number frame
-				//packet.duration = frame->timestamp.tv_sec;
+			packet.data = buffer;//video_bufQ;
+			packet.size = frame->size;
+			packet.pts = frame->timestamp.tv_sec*(unsigned long long)1000+frame->timestamp.tv_usec;
+			packet.dts = frame->timestamp.tv_sec*(unsigned long long)1000+frame->timestamp.tv_usec;
+			packet.stream_index = frame->number; // use of stream_index for number frame
+			//packet.duration = frame->timestamp.tv_sec;
 			if(packet.size > 0)
 				packet_queue_put(&videoq, &packet); //the _put makes a copy of the packet
+
 #ifdef DEBUG_SOURCE
-				printf("SOURCE: Insert video in queue pts=%lld %d %d sindex:%d\n",packet.pts,(int)frame->timestamp.tv_sec,(int)frame->timestamp.tv_usec,packet.stream_index);
+			printf("SOURCE: Insert video in queue pts=%lld %d %d sindex:%d\n",packet.pts,(int)frame->timestamp.tv_sec,(int)frame->timestamp.tv_usec,packet.stream_index);
 #endif
 		}
-		else { // audio frame
-
+		else if(frame->type == 5) { // audio frame
 			av_init_packet(&packetaudio);
 			packetaudio.data = buffer;
 			packetaudio.size = frame->size;
@@ -1239,12 +1241,22 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 			// insert the audio frame into the queue
 			if(packetaudio.size > 0)
 				packet_queue_put(&audioq, &packetaudio);//makes a copy of the packet so i can free here
+
 #ifdef DEBUG_SOURCE
 			printf("SOURCE: Insert audio in queue pts=%lld sindex:%d\n", packetaudio.pts, packetaudio.stream_index);
 #endif
 		}
-		j = j - sizeFrameHeader - frame->size;
+		else {
+			printf("SOURCE: Unknown frame type %d. Size %d\n", frame->type, frame->size);
+		}
+		if(frame->size > 0)
+			j = j - sizeFrameHeader - frame->size;
+		else {
+			printf("SOURCE: Corrupt frames (size %d) in chunk. Skipping it...\n", frame->size);
+			j = -1;
+		}
 	}
+	//chunk ingestion terminated!
 	if(echunk->data)
 		free(echunk->data);
 	if(echunk)
