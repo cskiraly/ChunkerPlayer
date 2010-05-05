@@ -32,6 +32,7 @@
 #include <platform.h>
 #include <microhttpd.h>
 
+#include <http_default_urls.h>
 #include "chunker_player.h"
 #include "codec_definitions.h"
 
@@ -1070,8 +1071,8 @@ int main(int argc, char *argv[]) {
 	SDL_PauseAudio(0);
 	video_thread = SDL_CreateThread(video_callback,tval);
 
-	//this thread fetches chunks from the network
-	daemon = initChunkPuller();
+	//this thread fetches chunks from the network by listening to the following path, port
+	daemon = initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, UL_DEFAULT_EXTERNALPLAYER_PORT);
 
 	// Wait for user input
 	while(!quit) {

@@ -1,12 +1,13 @@
 #include <curl/curl.h>
 
-#include "external_chunk_transcoding.h"
+#include <chunk.h>
+
 #include "chunker_streamer.h"
 
 
 void initChunkPusher();
 void finalizeChunkPusher();
-int sendViaCurl(Chunk gchunk, size_t attr_size, ExternalChunk *echunk, char *url);
+int sendViaCurl(Chunk gchunk, int buffer_size, char *url);
 
 
 void initChunkPusher() {	
@@ -18,17 +19,14 @@ void finalizeChunkPusher() {
 	curl_global_cleanup();
 }
 
-
-int sendViaCurl(Chunk gchunk, size_t attr_size, ExternalChunk *echunk, char *url) {
+int sendViaCurl(Chunk gchunk, int buffer_size, char *url) {
 	//MAKE THE CURL EASY HANDLE GLOBAL? TO REUSE IT?
 	CURL *curl_handle;
 	struct curl_slist *headers=NULL;
 	uint8_t *buffer=NULL;
-	size_t buffer_size = 0;
+
 	int ret = STREAMER_FAIL_RETURN;
 
-	/* 20 bytes are needed to put the chunk header info on the wire */
-	buffer_size = GRAPES_ENCODED_CHUNK_HEADER_SIZE + attr_size + echunk->payload_len;
 	if( (buffer = malloc(buffer_size)) != NULL) {
 		/* encode the GRAPES chunk into network bytes */
 		encodeChunk(&gchunk, buffer, buffer_size);

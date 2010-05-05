@@ -1,12 +1,13 @@
 #include <platform.h>
 #include <microhttpd.h>
 
-#include <http_default_urls.h>
 
-struct connection_info_struct {
+static struct connection_info_struct {
   uint8_t *block;
   int block_size;
 };
+static int listen_port = 0;
+static char listen_path[256];
 
 void request_completed(void *cls, struct MHD_Connection *connection,
                        void **con_cls, enum MHD_RequestTerminationCode toe) {
@@ -57,7 +58,7 @@ int answer_to_connection(void *cls, struct MHD_Connection *connection,
   }
 
   if(0 == strcmp(method, "POST")) {
-    if(0 == strcmp(url, UL_DEFAULT_EXTERNALPLAYER_PATH)) {
+    if(0 == strcmp(url, listen_path)) {
       con_info = (struct connection_info_struct *)*con_cls;
       if(*upload_data_size > 0) {
         block = (uint8_t *)malloc(con_info->block_size+*upload_data_size);
@@ -87,8 +88,11 @@ int answer_to_connection(void *cls, struct MHD_Connection *connection,
 }
 
 
-struct MHD_Daemon *initChunkPuller() {
-  return MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG, UL_DEFAULT_EXTERNALPLAYER_PORT,
+struct MHD_Daemon *initChunkPuller(const char *path, const int port) {
+  sprintf(listen_path, "%s", path);
+  listen_port = port;
+printf("starting HTTPD on %s port %d\n", listen_path, listen_port);
+  return MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG, listen_port,
                           NULL, NULL,
                           &answer_to_connection, NULL, MHD_OPTION_END);
 }

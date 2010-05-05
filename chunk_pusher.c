@@ -21,7 +21,7 @@ int pushChunkHttp(ExternalChunk *echunk, char *url) {
 	//we need to pack 5 int32s + 2 timeval structs + 1 double
 	static size_t ExternalChunk_header_size = 5*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 1*CHUNK_TRANSCODING_INT_SIZE*2;
 	
-	//update the chunk len
+	//update the chunk len here because here we know the external chunk header size
 	echunk->len = echunk->payload_len + ExternalChunk_header_size;
 
 	/* first pack the chunk info that we get from the streamer into an "attributes" block of a regular GRAPES chunk */
@@ -54,9 +54,10 @@ int pushChunkHttp(ExternalChunk *echunk, char *url) {
 		gchunk.data = echunk->data;
 
 #ifdef NHIO
-			write_chunk(&gchunk);
+		write_chunk(&gchunk);
 #else
-			ret = sendViaCurl(gchunk, ExternalChunk_header_size, echunk, url);
+		/* 20 bytes are needed to put the chunk header info on the wire + attributes size + payload */
+		ret = sendViaCurl(gchunk, GRAPES_ENCODED_CHUNK_HEADER_SIZE + gchunk.attributes_size + gchunk.size, url);
 #endif
 
 		free(grapes_chunk_attributes_block);
