@@ -31,12 +31,12 @@ struct input_desc *input_open(const char *fname, uint16_t flags)
   }
 
   res->dummy = 0;
-printf("BEFORE INIT! %d\n", res->dummy);
+dprintf("BEFORE INIT! %d\n", res->dummy);
   pthread_mutex_init(&cb_mutex, NULL);
   //this daemon will listen the network for incoming chunks from a streaming source
   //on the following path and port
   httpd = initChunkPuller(UL_DEFAULT_CHUNKBUFFER_PATH, UL_DEFAULT_CHUNKBUFFER_PORT);
-printf("AFTER INIT! %d\n", res->dummy);
+dprintf("AFTER INIT! %d\n", res->dummy);
 
   return res;
 }
@@ -64,11 +64,10 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
   decoded_size = decodeChunk(&gchunk, block, block_size);
 
   if(decoded_size < 0 || decoded_size != GRAPES_ENCODED_CHUNK_HEADER_SIZE + ExternalChunk_header_size + gchunk.size) {
-	    printf("chunk %d probably corrupted!\n", gchunk.id);
+	    fprintf(stderr, "chunk %d probably corrupted!\n", gchunk.id);
 		return -1;
 	}
 
-	    printf("BEF LOCK chunk %d\n", gchunk.id);
   if(cb) {
   	pthread_mutex_lock(&cb_mutex);
   	res = cb_add_chunk(cb, &gchunk);
@@ -77,11 +76,11 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
   if (res < 0) { //chunk sequence is older than previous chunk (SHOULD SEND ANYWAY!!!)
     free(gchunk.data);
     free(gchunk.attributes);
-    printf("Chunk %d of %d bytes FAIL res %d\n", gchunk.id, gchunk.size, res);
+    fprintf(stderr, "Chunk %d of %d bytes FAIL res %d\n", gchunk.id, gchunk.size, res);
   }
   else {
     source_push_chunk(1); //push it one time
-    printf("Chunk %d of %d bytes PUSHED res %d\n", gchunk.id, gchunk.size, res);
+    dprintf("Chunk %d of %d bytes PUSHED res %d\n", gchunk.id, gchunk.size, res);
   }
 
   return 0;
