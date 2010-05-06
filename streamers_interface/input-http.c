@@ -69,11 +69,11 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 	}
 
 	    printf("BEF LOCK chunk %d\n", gchunk.id);
-
-  pthread_mutex_lock(&cb_mutex);
-  res = cb_add_chunk(cb, &gchunk);
-  pthread_mutex_unlock(&cb_mutex);
-
+  if(cb) {
+  	pthread_mutex_lock(&cb_mutex);
+  	res = cb_add_chunk(cb, &gchunk);
+  	pthread_mutex_unlock(&cb_mutex);
+  }
   if (res < 0) { //chunk sequence is older than previous chunk (SHOULD SEND ANYWAY!!!)
     free(gchunk.data);
     free(gchunk.attributes);
