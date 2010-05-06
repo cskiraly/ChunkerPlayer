@@ -26,14 +26,22 @@ endif
 
 ifdef ML
 LDFLAGS += -L$(GRAPES)/som -L$(GRAPES)/ml -L$(LIBEVENT)/lib
+ifdef STATIC
+LDLIBS += $(GRAPES)/som/libsom.a $(GRAPES)/ml/libml.a -lm
+else
 LDLIBS += -lsom -lml -lm
+endif
 CPPFLAGS += -I$(LIBEVENT)/include
 ifdef MONL
 LDFLAGS += -L$(GRAPES)/dclog -L$(GRAPES)/rep -L$(GRAPES)/monl -L$(GRAPES)/common
+ifdef STATIC
+LDLIBS += -lstdc++ $(GRAPES)/monl/libmon.a $(GRAPES)/dclog/libdclog.a $(GRAPES)/rep/librep.a -lcommon
+else
 LDLIBS += -lstdc++ -lmon -lrep -ldclog -lcommon
+endif
 CPPFLAGS += -DMONL
 ifdef STATIC
-CC=g++
+#CC=g++
 endif
 endif
 LDLIBS += -levent
@@ -91,7 +99,7 @@ CPPFLAGS += -I$(LOCAL_MHD) -I$(LOCAL_MHD)/src/daemon -I$(LOCAL_MHD)/src/include
 CPPFLAGS += -I../StreamerPlayerChunker
 CPPFLAGS += -I$(GRAPES)/ul
 LDFLAGS += -L$(LOCAL_MHD)/src/daemon
-LDLIBS += -lmicrohttpd
+LDLIBS += $(LOCAL_MHD)/src/daemon/.libs/libmicrohttpd.a
 LDLIBS += -lcurl
 endif
 
@@ -114,7 +122,7 @@ EXECTARGET := $(EXECTARGET)-http
 endif
 
 ifdef STATIC
-LDFLAGS += -static
+#LDFLAGS += -static
 EXECTARGET := $(EXECTARGET)-static
 endif
 
