@@ -22,6 +22,7 @@
 //#define DEBUG_VIDEO_FRAMES
 //#define DEBUG_CHUNKER
 //#define DEBUG_TIME
+#define DEBUG_ANOMALIES
 
 ChunkerMetadata *cmeta = NULL;
 
@@ -96,6 +97,7 @@ int main(int argc, char *argv[]) {
 
 	//stuff needed to compute the right timestamps
 	short int FirstTimeAudio=1, FirstTimeVideo=1;
+	short int pts_anomalies_counter=0;
 	long long newTime;
 	double ptsvideo1=0.0;
 	double ptsaudio1=0.0;
@@ -327,6 +329,25 @@ int main(int argc, char *argv[]) {
 
 	//main loop to read from the input file
 	while(av_read_frame(pFormatCtx, &packet)>=0) {
+
+		if(ptsvideo1 < 0 || ptsvideo1 > packet.dts || ptsaudio1 < 0 || ptsaudio1 > packet.dts) {
+			pts_anomalies_counter++;
+#ifdef DEBUG_ANOMALIES
+			fprintf(stderr, "READLOOP: pts BASE anomaly detected number %d\n", pts_anomalies_counter);
+#endif
+			if(live_source) { //reset just in case of live source
+				if(pts_anomalies_counter > 25) { //just a random threshold
+					pts_anomalies_counter = 0;
+					FirstTimeVideo = 1;
+					FirstTimeAudio = 1;
+#ifdef DEBUG_ANOMALIES
+					fprintf(stderr, "READLOOP: too many pts BASE anomalies. resetting pts base\n");
+#endif
+				}
+			}
+		}
+
+
 		// Is this a packet from the video stream?
 		if(packet.stream_index==videoStream) {
 			//decode the video packet into a raw pFrame
@@ -375,7 +396,7 @@ int main(int argc, char *argv[]) {
 
 					if(!live_source)
 					{
-						if(FirstTimeVideo && packet.pts>0) {
+						if(FirstTimeVideo && packet.dts>0) {
 							ptsvideo1 = (double)packet.dts;
 							FirstTimeVideo = 0;
 #ifdef DEBUG_VIDEO_FRAMES
@@ -489,29 +510,20 @@ int main(int argc, char *argv[]) {
 
 				if(!live_source)
 				{
-					if(FirstTimeAudio && packet.pts>0) {
-						//maintain the offset between audio pts and video pts
-						//because in case of live source they have the same numbering
-						if(ptsvideo1 > 0) //if we have already seen some video frames...
-							ptsaudio1 = ptsvideo1;
-						else
-							ptsaudio1 = (double)packet.dts;
+					if(FirstTimeAudio && packet.dts>0) {
+						ptsaudio1 = (double)packet.dts;
 						FirstTimeAudio = 0;
 #ifdef DEBUG_AUDIO_FRAMES
 						fprintf(stderr, "AUDIO: SET PTS BASE OFFSET %f\n", ptsaudio1);
 #endif
 					}
 					if(frame->number>0) {
-							if(ptsaudio1>0)
-								//use audio-based timestamps when available (both for video and audio frames)
-								newTime = (((double)target_pts-ptsaudio1)*1000.0*((double)av_q2d(pFormatCtx->streams[audioStream]->time_base)));//*(double)delta_audio;
-							else
-								newTime = ((double)target_pts-ptsvideo1)*1000.0/((double)delta_video*(double)av_q2d(pFormatCtx->streams[videoStream]->r_frame_rate));
+						newTime = (((double)target_pts-ptsaudio1)*1000.0*((double)av_q2d(pFormatCtx->streams[audioStream]->time_base)));//*(double)delta_audio;
 					}
 				}
 				else //live source
 				{
-					if(FirstTimeAudio && packet.pts>0) {
+					if(FirstTimeAudio && packet.dts>0) {
 						//maintain the offset between audio pts and video pts
 						//because in case of live source they have the same numbering
 						if(ptsvideo1 > 0) //if we have already seen some video frames...
@@ -523,7 +535,6 @@ int main(int argc, char *argv[]) {
 						fprintf(stderr, "AUDIO LIVE: SET PTS BASE OFFSET %f\n", ptsaudio1);
 #endif
 					}
-
 					if(frame->number>0) {
 								newTime = (((double)target_pts-ptsaudio1)*1000.0*((double)av_q2d(pFormatCtx->streams[audioStream]->time_base)));//*(double)delta_audio;
 					}
