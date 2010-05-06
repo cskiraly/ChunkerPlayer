@@ -28,5 +28,5 @@ void output_deliver(const struct chunk *c)
 
 	sprintf(url, "http://%s:%d%s", PLAYER_IP, UL_DEFAULT_EXTERNALPLAYER_PORT, UL_DEFAULT_EXTERNALPLAYER_PATH);
   ret = sendViaCurl(*c, GRAPES_ENCODED_CHUNK_HEADER_SIZE + c->size + c->attributes_size, url);
-  printf("Chunk %d delivered to %s\n", c->id, url);
+  dprintf("Chunk %d delivered to %s\n", c->id, url);
 }

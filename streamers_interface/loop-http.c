@@ -150,7 +150,7 @@ void source_loop(const char *fname, struct nodeID *s, int csize, int chunks, boo
           update_peers(remote, buff, len);
           break;
         case MSG_TYPE_CHUNK:
-          fprintf(stderr, "Some dumb peer pushed a chunk to me!\n");
+//          fprintf(stderr, "Some dumb peer pushed a chunk to me!\n");
     pthread_mutex_lock(&cb_mutex);
             received_chunk(remote, buff, len, false);
     pthread_mutex_unlock(&cb_mutex);
