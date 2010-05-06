@@ -2,7 +2,7 @@
 #include <microhttpd.h>
 
 
-static struct connection_info_struct {
+struct connection_info_struct {
   uint8_t *block;
   int block_size;
 };
