@@ -12,7 +12,7 @@
 
 #include "input.h"
 
-struct chunk_buffer *cb;
+extern struct chunk_buffer *cb;
 pthread_mutex_t cb_mutex;
 
 struct input_desc {
@@ -79,7 +79,9 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
     fprintf(stderr, "Chunk %d of %d bytes FAIL res %d\n", gchunk.id, gchunk.size, res);
   }
   else {
+    pthread_mutex_lock(&cb_mutex);
     send_chunk(); //push it
+    pthread_mutex_unlock(&cb_mutex);
     dprintf("Chunk %d of %d bytes PUSHED res %d\n", gchunk.id, gchunk.size, res);
   }
 
