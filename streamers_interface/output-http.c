@@ -3,6 +3,10 @@
  *
  *  This is free software; see gpl-3.0.txt
  */
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <sys/time.h>
 #include <chunk.h>
 #include <net_helper.h>
 
