@@ -2,7 +2,9 @@
 #define _EXTERNAL_CHUNK_TRANSCODING_H
 
 #include <stdlib.h>
-
+#include <stdint.h>
+#include <stdbool.h>
+#include <sys/time.h>
 #include <chunk.h>
 
 #include "external_chunk.h"

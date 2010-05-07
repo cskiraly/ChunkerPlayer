@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <curl/curl.h>
 
 #include <chunk.h>
