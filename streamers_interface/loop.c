@@ -128,8 +128,8 @@ void source_loop(const char *fname, struct nodeID *s, int csize, int chunks, boo
     int len, res;
     struct timeval tv;
 
-    tout_init(&tv);
-    res = wait4data(s, &tv, NULL);
+//    tout_init(&tv);
+    res = wait4data(s, NULL, NULL);
     if (res > 0) {
       struct nodeID *remote;
 
@@ -158,7 +158,8 @@ void source_loop(const char *fname, struct nodeID *s, int csize, int chunks, boo
     } else {
       int i, res;
       struct timeval tmp, d;
-
+printf("CDCDCDC\n");
+exit(1);
       d.tv_sec = 0;
 #ifdef HTTPIO 
       pthread_mutex_lock(&cb_mutex);

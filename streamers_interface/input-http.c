@@ -59,30 +59,38 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 	static int ExternalChunk_header_size = 5*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 1*CHUNK_TRANSCODING_INT_SIZE*2;
   int decoded_size = 0;
 	int res = -1;
-  struct chunk gchunk;
+//  struct chunk gchunk;
 
-  decoded_size = decodeChunk(&gchunk, block, block_size);
+  Chunk* gchunk=NULL;
+	gchunk = (Chunk *)malloc(sizeof(Chunk));
+	if(!gchunk) {
+		printf("Memory error in gchunk!\n");
+		return -1;
+	}
 
-  if(decoded_size < 0 || decoded_size != GRAPES_ENCODED_CHUNK_HEADER_SIZE + ExternalChunk_header_size + gchunk.size) {
-	    fprintf(stderr, "chunk %d probably corrupted!\n", gchunk.id);
+  decoded_size = decodeChunk(gchunk, block, block_size);
+
+  if(decoded_size < 0 || decoded_size != GRAPES_ENCODED_CHUNK_HEADER_SIZE + ExternalChunk_header_size + gchunk->size) {
+	    fprintf(stderr, "chunk %d probably corrupted!\n", gchunk->id);
 		return -1;
 	}
 
   if(cb) {
   	pthread_mutex_lock(&cb_mutex);
-  	res = cb_add_chunk(cb, &gchunk);
+  	res = cb_add_chunk(cb, gchunk);
   	pthread_mutex_unlock(&cb_mutex);
   }
   if (res < 0) { //chunk sequence is older than previous chunk (SHOULD SEND ANYWAY!!!)
-    free(gchunk.data);
-    free(gchunk.attributes);
-    fprintf(stderr, "Chunk %d of %d bytes FAIL res %d\n", gchunk.id, gchunk.size, res);
+    free(gchunk->data);
+    free(gchunk->attributes);
+    free(gchunk);
+    fprintf(stderr, "Chunk %d of %d bytes FAIL res %d\n", gchunk->id, gchunk->size, res);
   }
   else {
     pthread_mutex_lock(&cb_mutex);
     send_chunk(); //push it
     pthread_mutex_unlock(&cb_mutex);
-    dprintf("Chunk %d of %d bytes PUSHED res %d\n", gchunk.id, gchunk.size, res);
+    dprintf("Chunk %d of %d bytes PUSHED res %d\n", gchunk->id, gchunk->size, res);
   }
 
   return 0;

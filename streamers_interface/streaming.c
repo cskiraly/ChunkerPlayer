@@ -84,7 +84,7 @@ int source_init(const char *fname, struct nodeID *myID, bool loop)
     return -1;
   }
 
-  stream_init(20, myID);
+  stream_init(500, myID);
   return 0;
 }
 
