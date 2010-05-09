@@ -41,6 +41,7 @@
 #define MAX_TOLLERANCE 40
 #define AUDIO	1
 #define VIDEO	2
+#define QUEUE_MAX_SIZE 3000
 
 //#define DEBUG_AUDIO
 //#define DEBUG_VIDEO
@@ -56,13 +57,14 @@ short int QueueStopped=0;
 
 typedef struct PacketQueue {
 	AVPacketList *first_pkt;
-	//AVPacketList *last_pkt;
+	AVPacketList *last_pkt;
 	int nb_packets;
 	int size;
 	SDL_mutex *mutex;
 	short int queueType;
 	int last_frame_extracted; //HINT THIS SHOULD BE MORE THAN 4 BYTES
 	int total_lost_frames;
+	double density;
 } PacketQueue;
 
 typedef struct threadVal {
@@ -81,7 +83,9 @@ int queue_filling_threshold = 0;
 
 SDL_Surface *screen;
 SDL_Overlay *yuv_overlay;
+SDL_Surface *image;
 SDL_Rect    rect;
+SDL_Rect    dest;
 SDL_AudioSpec spec;
 struct SwsContext *img_convert_ctx = NULL;
 //SDL_mutex *timing_mutex;
@@ -109,6 +113,7 @@ void packet_queue_init(PacketQueue *q, short int Type) {
 	//q->last_pkt = NULL;
 	q->nb_packets = 0;
 	q->size = 0;
+	q->density= 0.0;
 	FirstTime = 1;
 	FirstTimeAudio = 1;
 #ifdef DEBUG_QUEUE
@@ -144,6 +149,7 @@ void packet_queue_reset(PacketQueue *q, short int Type) {
 	//q->last_pkt = NULL;
 	q->nb_packets = 0;
 	q->size = 0;
+	q->density= 0.0;
 	FirstTime = 1;
 	FirstTimeAudio = 1;
 #ifdef DEBUG_QUEUE
@@ -155,7 +161,14 @@ void packet_queue_reset(PacketQueue *q, short int Type) {
 int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 	short int skip = 0;
 	AVPacketList *pkt1, *tmp, *prevtmp;
-
+/*
+	if(q->nb_packets > QUEUE_MAX_SIZE) {
+#ifdef DEBUG_QUEUE
+		printf("QUEUE: PUT i have TOO MANY packets %d Type=%d\n", q->nb_packets, q->queueType);
+#endif    
+		return -1;
+  }
+*/
 	//make a copy of the incoming packet
 	if(av_dup_packet(pkt) < 0) {
 #ifdef DEBUG_QUEUE
@@ -176,11 +189,13 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 
 	// INSERTION SORT ALGORITHM
 	// before inserting pkt, check if pkt.stream_index is <= current_extracted_frame.
-	if(pkt->stream_index > q->last_frame_extracted) {
+//	if(pkt->stream_index > q->last_frame_extracted) {
 		// either checking starting from the first_pkt or needed other struct like AVPacketList with next and prev....
 		//if (!q->last_pkt)
-		if(!q->first_pkt)
+		if(!q->first_pkt) {
 			q->first_pkt = pkt1;
+			q->last_pkt = pkt1;
+		}
 		else if(pkt->stream_index < q->first_pkt->pkt.stream_index) {
 			//the packet that has arrived is earlier than the first we got some time ago!
 			//we need to put it at the head of the queue
@@ -207,6 +222,8 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 			else {
 				prevtmp->next = pkt1;
 				pkt1->next = tmp;
+				if(pkt1->next == NULL)
+					q->last_pkt = pkt1;
 			}
 			//q->last_pkt->next = pkt1; // It was uncommented when not insertion sort
 		}
@@ -222,7 +239,8 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 #endif
 			}
 		}
-	}
+//	}
+/*
 	else {
 		av_free_packet(&pkt1->pkt);
 		av_free(pkt1);
@@ -230,6 +248,13 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 				printf("QUEUE: PUT: NOT inserting because index %d > last extracted %d\n", pkt->stream_index, q->last_frame_extracted);
 #endif
 	}
+*/
+	if(q->last_pkt->pkt.stream_index > q->first_pkt->pkt.stream_index)
+		q->density = (double)q->nb_packets / (double)(q->last_pkt->pkt.stream_index - q->first_pkt->pkt.stream_index) * 100.0;
+
+#ifdef DEBUG_STATS
+	printf("STATS: queue type %d f %d l %d density %f\n", q->queueType, q->first_pkt->pkt.stream_index, q->last_pkt->pkt.stream_index, q->density);
+#endif
 
 	SDL_UnlockMutex(q->mutex);
 	return 0;
@@ -793,6 +818,13 @@ int video_callback(void *valthread) {
 					SDL_UnlockYUVOverlay(yuv_overlay);
 					// Show, baby, show!
 					SDL_DisplayYUVOverlay(yuv_overlay, &rect);
+
+	//redisplay logo
+	SDL_BlitSurface(image, NULL, screen, &dest);
+	/* Update the screen area just changed */
+	SDL_UpdateRects(screen, 1, &dest);
+
+
 					if(SDL_MUSTLOCK(screen)) {
 						SDL_UnlockSurface(screen);
 					}
@@ -844,26 +876,61 @@ void audio_callback(void *userdata, Uint8 *stream, int len) {
 	}
 }
 
-void ShowBMP(char *file, SDL_Surface *screen, int x, int y) {
-	SDL_Surface *image;
-	SDL_Rect dest;
+void SetupGUI(char *file) {
+	SDL_Surface *temp;
+	int screen_w = 0, screen_h = 0;
 
 	/* Load a BMP file on a surface */
-	image = SDL_LoadBMP(file);
-	if ( image == NULL ) {
+	temp = SDL_LoadBMP(file);
+	if (temp == NULL) {
 		fprintf(stderr, "Error loading %s: %s\n", file, SDL_GetError());
-		return;
+		exit(1);
 	}
+
+	if(rect.w > temp->w)
+		screen_w = rect.w;
+	else
+		screen_w = temp->w;
+
+		screen_h = rect.h + temp->h + 2;
+
+	SDL_WM_SetCaption("Filling buffer...", NULL);
+	// Make a screen to put our video
+#ifndef __DARWIN__
+	screen = SDL_SetVideoMode(screen_w, screen_h, 0, SDL_NOFRAME);
+#else
+	screen = SDL_SetVideoMode(screen_w, screen_h, 24, SDL_NOFRAME);
+#endif
+	if(!screen) {
+		fprintf(stderr, "SDL: could not set video mode - exiting\n");
+		exit(1);
+	}
+	image = SDL_DisplayFormatAlpha(temp);
+	SDL_FreeSurface(temp);
 
 	/* Copy on the screen surface 
 	surface should be blocked now.
 	*/
-	dest.x = x;
-	dest.y = y;
+	dest.x = (screen_w - image->w) / 2;
+	dest.y = rect.h + 2;
 	dest.w = image->w;
 	dest.h = image->h;
-	SDL_BlitSurface(image, NULL, screen, &dest);
+printf("x%d y%d w%d h%d\n", dest.x, dest.y, dest.w, dest.h);
 
+	//create video overlay for display of video frames
+	yuv_overlay = SDL_CreateYUVOverlay(rect.w, rect.h, SDL_YV12_OVERLAY, screen);
+
+	if ( yuv_overlay == NULL ) {
+		fprintf(stderr,"SDL: Couldn't create SDL_yuv_overlay: %s", SDL_GetError());
+		exit(1);
+	}
+
+	if ( yuv_overlay->hw_overlay )
+		fprintf(stderr,"SDL: Using hardware overlay.");
+	rect.x = (screen_w - rect.w) / 2;
+	SDL_DisplayYUVOverlay(yuv_overlay, &rect);
+
+	SDL_BlitSurface(image, NULL, screen, &dest);
 	/* Update the screen area just changed */
 	SDL_UpdateRects(screen, 1, &dest);
 }
@@ -1035,30 +1102,7 @@ int main(int argc, char *argv[]) {
 	//calculate aspect ratio and put updated values in rect
 	aspect_ratio_rect(ratio, width, height);
 
-	SDL_WM_SetCaption("Filling buffer...", NULL);
-	// Make a screen to put our video
-#ifndef __DARWIN__
-	screen = SDL_SetVideoMode(rect.w, rect.h, 0, 0);
-#else
-	screen = SDL_SetVideoMode(rect.w, rect.h, 24, 0);
-#endif
-	if(!screen) {
-		fprintf(stderr, "SDL: could not set video mode - exiting\n");
-		exit(1);
-	}
-
-	//create video overlay for display of video frames
-	yuv_overlay = SDL_CreateYUVOverlay(rect.w, rect.h, SDL_YV12_OVERLAY, screen);
-
-	if ( yuv_overlay == NULL ) {
-		fprintf(stderr,"SDL: Couldn't create SDL_yuv_overlay: %s", SDL_GetError());
-		exit(1);
-	}
-
-	if ( yuv_overlay->hw_overlay )
-		fprintf(stderr,"SDL: Using hardware overlay.");
-
-	SDL_DisplayYUVOverlay(yuv_overlay, &rect);
+	SetupGUI("napalogo_small.bmp");
 
 	// Init audio and video buffers
 	av_init_packet(&AudioPkt);
