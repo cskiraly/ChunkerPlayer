@@ -8,10 +8,10 @@
 #include "external_chunk_transcoding.h"
 #include "chunker_streamer.h"
 
-#define MY_IP "127.0.0.1"
+#define MY_IP "192.168.1.67"
 #define MY_PORT 4444
-#define STREAMER_IP "127.0.0.1"
-#define STREAMER_PORT 6666
+#define STREAMER_IP "192.168.1.67"
+#define STREAMER_PORT 7051
 
 
 struct nodeID *streamer;

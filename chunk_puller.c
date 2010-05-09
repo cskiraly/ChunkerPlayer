@@ -21,7 +21,8 @@ void request_completed(void *cls, struct MHD_Connection *connection,
 }
 
 int send_response(struct MHD_Connection *connection, unsigned int code) {
-  int ret;
+  int ret = MHD_NO;
+
   struct MHD_Response *response;
 
   response = MHD_create_response_from_data(0, NULL, MHD_NO, MHD_NO);

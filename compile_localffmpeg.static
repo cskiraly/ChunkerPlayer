@@ -20,7 +20,7 @@ rm *.o
 
 #YOUR config starts here
 EXT_DEPS=./ExternalDependancies
-LOCAL_GRAPES=../Streamers-build/Streamers/GRAPES
+LOCAL_GRAPES=../Streamers/GRAPES
 LOCAL_ABS_SDL=/mnt/hgfs/triplo/dipartimento/napawine/napasoftwareSVN/trunk/Applications/StreamerPlayerChunker/ExternalDependancies/SDL-1.2.14/my_SDL_deploy
 
 LOCAL_FFMPEG=$EXT_DEPS/ffmpeg-export-2010-01-04
@@ -49,9 +49,9 @@ LOCAL_VIDEO_FLAGS="$LOCAL_AVDEVICE/libavdevice.a $LOCAL_AVFORMAT/libavformat.a $
 LOCAL_SDL_FLAGS="-L$LOCAL_ABS_SDL/lib -Wl,-rpath,$LOCAL_ABS_SDL/lib $LOCAL_ABS_SDL/lib/libSDL.a -lpthread -lm -ldl -lpthread -I$LOCAL_ABS_SDL/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT"
 
 #GRAPES config here
-#LOCAL_GRAPES_ENV="-I$LOCAL_GRAPES/ul -I$LOCAL_GRAPES/include -L$LOCAL_GRAPES/som -L$LOCAL_GRAPES/ml"
-LOCAL_GRAPES_ENV="-I$LOCAL_GRAPES/../NAPA/ul -I$LOCAL_GRAPES/include"
-LOCAL_GRAPES_FLAGS="$LOCAL_GRAPES/som/libgrapes.a"
+LOCAL_GRAPES_ENV="-I$LOCAL_GRAPES/ul -I$LOCAL_GRAPES/include -L$LOCAL_GRAPES/som -L$LOCAL_GRAPES/ml -L$LOCAL_GRAPES/monl -L$LOCAL_GRAPES/rep -L$LOCAL_GRAPES/dclog -L$LOCAL_GRAPES/common"
+#LOCAL_GRAPES_ENV="-I$LOCAL_GRAPES/../NAPA/ul -I$LOCAL_GRAPES/include"
+LOCAL_GRAPES_FLAGS="-lsom -lml -lm -lstdc++ -lmon -lrep -ldclog -lcommon -DMONL -levent"
 
 #CURL config here
 LOCAL_CURL_ENV=""
@@ -74,8 +74,8 @@ echo "USING LOCAL FLAGS $LOCAL_FLAGS"
 gcc $LOCAL_ENV chunk_puller.c chunker_player.c external_chunk_transcoding.c $LOCAL_FLAGS -pthread -g -O0 -o chunker_player
 gcc $LOCAL_ENV -UNHIO chunk_pusher.c chunk_pusher_curl.c chunker_metadata.c external_chunk_transcoding.c chunker_streamer.c $LOCAL_FLAGS -pthread -g -O0 -o chunker_streamer
 
-#gcc $LOCAL_ENV $LOCAL_GRAPES/som/net_helper-ml.o chunk_puller_nh.c chunker_player.c external_chunk_transcoding.c $LOCAL_FLAGS -pthread -g -O0 -o chunker_player_NH
-#gcc $LOCAL_ENV -DNHIO $LOCAL_GRAPES/som/net_helper-ml.o chunk_pusher.c chunk_pusher_nh.c chunker_metadata.c external_chunk_transcoding.c chunker_streamer.c $LOCAL_FLAGS -pthread -g -O0 -o chunker_streamer_NH
+#gcc -lstdc++ $LOCAL_ENV $LOCAL_GRAPES/../measures.o $LOCAL_GRAPES/som/net_helper-ml.o chunk_puller_nh.c chunker_player.c external_chunk_transcoding.c $LOCAL_FLAGS -pthread -g -O0 -o chunker_player_NH
+#gcc -lstdc++ $LOCAL_ENV -DNHIO $LOCAL_GRAPES/../measures.o $LOCAL_GRAPES/som/net_helper-ml.o chunk_pusher.c chunk_pusher_nh.c chunker_metadata.c external_chunk_transcoding.c chunker_streamer.c $LOCAL_FLAGS -pthread -g -O0 -o chunker_streamer_NH
 
 echo ""
 echo "done!"
