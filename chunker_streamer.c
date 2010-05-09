@@ -18,20 +18,25 @@
 #include "external_chunk_transcoding.h"
 
 
-//#define DEBUG_AUDIO_FRAMES
-//#define DEBUG_VIDEO_FRAMES
-//#define DEBUG_CHUNKER
-//#define DEBUG_TIME
+#define DEBUG_AUDIO_FRAMES
+#define DEBUG_VIDEO_FRAMES
+#define DEBUG_CHUNKER
+#define DEBUG_TIME
 #define DEBUG_ANOMALIES
 
 ChunkerMetadata *cmeta = NULL;
+int seq_current_chunk = 1; //chunk numbering starts from 1; HINT do i need more bytes?
 
 
 int chunkFilled(ExternalChunk *echunk, ChunkerMetadata *cmeta) {
 	// different strategies to implement
-	if(cmeta->strategy == 0) // number of frames per chunk constant
+	if(cmeta->strategy == 0) { // number of frames per chunk constant
+#ifdef DEBUG_CHUNKER
+		fprintf(stderr, "CHUNKER: check if frames num %d == %d in chunk %d\n", echunk->frames_num, cmeta->val_strategy, echunk->seq);
+#endif
 		if(echunk->frames_num == cmeta->val_strategy)
 			return 1;
+  }
 	
 	if(cmeta->strategy == 1) // constant size. Note that for now each chunk will have a size just greater or equal than the required value - It can be considered as constant size. If that is not good we need to change the code. Also, to prevent too low values of strategy_val. This choice is more robust
 		if(echunk->payload_len >= cmeta->val_strategy)
@@ -63,7 +68,6 @@ int main(int argc, char *argv[]) {
 	int i=0;
 
 	//output variables
-	int seq_current_chunk = 1; //chunk numbering starts from 1; HINT do i need more bytes?
 	uint8_t *video_outbuf = NULL;
 	int video_outbuf_size, video_frame_size;
 	uint8_t *audio_outbuf = NULL;
@@ -77,7 +81,7 @@ int main(int argc, char *argv[]) {
 	int len1;
 	int frameFinished;
 	//frame sequential counters
-	int contFrameAudio=0, contFrameVideo=0;
+	int contFrameAudio=1, contFrameVideo=1;
 	int numBytes;
 
 	//command line parameters
@@ -298,26 +302,27 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "INIT: Memory error alloc Frame!!!\n");
 		return -1;
 	}
+	//create an empty first video chunk
 	chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
 	if(!chunk) {
 		fprintf(stderr, "INIT: Memory error alloc chunk!!!\n");
 		return -1;
 	}
-
-	//init an empty first video chunk
-	chunk->data=NULL;
-	initChunk(chunk, &seq_current_chunk);
+	chunk->data = NULL;
+	chunk->seq = 0;
+	//initChunk(chunk, &seq_current_chunk); if i init them now i get out of sequence
 #ifdef DEBUG_CHUNKER
 	fprintf(stderr, "INIT: chunk video %d\n", chunk->seq);
 #endif
-	//init empty first audio chunk
+	//create empty first audio chunk
 	chunkaudio = (ExternalChunk *)malloc(sizeof(ExternalChunk));
 	if(!chunkaudio) {
 		fprintf(stderr, "INIT: Memory error alloc chunkaudio!!!\n");
 		return -1;
 	}
   chunkaudio->data=NULL;
-	initChunk(chunkaudio, &seq_current_chunk);
+	chunkaudio->seq = 0;
+	//initChunk(chunkaudio, &seq_current_chunk);
 #ifdef DEBUG_CHUNKER
 	fprintf(stderr, "INIT: chunk audio %d\n", chunkaudio->seq);
 #endif
@@ -353,7 +358,7 @@ int main(int argc, char *argv[]) {
 			//decode the video packet into a raw pFrame
 			if(avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet)>0) {
 #ifdef DEBUG_VIDEO_FRAMES
-				fprintf(stderr, "-------VIDEO FRAME type %d\n", pFrame->pict_type);
+				fprintf(stderr, "\n-------VIDEO FRAME type %d\n", pFrame->pict_type);
 				fprintf(stderr, "VIDEO: dts %lld pts %lld\n", packet.dts, packet.pts);
 #endif
 				if(frameFinished) { // it must be true all the time else error
@@ -382,7 +387,7 @@ int main(int argc, char *argv[]) {
 #endif
 					video_frame_size = avcodec_encode_video(pCodecCtxEnc, video_outbuf, video_outbuf_size, pFrame);
 #ifdef DEBUG_VIDEO_FRAMES
-					fprintf(stderr, "VIDEO: original codec frame number %d\n", pCodecCtx->frame_number);
+					fprintf(stderr, "VIDEO: original codec frame number %d vs. encoded %d vs. packed %d\n", pCodecCtx->frame_number, pCodecCtxEnc->frame_number, frame->number);
 					fprintf(stderr, "VIDEO: duration %d timebase %d %d container timebase %d\n", (int)packet.duration, pCodecCtxEnc->time_base.den, pCodecCtxEnc->time_base.num, pCodecCtx->time_base.den);
 #endif
 
@@ -440,7 +445,7 @@ int main(int argc, char *argv[]) {
 					frame->size = video_frame_size;
 					frame->type = pFrame->pict_type;
 #ifdef DEBUG_VIDEO_FRAMES
-					fprintf(stderr, "VIDEO: encapsulated frame num:%d size:%d type:%d\n", frame->number, frame->size, frame->type);
+					fprintf(stderr, "VIDEO: encapsulated frame size:%d type:%d\n", frame->size, frame->type);
 					fprintf(stderr, "VIDEO: timestamped sec %d usec:%d\n", frame->timestamp.tv_sec, frame->timestamp.tv_usec);
 #endif
 					contFrameVideo++; //lets increase the numbering of the frames
@@ -455,10 +460,11 @@ int main(int argc, char *argv[]) {
 						//saveChunkOnFile(chunk);
 						//Send the chunk via http to an external transport/player
 						pushChunkHttp(chunk, cmeta->outside_world_url);
-						initChunk(chunk, &seq_current_chunk);
 #ifdef DEBUG_CHUNKER
-						fprintf(stderr, "VIDEO: chunk video %d\n", chunk->seq);
+						fprintf(stderr, "VIDEO: sent chunk video %d\n", chunk->seq);
 #endif
+						chunk->seq = 0; //signal that we need an increase
+						//initChunk(chunk, &seq_current_chunk);
 					}
 					/* pict_type maybe 1 (I), 2 (P), 3 (B), 5 (AUDIO)*/
 				}
@@ -499,7 +505,9 @@ int main(int argc, char *argv[]) {
 					else if(delta_audio==0)
 						continue;
 				}
-
+#ifdef DEBUG_AUDIO_FRAMES
+				fprintf(stderr, "AUDIO: original codec frame number %d vs. encoded %d vs. packed %d\n", aCodecCtx->frame_number, aCodecCtxEnc->frame_number, frame->number);
+#endif
 				//use pts if dts is invalid
 				if(packet.dts!=AV_NOPTS_VALUE)
 					target_pts = packet.dts;
@@ -572,10 +580,11 @@ int main(int argc, char *argv[]) {
 					//saveChunkOnFile(chunkaudio);
 					//Send the chunk via http to an external transport/player
 					pushChunkHttp(chunkaudio, cmeta->outside_world_url);
-					initChunk(chunkaudio, &seq_current_chunk);
 #ifdef DEBUG_CHUNKER
-					fprintf(stderr, "AUDIO: chunk audio %d\n", chunkaudio->seq);
+					fprintf(stderr, "AUDIO: just sent chunk audio %d\n", chunkaudio->seq);
 #endif
+					chunkaudio->seq = 0; //signal that we need an increase
+					//initChunk(chunkaudio, &seq_current_chunk);
 				}
 			}
 		}
@@ -636,6 +645,9 @@ int update_chunk(ExternalChunk *chunk, Frame *frame, uint8_t *outbuf) {
 	//moving temp pointer to encode Frame on the wire
 	uint8_t *tempdata = NULL;
 
+	if(chunk->seq == 0) {
+		initChunk(chunk, &seq_current_chunk);
+	}
 	//HINT on malloc
 	chunk->data = (uint8_t *)realloc(chunk->data, sizeof(uint8_t)*(chunk->payload_len + frame->size + sizeFrameHeader));
 	if(!chunk->data)  {
