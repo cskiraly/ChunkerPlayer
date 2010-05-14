@@ -253,7 +253,10 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
 		q->density = (double)q->nb_packets / (double)(q->last_pkt->pkt.stream_index - q->first_pkt->pkt.stream_index) * 100.0;
 
 #ifdef DEBUG_STATS
-	printf("STATS: queue type %d f %d l %d density %f\n", q->queueType, q->first_pkt->pkt.stream_index, q->last_pkt->pkt.stream_index, q->density);
+	if(q->queueType == AUDIO)
+		printf("STATS: AUDIO QUEUE DENSITY percentage %f\n", q->density);
+	if(q->queueType == VIDEO)
+		printf("STATS: VIDEO QUEUE DENSITY percentage %f\n", q->density);
 #endif
 
 	SDL_UnlockMutex(q->mutex);
@@ -346,11 +349,16 @@ AVPacketList *seek_and_decode_packet_starting_from(AVPacketList *p, PacketQueue 
 }
 
 void update_queue_stats(PacketQueue *q, int packet_index) {
+	double percentage = 0.0;	
 	//compute lost frame statistics
 	if(q->last_frame_extracted > 0 && packet_index > q->last_frame_extracted) {
 		q->total_lost_frames = q->total_lost_frames + packet_index - q->last_frame_extracted - 1;
+		percentage = (double)q->total_lost_frames / (double)q->last_frame_extracted * 100.0;
 #ifdef DEBUG_STATS
-		printf("  STATS QUEUE stats: stidx %d last %d tot %d\n", packet_index, q->last_frame_extracted, q->total_lost_frames);
+		if(q->queueType == AUDIO)
+			printf("STATS: AUDIO FRAMES LOST: total %d percentage %f\n", q->total_lost_frames, percentage);
+		else if(q->queueType == VIDEO)
+			printf("STATS: VIDEO FRAMES LOST: total %d percentage %f\n", q->total_lost_frames, percentage);
 #endif
 	}
 }
