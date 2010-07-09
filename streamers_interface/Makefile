@@ -14,9 +14,10 @@ CFLAGS += $(call cc-option, -Wundef)
 
 CFLAGS += $(call cc-option, -funit-at-a-time)
 
-NAPA ?= NAPA
-GRAPES ?= GRAPES
-ULPLAYER ?= ../../StreamerPlayerChunker
+NAPA ?= ../../NAPA-BASELIBS
+GRAPES ?= ../../GRAPES
+ULPLAYER ?= ../StreamerPlayerChunker
+ULPLAYER_EXTERNAL_LIBS ?= external_libs
 
 CPPFLAGS = -I$(NAPA)/include
 CPPFLAGS += -I$(GRAPES)/include
@@ -27,16 +28,17 @@ CPPFLAGS += -DDEBUG
 OBJS += dbg.o
 endif
 
+
 ifdef DEBUGOUT
 CPPFLAGS += -DDEBUGOUT
 endif
 
-LDFLAGS += -L$(GRAPES)/som
+LDFLAGS += -L$(GRAPES)
 LDLIBS += -lgrapes
 ifdef ML
-LDFLAGS += -L$(NAPA)/ml -L$(LIBEVENT)/lib
+LDFLAGS += -L$(NAPA)/ml -L$(LIBEVENT_DIR)/lib
 LDLIBS += -lml -lm
-CPPFLAGS += -I$(LIBEVENT)/include
+CPPFLAGS += -I$(NAPA)/ml/include -I$(LIBEVENT_DIR)/include
 ifdef MONL
 LDFLAGS += -L$(NAPA)/dclog -L$(NAPA)/rep -L$(NAPA)/monl -L$(NAPA)/common
 LDLIBS += -lstdc++ -lmon -lrep -ldclog -lcommon
@@ -45,7 +47,8 @@ ifdef STATIC
 CC=g++
 endif
 endif
-LDLIBS += -levent -lrt
+#LDLIBS += -levent -lrt
+LDLIBS += $(LIBEVENT_DIR)/lib/libevent.a -lrt
 endif
 
 OBJS += streaming.o
@@ -70,27 +73,27 @@ OBJS += loop.o
 endif
 
 ifdef MONL
+OBJS += measures-monl.o
+else
 OBJS += measures.o
 endif
 
 ifndef DUMMY
 ifndef HTTPIO
-FFDIR ?= ffmpeg
-FFSRC ?= $(FFDIR)
 OBJS += Chunkiser/input-stream-avs.o out-stream-avf.o
-LDFLAGS += -L$(FFDIR)/libavcodec -L$(FFDIR)/libavformat -L$(FFDIR)/libavutil
+CPPFLAGS += -I$(FFMPEG_DIR)/include
+LDFLAGS += -L$(FFMPEG_DIR)/lib
 LDLIBS += -lavformat -lavcodec -lavutil
 LDLIBS += -lm
 LDLIBS += $(call ld-option, -lz)
 LDLIBS += $(call ld-option, -lbz2)
 else
 CPPFLAGS += -DHTTPIO
-OBJS += $(ULPLAYER)/chunk_puller.o
-OBJS += $(ULPLAYER)/chunk_pusher_curl.o
-LOCAL_MHD=$(ULPLAYER)/ExternalDependancies/libmicrohttpd
+OBJS += $(ULPLAYER)/chunker_player/chunk_puller.o
+OBJS += $(ULPLAYER)/chunker_streamer/chunk_pusher_curl.o
+LOCAL_MHD=$(ULPLAYER)/$(ULPLAYER_EXTERNAL_LIBS)/libmicrohttpd
 CPPFLAGS += -I$(LOCAL_MHD) -I$(LOCAL_MHD)/src/daemon -I$(LOCAL_MHD)/src/include
-CPPFLAGS += -I$(ULPLAYER)
-CPPFLAGS += -I$(NAPA)/ul
+CPPFLAGS += -I$(ULPLAYER) -I$(ULPLAYER)/chunk_transcoding
 LDFLAGS += -L$(LOCAL_MHD)/src/daemon
 LDLIBS += $(LOCAL_MHD)/src/daemon/.libs/libmicrohttpd.a
 LDLIBS += -lcurl
@@ -116,7 +119,7 @@ EXECTARGET := $(EXECTARGET)-http
 endif
 
 ifdef STATIC
-LDFLAGS += -static
+LDFLAGS += -static -v
 EXECTARGET := $(EXECTARGET)-static
 endif
 
@@ -127,15 +130,15 @@ endif
 all: $(EXECTARGET)
 
 ifndef ML
-$(EXECTARGET): $(OBJS) $(GRAPES)/som/net_helper.o
+$(EXECTARGET): $(OBJS) $(GRAPES)/net_helper.o
 else
-$(EXECTARGET): $(OBJS) $(NAPA)/som/net_helper-ml.o
+$(EXECTARGET): $(OBJS) $(GRAPES)/net_helper-ml.o
 endif
 
 $(EXECTARGET).o: streamer.o
 	ln -sf streamer.o $(EXECTARGET).o
 
-out-stream-avf.o Chunkiser/input-stream-avs.o: CPPFLAGS += -I$(FFSRC) 
+out-stream-avf.o Chunkiser/input-stream-avs.o: CPPFLAGS += -I$(FFMPEG_DIR)/include 
 
 GRAPES:
 	git clone http://www.disi.unitn.it/~kiraly/PublicGits/GRAPES.git
@@ -146,7 +149,7 @@ ffmpeg:
 	cd ffmpeg; ./configure
 
 prepare: $(GRAPES) $(FFSRC)
-	$(MAKE) -C $(GRAPES)/som -f Makefile
+	$(MAKE) -C $(GRAPES) -f Makefile
 ifdef ML
 	cd $(NAPA); ./autogen.sh; $(MAKE)
 endif
@@ -154,6 +157,7 @@ endif
 
 clean:
 	rm -f $(EXECTARGET)
-	rm -f $(NAPA)/som/net_helper-ml.o
-	rm -f $(GRAPES)/som/net_helper.o
+	rm -f $(GRAPES)/net_helper-ml.o
+	rm -f $(GRAPES)/net_helper.o
 	rm -f *.o
+	rm -f Chunkiser/*.o
