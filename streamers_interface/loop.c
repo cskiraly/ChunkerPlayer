@@ -57,8 +57,8 @@ void loop(struct nodeID *s, int csize, int buff_size)
   
   sigInit(s);
   peers_init();
-  update_peers(NULL, NULL, 0);
   stream_init(buff_size, s);
+  update_peers(NULL, NULL, 0);
   while (!done) {
     int len, res;
     struct timeval tv;
@@ -80,13 +80,7 @@ void loop(struct nodeID *s, int csize, int buff_size)
           break;
         case MSG_TYPE_CHUNK:
           dprintf("Chunk message received:\n");
-#ifdef HTTPIO 
-          pthread_mutex_lock(&cb_mutex);
-#endif
           received_chunk(remote, buff, len);
-#ifdef HTTPIO 
-          pthread_mutex_unlock(&cb_mutex);
-#endif
           break;
         case MSG_TYPE_SIGNALLING:
           sigParseData(remote, buff, len);
@@ -128,8 +122,12 @@ void source_loop(const char *fname, struct nodeID *s, int csize, int chunks, boo
     int len, res;
     struct timeval tv;
 
-//    tout_init(&tv);
+#ifdef HTTPIO
     res = wait4data(s, NULL, NULL);
+#else
+    tout_init(&tv);
+    res = wait4data(s, &tv, NULL);
+#endif
     if (res > 0) {
       struct nodeID *remote;
 
@@ -146,7 +144,7 @@ void source_loop(const char *fname, struct nodeID *s, int csize, int chunks, boo
           update_peers(remote, buff, len);
           break;
         case MSG_TYPE_CHUNK:
-          fprintf(stderr, "Some dumb peer pushed a chunk to me!\n");
+          fprintf(stderr, "Some dumb peer pushed a chunk to me! peer:%s\n",node_addr(remote));
           break;
         case MSG_TYPE_SIGNALLING:
           sigParseData(remote, buff, len);
@@ -158,25 +156,12 @@ void source_loop(const char *fname, struct nodeID *s, int csize, int chunks, boo
     } else {
       int i, res;
       struct timeval tmp, d;
-printf("CDCDCDC\n");
-exit(1);
+
       d.tv_sec = 0;
-#ifdef HTTPIO 
-      pthread_mutex_lock(&cb_mutex);
-#endif
       res = generated_chunk(&d.tv_usec);
-#ifdef HTTPIO 
-      pthread_mutex_unlock(&cb_mutex);
-#endif
       if (res) {
         for (i = 0; i < chunks; i++) {	// @TODO: why this cycle?
-#ifdef HTTPIO 
-      pthread_mutex_lock(&cb_mutex);
-#endif
           send_chunk();
-#ifdef HTTPIO 
-      pthread_mutex_unlock(&cb_mutex);
-#endif
         }
         if (cnt++ % 10 == 0) {
             update_peers(NULL, NULL, 0);
