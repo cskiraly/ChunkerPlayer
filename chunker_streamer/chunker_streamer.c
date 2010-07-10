@@ -12,6 +12,7 @@
 #include <libavformat/avformat.h>
 
 #include <stdio.h>
+#include <unistd.h>
 
 #include "chunker_streamer.h"
 #include "codec_definitions.h"
@@ -102,7 +103,7 @@ int main(int argc, char *argv[]) {
 	//stuff needed to compute the right timestamps
 	short int FirstTimeAudio=1, FirstTimeVideo=1;
 	short int pts_anomalies_counter=0;
-	long long newTime;
+	long long newTime=0, newTime_prev=0;
 	double ptsvideo1=0.0;
 	double ptsaudio1=0.0;
 	int64_t last_pkt_dts=0, delta_video=0, delta_audio=0, last_pkt_dts_audio=0, target_pts=0;
@@ -195,6 +196,15 @@ int main(int argc, char *argv[]) {
 	pCodecCtxEnc->gop_size = 10; // emit one intra frame every ten frames 
 	//pCodecCtxEnc->max_b_frames=1;
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
+
+	pCodecCtxEnc->bit_rate_tolerance = video_bitrate;
+	pCodecCtxEnc->rc_min_rate = 0;
+	pCodecCtxEnc->rc_max_rate = 0;
+	pCodecCtxEnc->rc_buffer_size = 0;
+	pCodecCtxEnc->flags |= CODEC_FLAG_PSNR;
+	pCodecCtxEnc->partitions = X264_PART_I4X4 | X264_PART_I8X8 | X264_PART_P8X8 | X264_PART_P4X4 | X264_PART_B8X8;
+	pCodecCtxEnc->crf = 0.0f;
+
 #else
 	pCodecCtxEnc->codec_type = CODEC_TYPE_VIDEO;
 	pCodecCtxEnc->codec_id   = CODEC_ID_MPEG4;
@@ -331,10 +341,22 @@ int main(int argc, char *argv[]) {
 	initChunkPusher(); //TRIPLO
 
 //	i=0;
-
+	long sleep=0;
 	//main loop to read from the input file
 	while(av_read_frame(pFormatCtx, &packet)>=0) {
+		if(!live_source) {
+			sleep = (long)newTime - (long)newTime_prev;
+			if(sleep > 0) {
+#ifdef DEBUG_ANOMALIES
+				fprintf(stderr, "\nREADLOOP: going to sleep for %ld\n", sleep);
+#endif
+				usleep(sleep * 1000);
+				//usleep(40 * 1000);
+			}
+			newTime_prev = newTime;
+		}
 
+		//detect if a strange number of anomalies is occurring
 		if(ptsvideo1 < 0 || ptsvideo1 > packet.dts || ptsaudio1 < 0 || ptsaudio1 > packet.dts) {
 			pts_anomalies_counter++;
 #ifdef DEBUG_ANOMALIES
@@ -351,7 +373,6 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-
 
 		// Is this a packet from the video stream?
 		if(packet.stream_index==videoStream) {
@@ -408,9 +429,6 @@ int main(int argc, char *argv[]) {
 							fprintf(stderr, "VIDEO: SET PTS BASE OFFSET %f\n", ptsvideo1);
 #endif
 						}
-						if(frame->number>0) {
-							newTime = ((double)target_pts-ptsvideo1)*1000.0/((double)delta_video*(double)av_q2d(pFormatCtx->streams[videoStream]->r_frame_rate));
-						}
 					}
 					else //live source
 					{
@@ -426,9 +444,10 @@ int main(int argc, char *argv[]) {
 							fprintf(stderr, "VIDEO LIVE: SET PTS BASE OFFSET %f\n", ptsvideo1);
 #endif
 						}
-						if(frame->number>0) {
-							newTime = ((double)target_pts-ptsvideo1)*1000.0/((double)delta_video*(double)av_q2d(pFormatCtx->streams[videoStream]->r_frame_rate));
-						}
+					}
+					//compute the new video timestamp in milliseconds
+					if(frame->number>0) {
+						newTime = ((double)target_pts-ptsvideo1)*1000.0/((double)delta_video*(double)av_q2d(pFormatCtx->streams[videoStream]->r_frame_rate));
 					}
 #ifdef DEBUG_VIDEO_FRAMES
 					fprintf(stderr, "VIDEO: NEWTIMESTAMP %ld\n", newTime);
@@ -525,9 +544,6 @@ int main(int argc, char *argv[]) {
 						fprintf(stderr, "AUDIO: SET PTS BASE OFFSET %f\n", ptsaudio1);
 #endif
 					}
-					if(frame->number>0) {
-						newTime = (((double)target_pts-ptsaudio1)*1000.0*((double)av_q2d(pFormatCtx->streams[audioStream]->time_base)));//*(double)delta_audio;
-					}
 				}
 				else //live source
 				{
@@ -543,9 +559,10 @@ int main(int argc, char *argv[]) {
 						fprintf(stderr, "AUDIO LIVE: SET PTS BASE OFFSET %f\n", ptsaudio1);
 #endif
 					}
-					if(frame->number>0) {
-								newTime = (((double)target_pts-ptsaudio1)*1000.0*((double)av_q2d(pFormatCtx->streams[audioStream]->time_base)));//*(double)delta_audio;
-					}
+				}
+				//compute the new audio timestamps in milliseconds
+				if(frame->number>0) {
+					newTime = (((double)target_pts-ptsaudio1)*1000.0*((double)av_q2d(pFormatCtx->streams[audioStream]->time_base)));//*(double)delta_audio;
 				}
 #ifdef DEBUG_AUDIO_FRAMES
 				fprintf(stderr, "AUDIO: NEWTIMESTAMP %d\n", newTime);
