@@ -22,8 +22,9 @@ fi
 if [ -n "$CLEAN_EXTERNAL_BUILD" ]; then
 	#remove previuos versions of external libs builds
 	rm -r -f $EXTERN_DIR
-	mkdir $EXTERN_DIR
 fi
+
+mkdir $EXTERN_DIR
 
 if [ -n "$BUILD_X264" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
