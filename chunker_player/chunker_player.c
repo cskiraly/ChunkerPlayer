@@ -23,7 +23,8 @@
 #include <SDL.h>
 #include <SDL_thread.h>
 #include <SDL_mutex.h>
-
+#include <SDL_image.h>
+#include <math.h>
 
 #ifdef __MINGW32__
 #undef main /* Prevents SDL from overriding main() */
@@ -42,6 +43,15 @@
 #define AUDIO	1
 #define VIDEO	2
 #define QUEUE_MAX_SIZE 3000
+
+#define PAUSE_ICON_FILE "icons/pause32.png"
+#define PLAY_ICON_FILE "icons/play32.png"
+#define PAUSEHOVER_ICON_FILE "icons/pause32_hover.png"
+#define PLAYHOVER_ICON_FILE "icons/play32_hover.png"
+
+#define BUTTONS_LAYER_OFFSET 10
+
+typedef enum Status { STOPPED, RUNNING, PAUSED } Status;
 
 //#define DEBUG_AUDIO
 //#define DEBUG_VIDEO
@@ -78,16 +88,27 @@ PacketQueue audioq;
 PacketQueue videoq;
 AVPacket AudioPkt, VideoPkt;
 int quit = 0;
+int SaveYUV=0;
+char YUVFileName[256];
 
 int queue_filling_threshold = 0;
 
 SDL_Surface *screen;
 SDL_Overlay *yuv_overlay;
-SDL_Surface *image;
+SDL_Rect    playIconBox;
+SDL_Surface *playIcon;
+SDL_Surface *playHoverIcon;
+SDL_Surface *pauseIcon;
+SDL_Surface *pauseHoverIcon;
+SDL_Cursor *defaultCursor;
+SDL_Cursor *handCursor;
 SDL_Rect    rect;
-SDL_Rect    dest;
+SDL_Rect *initRect = NULL;
 SDL_AudioSpec spec;
+Status CurrStatus = STOPPED;
 struct SwsContext *img_convert_ctx = NULL;
+float ratio;
+
 //SDL_mutex *timing_mutex;
 
 int got_sigint = 0;
@@ -98,6 +119,54 @@ short int FirstTimeAudio=1, FirstTime = 1;
 int dimAudioQ;
 float deltaAudioQ;
 float deltaAudioQError=0;
+
+void SaveFrame(AVFrame *pFrame, int width, int height);
+SDL_Cursor *init_system_cursor(const char *image[]);
+void refresh_icons(int hover);
+void aspect_ratio_resize(float aspect_ratio, int width, int height, int* out_width, int* out_height);
+
+/* XPM */
+static char *handXPM[] = {
+/* columns rows colors chars-per-pixel */
+"32 32 3 1",
+"  c black",
+". c gray100",
+"X c None",
+/* pixels */
+"XXXXX  XXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXX .. XXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXX .. XXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXX .. XXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXX .. XXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXX ..   XXXXXXXXXXXXXXXXXXXXXX",
+"XXXX .. ..   XXXXXXXXXXXXXXXXXXX",
+"XXXX .. .. ..  XXXXXXXXXXXXXXXXX",
+"XXXX .. .. .. . XXXXXXXXXXXXXXXX",
+"   X .. .. .. .. XXXXXXXXXXXXXXX",
+" ..  ........ .. XXXXXXXXXXXXXXX",
+" ... ........... XXXXXXXXXXXXXXX",
+"X .. ........... XXXXXXXXXXXXXXX",
+"XX . ........... XXXXXXXXXXXXXXX",
+"XX ............. XXXXXXXXXXXXXXX",
+"XXX ............ XXXXXXXXXXXXXXX",
+"XXX ........... XXXXXXXXXXXXXXXX",
+"XXXX .......... XXXXXXXXXXXXXXXX",
+"XXXX .......... XXXXXXXXXXXXXXXX",
+"XXXXX ........ XXXXXXXXXXXXXXXXX",
+"XXXXX ........ XXXXXXXXXXXXXXXXX",
+"XXXXX          XXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"0,0"
+};
 
 void packet_queue_init(PacketQueue *q, short int Type) {
 #ifdef DEBUG_QUEUE
@@ -789,7 +858,8 @@ int video_callback(void *valthread) {
 #ifdef DEBUG_VIDEO
 					printf("VIDEO: FrameFinished\n");
 #endif
-					//SaveFrame(pFrame, pCodecCtx->width, pCodecCtx->height, cont++);
+					if(SaveYUV)
+						SaveFrame(pFrame, pCodecCtx->width, pCodecCtx->height);
 					//fwrite(pktvideo.data, 1, pktvideo.size, frecon);
 
 					// Lock SDL_yuv_overlay
@@ -815,7 +885,7 @@ int video_callback(void *valthread) {
 					pict.linesize[2] = yuv_overlay->pitches[1];
 
 					if(img_convert_ctx == NULL) {
-						img_convert_ctx = sws_getContext(tval->width, tval->height, PIX_FMT_YUV420P, rect.w, rect.h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
+						img_convert_ctx = sws_getContext(tval->width, tval->height, PIX_FMT_YUV420P, initRect->w, initRect->h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
 						if(img_convert_ctx == NULL) {
 							fprintf(stderr, "Cannot initialize the conversion context!\n");
 							exit(1);
@@ -827,10 +897,10 @@ int video_callback(void *valthread) {
 					// Show, baby, show!
 					SDL_DisplayYUVOverlay(yuv_overlay, &rect);
 
-	//redisplay logo
-	SDL_BlitSurface(image, NULL, screen, &dest);
-	/* Update the screen area just changed */
-	SDL_UpdateRects(screen, 1, &dest);
+					//redisplay logo
+					/**SDL_BlitSurface(image, NULL, screen, &dest);*/
+					/* Update the screen area just changed */
+					/**SDL_UpdateRects(screen, 1, &dest);*/
 
 
 					if(SDL_MUSTLOCK(screen)) {
@@ -851,8 +921,9 @@ int video_callback(void *valthread) {
 }
 
 
-void aspect_ratio_rect(float aspect_ratio, int width, int height) {
-	float aspect = aspect_ratio * (float)width / (float)height;
+void aspect_ratio_rect(float aspect_ratio, int width, int height)
+{
+	/**float aspect = aspect_ratio * (float)width / (float)height;
 	int h, w, x, y;
 	h = height;
 	w = ((int)rint(h * aspect)) & -3;
@@ -865,7 +936,18 @@ void aspect_ratio_rect(float aspect_ratio, int width, int height) {
 	rect.x = 0;//x;
 	rect.y = 0;//y;
 	rect.w = w;
+	rect.h = h;*/
+	
+	int h = 0, w = 0, x, y;
+	aspect_ratio_resize(aspect_ratio, width, height, &w, &h);
+	x = (width - w) / 2;
+	y = (height - h) / 2;
+	rect.x = x;//x;
+	rect.y = y;//y;
+	rect.w = w;
 	rect.h = h;
+
+// 	printf("setting video mode %dx%d\n", rect.w, rect.h);
 }
 
 
@@ -884,14 +966,24 @@ void audio_callback(void *userdata, Uint8 *stream, int len) {
 	}
 }
 
-void SetupGUI(char *file) {
+void SetupGUI()
+{
+	// init SDL_image
+	int flags=IMG_INIT_JPG|IMG_INIT_PNG;
+	int initted=IMG_Init(flags);
+	if(initted&flags != flags) {
+		printf("IMG_Init: Failed to init required jpg and png support!\n");
+		printf("IMG_Init: %s\n", IMG_GetError());
+		exit(1);
+	}
+
 	SDL_Surface *temp;
 	int screen_w = 0, screen_h = 0;
 
 	/* Load a BMP file on a surface */
-	temp = SDL_LoadBMP(file);
+	temp = IMG_Load(PLAY_ICON_FILE);
 	if (temp == NULL) {
-		fprintf(stderr, "Error loading %s: %s\n", file, SDL_GetError());
+		fprintf(stderr, "Error loading %s: %s\n", PLAY_ICON_FILE, SDL_GetError());
 		exit(1);
 	}
 
@@ -900,30 +992,58 @@ void SetupGUI(char *file) {
 	else
 		screen_w = temp->w;
 
-		screen_h = rect.h + temp->h + 2;
+		screen_h = rect.h + temp->h + BUTTONS_LAYER_OFFSET;
 
 	SDL_WM_SetCaption("Filling buffer...", NULL);
 	// Make a screen to put our video
 #ifndef __DARWIN__
-	screen = SDL_SetVideoMode(screen_w, screen_h, 0, SDL_NOFRAME);
+	screen = SDL_SetVideoMode(screen_w, screen_h, 0, SDL_SWSURFACE | SDL_RESIZABLE);
 #else
-	screen = SDL_SetVideoMode(screen_w, screen_h, 24, SDL_NOFRAME);
+	screen = SDL_SetVideoMode(screen_w, screen_h, 24, SDL_SWSURFACE | SDL_RESIZABLE);
 #endif
 	if(!screen) {
 		fprintf(stderr, "SDL: could not set video mode - exiting\n");
 		exit(1);
 	}
-	image = SDL_DisplayFormatAlpha(temp);
+	playIcon = SDL_DisplayFormatAlpha(temp);
 	SDL_FreeSurface(temp);
+
+	// load pause icon buttonm
+	temp = IMG_Load(PAUSE_ICON_FILE);
+	if (temp == NULL) {
+		fprintf(stderr, "Error loading %s: %s\n", PAUSE_ICON_FILE, SDL_GetError());
+		exit(1);
+	}
+	pauseIcon = SDL_DisplayFormatAlpha(temp);
+	SDL_FreeSurface(temp);
+
+	temp = IMG_Load(PAUSEHOVER_ICON_FILE);
+	if (temp == NULL) {
+		fprintf(stderr, "Error loading %s: %s\n", PAUSEHOVER_ICON_FILE, SDL_GetError());
+		exit(1);
+	}
+	pauseHoverIcon = SDL_DisplayFormatAlpha(temp);
+	SDL_FreeSurface(temp);
+
+	temp = IMG_Load(PLAYHOVER_ICON_FILE);
+	if (temp == NULL) {
+		fprintf(stderr, "Error loading %s: %s\n", PLAYHOVER_ICON_FILE, SDL_GetError());
+		exit(1);
+	}
+	playHoverIcon = SDL_DisplayFormatAlpha(temp);
+	SDL_FreeSurface(temp);
+
+	defaultCursor = SDL_GetCursor();
+	handCursor = init_system_cursor(handXPM);
 
 	/* Copy on the screen surface 
 	surface should be blocked now.
 	*/
-	dest.x = (screen_w - image->w) / 2;
-	dest.y = rect.h + 2;
-	dest.w = image->w;
-	dest.h = image->h;
-printf("x%d y%d w%d h%d\n", dest.x, dest.y, dest.w, dest.h);
+	playIconBox.x = (screen_w - playIcon->w) / 2;
+	playIconBox.y = rect.h + (BUTTONS_LAYER_OFFSET/2);
+	playIconBox.w = playIcon->w;
+	playIconBox.h = playIcon->h;
+	printf("x%d y%d w%d h%d\n", playIconBox.x, playIconBox.y, playIconBox.w, playIconBox.h);
 
 	//create video overlay for display of video frames
 	yuv_overlay = SDL_CreateYUVOverlay(rect.w, rect.h, SDL_YV12_OVERLAY, screen);
@@ -938,28 +1058,33 @@ printf("x%d y%d w%d h%d\n", dest.x, dest.y, dest.w, dest.h);
 	rect.x = (screen_w - rect.w) / 2;
 	SDL_DisplayYUVOverlay(yuv_overlay, &rect);
 
-	SDL_BlitSurface(image, NULL, screen, &dest);
+	/**SDL_BlitSurface(image, NULL, screen, &dest);*/
+	SDL_BlitSurface(playIcon, NULL, screen, &playIconBox);
 	/* Update the screen area just changed */
-	SDL_UpdateRects(screen, 1, &dest);
+	SDL_UpdateRects(screen, 1, &playIconBox);
 }
 
-void SaveFrame(AVFrame *pFrame, int width, int height, int iFrame) {
+void SaveFrame(AVFrame *pFrame, int width, int height) {
 	FILE *pFile;
-	char szFilename[32];
 	int  y;
   
 	 // Open file
-	sprintf(szFilename, "frame%d.ppm", iFrame);
-	pFile=fopen(szFilename, "wb");
+	pFile=fopen(YUVFileName, "ab");
 	if(pFile==NULL)
 		return;
   
 	// Write header
-	fprintf(pFile, "P5\n%d %d\n255\n", width, height);
+	//fprintf(pFile, "P5\n%d %d\n255\n", width, height);
   
-	// Write pixel data
+	// Write Y data
 	for(y=0; y<height; y++)
   		fwrite(pFrame->data[0]+y*pFrame->linesize[0], 1, width, pFile);
+	// Write U data
+	for(y=0; y<height/2; y++)
+  		fwrite(pFrame->data[1]+y*pFrame->linesize[1], 1, width/2, pFile);
+	// Write V data
+	for(y=0; y<height/2; y++)
+  		fwrite(pFrame->data[2]+y*pFrame->linesize[2], 1, width/2, pFile);
   
 	// Close file
 	fclose(pFile);
@@ -982,6 +1107,9 @@ void ProcessKeys() {
 		LastKey=SDLK_SPACE;
 		LastTime=Now;
 		QueueStopped=!QueueStopped;
+		if(QueueStopped) CurrStatus = PAUSED;
+		else CurrStatus = RUNNING;
+		refresh_icons(0);
 	}
 	if(keystate[SDLK_ESCAPE] &&
 	  (LastKey!=SDLK_ESCAPE || (LastKey==SDLK_ESCAPE && (Now-LastTime>1000))))
@@ -1025,13 +1153,12 @@ int main(int argc, char *argv[]) {
 	char buf[1024],outfile[1024], basereadfile[1024],readfile[1024];
 	FILE *fp;	
 	int width,height,asample_rate,achannels;
-	float ratio;
 
 	ThreadVal *tval;
 	tval = (ThreadVal *)malloc(sizeof(ThreadVal));
 		
 	if(argc<7) {
-		printf("chunker_player width height aspect_ratio audio_sample_rate audio_channels queue_thresh\n");
+		printf("chunker_player width height aspect_ratio audio_sample_rate audio_channels queue_thresh <YUVFilename>\n");
 		exit(1);
 	}
 	sscanf(argv[1],"%d",&width);
@@ -1040,6 +1167,20 @@ int main(int argc, char *argv[]) {
 	sscanf(argv[4],"%d",&asample_rate);
 	sscanf(argv[5],"%d",&achannels);
 	sscanf(argv[6],"%d",&queue_filling_threshold);
+	if(argc==8)
+	{
+		sscanf(argv[7],"%s",YUVFileName);
+		printf("YUVFile: %s\n",YUVFileName);
+		FILE* fp=fopen(YUVFileName, "wb");
+		if(fp)
+		{
+			SaveYUV=1;
+			fclose(fp);
+		}
+		else
+			printf("ERROR: Unable to create YUVFile\n");
+	}
+
 	tval->width = width;
 	tval->height = height;
 	tval->aspect_ratio = ratio;
@@ -1110,21 +1251,19 @@ int main(int argc, char *argv[]) {
 	//calculate aspect ratio and put updated values in rect
 	aspect_ratio_rect(ratio, width, height);
 
-	SetupGUI("napalogo_small.bmp");
+	initRect = (SDL_Rect*) malloc(sizeof(SDL_Rect));
+	if(!initRect)
+	{
+		printf("Memory error!!!\n");
+		return -1;
+	}
+	initRect->x = rect.x;
+	initRect->y = rect.y;
+	initRect->w = rect.w;
+	initRect->h = rect.h;
 
-	// Init audio and video buffers
-	av_init_packet(&AudioPkt);
-	av_init_packet(&VideoPkt);
-	AudioPkt.data=(uint8_t *)malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
-	if(!AudioPkt.data) return 0;
-	VideoPkt.data=(uint8_t *)malloc(width*height*3/2);
-	if(!VideoPkt.data) return 0;
-	
-	SDL_PauseAudio(0);
-	video_thread = SDL_CreateThread(video_callback,tval);
-
-	//this thread fetches chunks from the network by listening to the following path, port
-	daemon = initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, UL_DEFAULT_EXTERNALPLAYER_PORT);
+	//SetupGUI("napalogo_small.bmp");
+	SetupGUI();
 
 	// Wait for user input
 	while(!quit) {
@@ -1146,20 +1285,152 @@ int main(int argc, char *argv[]) {
 		else
 			SDL_WM_SetCaption("NAPA-Wine Player", NULL);
 
+		int x = 0, y = 0;
+		int resize_w, resize_h;
+		int tmp_switch = 0;
 		//listen for key and mouse
 		while(SDL_PollEvent(&event)) {
-				switch(event.type) {
-					case SDL_QUIT:
-						//exit(0);
-						quit=1;
+			switch(event.type) {
+				case SDL_QUIT:
+					//exit(0);
+					quit=1;
+				break;
+				case SDL_VIDEORESIZE:
+					//printf("\tSDL_VIDEORESIZE\n");
+					
+					// if running, pause until resize has done
+					if(CurrStatus == RUNNING)
+					{
+						QueueStopped = 1;
+						CurrStatus = PAUSED;
+						tmp_switch = 1;
+					}
+#ifndef __DARWIN__
+					SDL_SetVideoMode(event.resize.w, event.resize.h, 0, SDL_SWSURFACE | SDL_RESIZABLE);
+#else
+					SDL_SetVideoMode(event.resize.w, event.resize.h, 24, SDL_SWSURFACE | SDL_RESIZABLE);
+#endif
+					aspect_ratio_rect(ratio, event.resize.w, event.resize.h - BUTTONS_LAYER_OFFSET - playIconBox.h);
+					
+					playIconBox.x = (event.resize.w - playIcon->w) / 2;
+
+					// put the button just below the video overlay
+// 					playIconBox.y = rect.y+rect.h + (BUTTONS_LAYER_OFFSET/2);
+
+					// put the button at the bottom edge of the screen
+					playIconBox.y = event.resize.h - playIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+					
+					if(tmp_switch)
+					{
+						QueueStopped = 0;
+						CurrStatus= RUNNING;
+						tmp_switch = 0;
+					}
+
+					refresh_icons(0);
+				break;
+				case SDL_ACTIVEEVENT:
+					//printf("\tSDL_ACTIVEEVENT\n");
+					// if the window was iconified or restored
+					if(event.active.state & SDL_APPACTIVE)
+					{
+						//If the application is being reactivated
+						if( event.active.gain != 0 )
+						{
+							//SDL_WM_SetCaption( "Window Event Test restored", NULL );
+						}
+					}
+					//If something happened to the keyboard focus
+					else if( event.active.state & SDL_APPINPUTFOCUS )
+					{
+						//If the application gained keyboard focus
+						if( event.active.gain != 0 )
+						{
+							refresh_icons(0);
+						}
+					}
+					//If something happened to the mouse focus
+					else if( event.active.state & SDL_APPMOUSEFOCUS )
+					{
+						//If the application gained mouse focus
+						if( event.active.gain != 0 )
+						{
+							refresh_icons(0);
+						}
+					}
 					break;
-				}
-				ProcessKeys();
+				case SDL_MOUSEMOTION:
+					//printf("\tSDL_MOUSEMOTION\n");
+					x = event.motion.x;
+					y = event.motion.y;
+					//If the mouse is over the button
+					if(
+						( x > playIconBox.x ) && ( x < playIconBox.x + playIcon->w )
+						&& ( y > playIconBox.y ) && ( y < playIconBox.y + playIcon->h )
+					)
+					{
+						refresh_icons(1);
+						SDL_SetCursor(handCursor);
+					}
+					//If not
+					else
+					{
+						refresh_icons(0);
+						SDL_SetCursor(defaultCursor);
+					}
+				break;
+				case SDL_MOUSEBUTTONUP:
+					//printf("\tSDL_MOUSEBUTTONUP\n");
+					if( event.button.button != SDL_BUTTON_LEFT )
+        					break;
+					
+					x = event.motion.x;
+					y = event.motion.y;
+					//If the mouse is over the button
+					if(
+						( x > playIconBox.x ) && ( x < playIconBox.x + playIcon->w )
+						&& ( y > playIconBox.y ) && ( y < playIconBox.y + playIcon->h )
+					)
+					{
+						switch(CurrStatus)
+						{
+							case STOPPED:
+								// Init audio and video buffers
+								av_init_packet(&AudioPkt);
+								av_init_packet(&VideoPkt);
+								AudioPkt.data=(uint8_t *)malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
+								if(!AudioPkt.data) return 0;
+								VideoPkt.data=(uint8_t *)malloc(width*height*3/2);
+								if(!VideoPkt.data) return 0;
+								
+								SDL_PauseAudio(0);
+								video_thread = SDL_CreateThread(video_callback,tval);
+								
+								//this thread fetches chunks from the network by listening to the following path, port
+								daemon = initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, UL_DEFAULT_EXTERNALPLAYER_PORT);
+								CurrStatus = RUNNING;
+								break;
+							case RUNNING:
+								QueueStopped = 1;
+								CurrStatus = PAUSED;
+								break;
+							case PAUSED:
+								QueueStopped = 0;
+								CurrStatus = RUNNING;
+								break;
+						}
+						refresh_icons(1);
+					}
+				break;
+			}
+			ProcessKeys();
 		}
 		usleep(120000);
 	}
 
 	//TERMINATE
+	IMG_Quit();
+
 	// Stop audio&video playback
 	SDL_WaitThread(video_thread,NULL);
 	SDL_PauseAudio(1);
@@ -1172,10 +1443,9 @@ int main(int argc, char *argv[]) {
 	free(outbuf_audio);
 	finalizeChunkPuller(daemon);
 	free(tval);
+	free(initRect);
 	return 0;
 }
-
-
 
 int enqueueBlock(const uint8_t *block, const int block_size) {
 	Chunk *gchunk = NULL;
@@ -1318,4 +1588,90 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 		free(frame);
 	if(audio_bufQ)
 		av_free(audio_bufQ);
+}
+
+/* From SDL documentation. */
+SDL_Cursor *init_system_cursor(const char *image[])
+{
+	int i, row, col;
+	Uint8 data[4*32];
+	Uint8 mask[4*32];
+	int hot_x, hot_y;
+
+	i = -1;
+	for ( row=0; row<32; ++row ) {
+		for ( col=0; col<32; ++col ) {
+			if ( col % 8 ) {
+				data[i] <<= 1;
+				mask[i] <<= 1;
+			} else {
+				++i;
+				data[i] = mask[i] = 0;
+			}
+			
+			switch (image[4+row][col]) {
+				case ' ':
+					data[i] |= 0x01;
+					mask[i] |= 0x01;
+					break;
+				case '.':
+					mask[i] |= 0x01;
+					break;
+				case 'X':
+					break;
+			}
+		}
+	}
+	
+	sscanf(image[4+row], "%d,%d", &hot_x, &hot_y);
+	return SDL_CreateCursor(data, mask, 32, 32, hot_x, hot_y);
+}
+
+void refresh_icons(int hover)
+{
+	if(!hover)
+	{
+		switch(CurrStatus)
+		{
+			case RUNNING:
+				SDL_BlitSurface(pauseIcon, NULL, screen, &playIconBox);
+				SDL_UpdateRects(screen, 1, &playIconBox);
+			break;
+			default:
+				SDL_BlitSurface(playIcon, NULL, screen, &playIconBox);
+				SDL_UpdateRects(screen, 1, &playIconBox);
+			break;
+		}
+	}
+	else
+	{
+		switch(CurrStatus)
+		{
+			case RUNNING:
+				SDL_BlitSurface(pauseHoverIcon, NULL, screen, &playIconBox);
+				SDL_UpdateRects(screen, 1, &playIconBox);
+			break;
+			default:
+				SDL_BlitSurface(playHoverIcon, NULL, screen, &playIconBox);
+				SDL_UpdateRects(screen, 1, &playIconBox);
+			break;
+		}
+	}
+}
+
+void aspect_ratio_resize(float aspect_ratio, int width, int height, int* out_width, int* out_height)
+{
+	int h,w,x,y;
+	h = (int)((float)width/aspect_ratio);
+	if(h<=height)
+	{
+		w = width;
+	}
+	else
+	{
+		w = (int)((float)height*aspect_ratio);
+		h = height;
+	}
+	*out_width = w;
+	*out_height = h;
 }
