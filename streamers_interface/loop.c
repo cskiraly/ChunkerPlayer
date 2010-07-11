@@ -80,7 +80,13 @@ void loop(struct nodeID *s, int csize, int buff_size)
           break;
         case MSG_TYPE_CHUNK:
           dprintf("Chunk message received:\n");
+#ifdef HTTPIO
+          pthread_mutex_lock(&cb_mutex);
+#endif
           received_chunk(remote, buff, len);
+#ifdef HTTPIO
+          pthread_mutex_unlock(&cb_mutex);
+#endif
           break;
         case MSG_TYPE_SIGNALLING:
           sigParseData(remote, buff, len);

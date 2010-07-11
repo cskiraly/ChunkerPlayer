@@ -78,19 +78,18 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
   if(cb) {
   	pthread_mutex_lock(&cb_mutex);
   	res = cb_add_chunk(cb, gchunk);
+  	free(gchunk);
   	pthread_mutex_unlock(&cb_mutex);
   }
   if (res < 0) { //chunk sequence is older than previous chunk (SHOULD SEND ANYWAY!!!)
     free(gchunk->data);
     free(gchunk->attributes);
-    free(gchunk);
     fprintf(stderr, "Chunk %d of %d bytes FAIL res %d\n", gchunk->id, gchunk->size, res);
   }
   else {
     pthread_mutex_lock(&cb_mutex);
     send_chunk(); //push it
     pthread_mutex_unlock(&cb_mutex);
-    dprintf("Chunk %d of %d bytes PUSHED res %d\n", gchunk->id, gchunk->size, res);
   }
 
   return 0;
