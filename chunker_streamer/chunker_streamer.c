@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
 	//stuff needed to compute the right timestamps
 	short int FirstTimeAudio=1, FirstTimeVideo=1;
 	short int pts_anomalies_counter=0;
-	long long newTime=0, newTime_prev=0;
+	long long newTime=0, newTime_video=0, newTime_prev=0;
 	double ptsvideo1=0.0;
 	double ptsaudio1=0.0;
 	int64_t last_pkt_dts=0, delta_video=0, delta_audio=0, last_pkt_dts_audio=0, target_pts=0;
@@ -349,7 +349,10 @@ int main(int argc, char *argv[]) {
 	//main loop to read from the input file
 	while(av_read_frame(pFormatCtx, &packet)>=0) {
 		if(!live_source) {
-			sleep = (long)newTime - (long)newTime_prev;
+			if(sleep==1) { //video packet, lets sleep
+				sleep = (long)newTime_video - (long)newTime_prev;
+				newTime_prev = newTime_video;
+			}
 			if(sleep > 0) {
 #ifdef DEBUG_ANOMALIES
 				fprintf(stderr, "\nREADLOOP: going to sleep for %ld\n", sleep);
@@ -357,7 +360,6 @@ int main(int argc, char *argv[]) {
 				usleep(sleep * 1000);
 				//usleep(40 * 1000);
 			}
-			newTime_prev = newTime;
 		}
 
 		//detect if a strange number of anomalies is occurring
@@ -380,6 +382,7 @@ int main(int argc, char *argv[]) {
 
 		// Is this a packet from the video stream?
 		if(packet.stream_index==videoStream) {
+			sleep=1; //sleep in case of video packet (and if not live)
 			//decode the video packet into a raw pFrame
 			if(avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet)>0) {
 #ifdef DEBUG_VIDEO_FRAMES
@@ -452,6 +455,7 @@ int main(int argc, char *argv[]) {
 					//compute the new video timestamp in milliseconds
 					if(frame->number>0) {
 						newTime = ((double)target_pts-ptsvideo1)*1000.0/((double)delta_video*(double)av_q2d(pFormatCtx->streams[videoStream]->r_frame_rate));
+						newTime_video = newTime; //for computing sleep
 					}
 #ifdef DEBUG_VIDEO_FRAMES
 					fprintf(stderr, "VIDEO: NEWTIMESTAMP %ld\n", newTime);
@@ -494,6 +498,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if(packet.stream_index==audioStream) {
+			sleep=0;
 			audio_data_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
 			//decode the audio packet into a raw audio source buffer
 			if(avcodec_decode_audio3(aCodecCtx, samples, &audio_data_size, &packet)>0) {
