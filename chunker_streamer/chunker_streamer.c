@@ -88,7 +88,8 @@ int main(int argc, char *argv[]) {
 	//command line parameters
 	int audio_bitrate;
 	int video_bitrate;
-	int live_source = 0;
+	int live_source = 0; //tells to sleep before reading next frame in not live (i.e. file)
+	int offset_av = 0; //tells to compensate for offset between audio and video in the file
 	
 	//a raw buffer for decoded uncompressed audio samples
 	int16_t *samples = NULL;
@@ -116,17 +117,20 @@ int main(int argc, char *argv[]) {
 
 	//scan the command line
 	if(argc < 4) {
-		fprintf(stderr, "execute ./chunker_streamer moviefile audiobitrate videobitrate <live source flag (0 or 1)>\n");
+		fprintf(stderr, "execute ./chunker_streamer moviefile audiobitrate videobitrate <live source flag (0 or 1)> <offset av flag (0 or 1)>\n");
 		return -1;
 	}
 	sscanf(argv[2],"%d", &audio_bitrate);
 	sscanf(argv[3],"%d", &video_bitrate);
-	if(argc==5) sscanf(argv[4],"%d", &live_source);
+	if(argc>=5) sscanf(argv[4],"%d", &live_source);
+	if(argc==6) sscanf(argv[5],"%d", &offset_av);
 
 	// read the configuration file
 	cmeta = chunkerInit();
 	if(live_source)
 		fprintf(stderr, "INIT: Using LIVE SOURCE TimeStamps\n");
+	if(offset_av)
+		fprintf(stderr, "INIT: Compensating AV OFFSET in file\n");
 
 	// Register all formats and codecs
 	av_register_all();
@@ -420,7 +424,7 @@ int main(int argc, char *argv[]) {
 					else
 						continue;
 
-					if(!live_source)
+					if(!offset_av)
 					{
 						if(FirstTimeVideo && packet.dts>0) {
 							ptsvideo1 = (double)packet.dts;
@@ -535,7 +539,7 @@ int main(int argc, char *argv[]) {
 				else
 					continue;
 
-				if(!live_source)
+				if(!offset_av)
 				{
 					if(FirstTimeAudio && packet.dts>0) {
 						ptsaudio1 = (double)packet.dts;
