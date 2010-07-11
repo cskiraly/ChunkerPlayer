@@ -42,6 +42,7 @@ if [ -n "$BUILD_FFMPEG" ]; then
 	rm -r -f ffmpeg
 	#get and compile ffmpeg with x264 support
 	#get latest snapshot
+	rm -f ffmpeg-checkout-snapshot.tar.bz2
 	wget http://ffmpeg.org/releases/ffmpeg-checkout-snapshot.tar.bz2; tar xjf ffmpeg-checkout-snapshot.tar.bz2; mv ffmpeg-checkout-20* ffmpeg
 	#do not get latest snapshot
 	#get instead a specific one because allows output video rate resampling
@@ -66,10 +67,35 @@ if [ -n "$BUILD_SDL" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -r -r SDL-1.2.14
 	#get and compile SDL lib
+	rm -f SDL-1.2.14.tar.gz
 	wget http://www.libsdl.org/release/SDL-1.2.14.tar.gz; tar xzf SDL-1.2.14.tar.gz
 	cd SDL-1.2.14
 	#make and simulate install in local folder
 	./configure --disable-video-directfb --prefix="$BASE_UL_DIR/$EXTERN_DIR/SDL-1.2.14/temp_sdl_install"
+	make; make install
+fi
+
+if [ -n "$BUILD_SDLIMAGE" ]; then
+	cd "$BASE_UL_DIR/$EXTERN_DIR"
+	rm -r -r SDL_image-1.2.10
+	#get and compile SDLIMAGE lib
+	rm -f SDL_image-1.2.10.tar.gz
+	wget http://www.libsdl.org/projects/SDL_image/release/SDL_image-1.2.10.tar.gz; tar xzf SDL_image-1.2.10.tar.gz
+	cd SDL_image-1.2.10
+	#make and simulate install in local folder
+	./configure --prefix="$BASE_UL_DIR/$EXTERN_DIR/SDL_image-1.2.10/temp_sdlimage_install"
+	make; make install
+fi
+
+if [ -n "$BUILD_CURL" ]; then
+	cd "$BASE_UL_DIR/$EXTERN_DIR"
+	rm -r -r curl-7.21.0
+	#get and compile CURL lib
+	rm -f curl-7.21.0.tar.bz2
+	wget http://curl.haxx.se/download/curl-7.21.0.tar.bz2; tar xjf curl-7.21.0.tar.bz2
+	cd curl-7.21.0
+	#make and simulate install in local folder
+./configure --disable-ldap --without-libssh2 --without-ssl --without-krb4 --enable-static --disable-shared --without-zlib --without-libidn --prefix="$BASE_UL_DIR/$EXTERN_DIR/curl-7.21.0/temp_curl_install"
 	make; make install
 fi
 
@@ -83,24 +109,45 @@ LOCAL_MHD="$BASE_UL_DIR/$EXTERN_DIR/libmicrohttpd"
 echo "path for LIBMICROHTTPD dependancy set to $LOCAL_MHD"
 LOCAL_ABS_SDL="$BASE_UL_DIR/$EXTERN_DIR/SDL-1.2.14/temp_sdl_install"
 echo "path for SDL dependancy set to $LOCAL_ABS_SDL"
+LOCAL_SDLIMAGE="$BASE_UL_DIR/$EXTERN_DIR/SDL_image-1.2.10/temp_sdlimage_install"
+echo "path for SDLIMAGE dependancy set to $LOCAL_SDLIMAGE"
+LOCAL_CURL="$BASE_UL_DIR/$EXTERN_DIR/curl-7.21.0/temp_curl_install"
+echo "path for CURL dependancy set to $LOCAL_CURL"
 
 echo "path for BZ2 dependancy is set to $LOCAL_BZ2"
 echo "path for MP3LAME dependancy is set to $LOCAL_MP3LAME"
 echo "-----"
 
 #compile the UL external applications
+#CHUNKER_STREAMER
+echo "----------------COMPILING CHUNKER STREAMER"
 cd "$BASE_UL_DIR"
 cd chunker_streamer
+if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse" ]; then
+	LOCAL_CONFUSE="$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse"
+	echo "found LIBCONFUSE in $LOCAL_CONFUSE"
+else
+	LOCAL_CONFUSE=`locate libconfuse.a`
+	if [ "$LOCAL_CONFUSE" = "" ]; then
+		echo "you dont have libconfue built in 3DPRTY LIBS of GRAPES nor in system"
+		echo "setting path for it to default /usr/lib/libconfuse.a"
+		LOCAL_CONFUSE="/usr/lib/libconfuse.a"
+	fi
+fi
 make clean
-LOCAL_X264=$LOCAL_X264 LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_MHD=$LOCAL_MHD LOCAL_ABS_SDL=$LOCAL_ABS_SDL LOCAL_BZ2=$LOCAL_BZ2 LOCAL_MP3LAME=$LOCAL_MP3LAME make
-
+LOCAL_X264=$LOCAL_X264 LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_CURL=$LOCAL_CURL LOCAL_CONFUSE=$LOCAL_CONFUSE make
+echo "----------------FINISHED COMPILING CHUNKER STREAMER"
+#CHUNKER_PLAYER
+echo "----------------COMPILING CHUNKER PLAYER"
 cd "$BASE_UL_DIR"
 cd chunker_player
 make clean
-LOCAL_X264=$LOCAL_X264 LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_MHD=$LOCAL_MHD LOCAL_ABS_SDL=$LOCAL_ABS_SDL LOCAL_BZ2=$LOCAL_BZ2 LOCAL_MP3LAME=$LOCAL_MP3LAME make
+LOCAL_X264=$LOCAL_X264 LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_MHD=$LOCAL_MHD LOCAL_ABS_SDL=$LOCAL_ABS_SDL LOCAL_SDLIMAGE=$LOCAL_SDLIMAGE make
+echo "----------------FINISHED COMPILING CHUNKER PLAYER"
 
 #compile a version of offerstreamer with UL enabled
 #static needs fix??
+cp $BASE_UL_DIR/streamers_interface/* $BASE_UL_DIR/../OfferStreamer
 cd "$BASE_UL_DIR/../OfferStreamer"
 make clean
-ULPLAYER=$BASE_UL_DIR ULPLAYER_EXTERNAL_LIBS=$EXTERN_DIR LIBEVENT_DIR="$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent" ML=1 STATIC= MONL=1 HTTPIO=1 make
+ULPLAYER=$BASE_UL_DIR ULPLAYER_EXTERNAL_LIBS=$EXTERN_DIR LIBEVENT_DIR="$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent" ML=1 STATIC= MONL=1 HTTPIO=1 DEBUG=1 make

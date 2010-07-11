@@ -91,14 +91,17 @@ else
 CPPFLAGS += -DHTTPIO
 OBJS += $(ULPLAYER)/chunker_player/chunk_puller.o
 OBJS += $(ULPLAYER)/chunker_streamer/chunk_pusher_curl.o
-LOCAL_MHD=$(ULPLAYER)/$(ULPLAYER_EXTERNAL_LIBS)/libmicrohttpd
-CPPFLAGS += -I$(LOCAL_MHD) -I$(LOCAL_MHD)/src/daemon -I$(LOCAL_MHD)/src/include
 CPPFLAGS += -I$(ULPLAYER) -I$(ULPLAYER)/chunk_transcoding
-LDFLAGS += -L$(LOCAL_MHD)/src/daemon
-LDLIBS += $(LOCAL_MHD)/src/daemon/.libs/libmicrohttpd.a
-LDLIBS += -lcurl
 CFLAGS += -pthread
 LDFLAGS += -pthread
+
+LOCAL_MHD=$(ULPLAYER)/$(ULPLAYER_EXTERNAL_LIBS)/libmicrohttpd
+CPPFLAGS += -I$(LOCAL_MHD) -I$(LOCAL_MHD)/src/daemon -I$(LOCAL_MHD)/src/include
+LDFLAGS += -L$(LOCAL_MHD)/src/daemon
+LDLIBS += $(LOCAL_MHD)/src/daemon/.libs/libmicrohttpd.a
+
+LOCAL_CURL=$(ULPLAYER)/$(ULPLAYER_EXTERNAL_LIBS)/curl-7.21.0/temp_curl_install
+LDLIBS += $(LOCAL_CURL)/lib/libcurl.a -lrt
 endif
 else
 OBJS += input-stream-dummy.o out-stream-dummy.o
