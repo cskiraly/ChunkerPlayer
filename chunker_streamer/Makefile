@@ -4,8 +4,9 @@ include ../common.mak
 #CURL config here, it should come from outside the script
 LOCAL_CURL ?= -lcurl
 #confuse here, GRAPES should already have this in 3DPARTY_LIBS
-LOCAL_CONFUSE ?= "/usr/lib/libconfuse.a"
+LOCAL_CONFUSE ?= "/usr"
 
+CPPFLAGS += -I$(LOCAL_CONFUSE)/include -I$(LOCAL_CURL)/include
 LDLIBS += $(LOCAL_CURL)/lib/libcurl.a -lrt
 LDLIBS += $(LOCAL_CONFUSE)/lib/libconfuse.a
 

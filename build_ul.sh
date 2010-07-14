@@ -147,7 +147,6 @@ echo "----------------FINISHED COMPILING CHUNKER PLAYER"
 
 #compile a version of offerstreamer with UL enabled
 #static needs fix??
-cp $BASE_UL_DIR/streamers_interface/* $BASE_UL_DIR/../OfferStreamer
 cd "$BASE_UL_DIR/../OfferStreamer"
 make clean
 ULPLAYER=$BASE_UL_DIR ULPLAYER_EXTERNAL_LIBS=$EXTERN_DIR LIBEVENT_DIR="$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent" ML=1 STATIC= MONL=1 HTTPIO=1 DEBUG=1 make
