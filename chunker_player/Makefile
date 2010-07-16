@@ -1,10 +1,9 @@
 include ../common.mak
 
-#YOUR config starts here
+#some defaults here
 LOCAL_ABS_SDL ?= /mnt/hgfs/triplo/dipartimento/napawine/StreamerPlayerChunker.bak/ExternalDependancies/SDL-1.2.14/my_SDL_deploy
 LOCAL_SDLIMAGE ?= /mnt/hgfs/triplo/dipartimento/napawine/StreamerPlayerChunker.bak/ExternalDependancies/SDL-1.2.14/my_SDL_deploy
 LOCAL_MHD ?= ../../../../../StreamerPlayerChunker.bak/ExternalDependancies/libmicrohttpd
-#YOUR config ends here
 
 #SDL config here
 #LOCAL_SDL_CPPFLAGS = $(shell $(LOCAL_SDL)/bin/sdl-config --static-libs --cflags;)
@@ -16,10 +15,13 @@ LOCAL_SDL_LDFLAGS += -L$(LOCAL_SDLIMAGE)/lib
 LOCAL_SDL_LDLIBS += $(LOCAL_SDLIMAGE)/lib/libSDL_image.a
 
 #microhttpd config here
-LOCAL_MHD_CPPFLAGS = -I$(LOCAL_MHD) -I$(LOCAL_MHD)/src/daemon -I$(LOCAL_MHD)/src/include
-LOCAL_MHD_LDFLAGS = -L$(LOCAL_MHD)/src/daemon
+#LOCAL_MHD_CPPFLAGS = -I$(LOCAL_MHD) -I$(LOCAL_MHD)/src/daemon -I$(LOCAL_MHD)/src/include
+#LOCAL_MHD_LDFLAGS = -L$(LOCAL_MHD)/src/daemon
 #LOCAL_MHD_LDLIBS = -lmicrohttpd
-LOCAL_MHD_LDLIBS = $(LOCAL_MHD)/src/daemon/.libs/libmicrohttpd.a
+#LOCAL_MHD_LDLIBS = $(LOCAL_MHD)/src/daemon/.libs/libmicrohttpd.a
+LOCAL_MHD_CPPFLAGS = -I$(LOCAL_MHD)/include
+LOCAL_MHD_LDFLAGS = -L$(LOCAL_MHD)/lib
+LOCAL_MHD_LDLIBS = $(LOCAL_MHD)/lib/libmicrohttpd.a
 
 CPPFLAGS += $(LOCAL_SDL_CPPFLAGS) $(LOCAL_MHD_CPPFLAGS)
 LDFLAGS += $(LOCAL_SDL_LDFLAGS) $(LOCAL_MHD_LDFLAGS)

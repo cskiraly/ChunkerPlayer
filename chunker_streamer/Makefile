@@ -1,8 +1,8 @@
 include ../common.mak
 
 #these libraries are required by the chunker_streamer
-#CURL config here, it should come from outside the script
-LOCAL_CURL ?= -lcurl
+#default config here, it should come from outside the script
+LOCAL_CURL ?= /usr
 #confuse here, GRAPES should already have this in 3DPARTY_LIBS
 LOCAL_CONFUSE ?= "/usr"
 

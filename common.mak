@@ -2,13 +2,13 @@
 #the chunker_streamer and the chunker_player
 #basically these are ffmpeg-related
 
-#bz2 lib location should come from outside
-LOCAL_BZ2 ?= /usr/lib/libbz2.a
-#libmp3lame lib location should come from outside
-LOCAL_MP3LAME ?= /usr/lib/libmp3lame.a
-#ffmpeg location should come from outside
+#bz2 lib location should come from outside, default here
+LOCAL_BZ2 ?= /usr/lib
+#libmp3lame lib location should come from outside, default here
+LOCAL_MP3LAME ?= /usr/lib
+#ffmpeg location should come from outside, default here
 LOCAL_FFMPEG ?= ../../../../../StreamerPlayerChunker.bak/ExternalDependancies/ffmpeg-export-2010-01-04
-#x264 location should come from outside
+#x264 location should come from outside, default here
 LOCAL_X264 ?= ../../../../../StreamerPlayerChunker.bak/ExternalDependancies/x264
 
 #default stuff from here on
@@ -25,11 +25,14 @@ LOCAL_POSTPROC = $(LOCAL_FFMPEG)/libpostproc
 LOCAL_SWSCALE = $(LOCAL_FFMPEG)/libswscale
 
 CPPFLAGS += -I$(LOCAL_FFMPEG)
+CPPFLAGS += -I$(LOCAL_AVCODEC) -I$(LOCAL_AVDEVICE) -I$(LOCAL_AVFILTER) -I$(LOCAL_AVFORMAT) -I$(LOCAL_AVUTIL) -I$(LOCAL_POSTPROC) -I$(LOCAL_SWSCALE)
+CPPFLAGS += -I$(LOCAL_X264)/include -I$(LOCAL_BZ2)/include -I$(LOCAL_MP3LAME)/include
 CFLAGS += -Wl,--warn-common -Wl,--as-needed -Wl,-Bsymbolic
 
-LDFLAGS += -L$(LOCAL_AVCODEC) -L$(LOCAL_AVDEVICE) -L$(LOCAL_AVFILTER) -L$(LOCAL_AVFORMAT) -L$(LOCAL_AVUTIL) -L$(LOCAL_POSTPROC) -L$(LOCAL_SWSCALE) -L$(LOCAL_X264)
+LDFLAGS += -L$(LOCAL_AVCODEC) -L$(LOCAL_AVDEVICE) -L$(LOCAL_AVFILTER) -L$(LOCAL_AVFORMAT) -L$(LOCAL_AVUTIL) -L$(LOCAL_POSTPROC) -L$(LOCAL_SWSCALE)
+LDFLAGS += -L$(LOCAL_X264)/lib -L$(LOCAL_BZ2)/lib -L$(LOCAL_MP3LAME)/lib
 
-LDLIBS += $(LOCAL_AVDEVICE)/libavdevice.a $(LOCAL_AVFORMAT)/libavformat.a $(LOCAL_AVCODEC)/libavcodec.a $(LOCAL_AVUTIL)/libavutil.a $(LOCAL_SWSCALE)/libswscale.a $(LOCAL_X264)/libx264.a
+LDLIBS += $(LOCAL_AVDEVICE)/libavdevice.a $(LOCAL_AVFORMAT)/libavformat.a $(LOCAL_AVCODEC)/libavcodec.a $(LOCAL_AVUTIL)/libavutil.a $(LOCAL_SWSCALE)/libswscale.a
+LDLIBS += $(LOCAL_X264)/lib/libx264.a $(LOCAL_BZ2)/lib/libbz2.a $(LOCAL_MP3LAME)/lib/libmp3lame.a
+
 LDLIBS += -lz -lm -lpthread -DHAVE_OPENGL
-#LDLIBS += -lz -lm -lpthread -ldl -DHAVE_OPENGL
-LDLIBS += $(LOCAL_BZ2) $(LOCAL_MP3LAME)
