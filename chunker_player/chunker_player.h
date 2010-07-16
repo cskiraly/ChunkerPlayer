@@ -1,6 +1,15 @@
 #ifndef _CHUNKER_PLAYER_H
 #define _CHUNKER_PLAYER_H
 
+
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <arpa/inet.h>
+#include <microhttpd.h>
+
 #include "external_chunk_transcoding.h"
 #include "frame.h"
 
@@ -8,5 +17,6 @@
 #define PLAYER_OK_RETURN 0
 
 AVCodecContext  *aCodecCtx;
+
 
 #endif

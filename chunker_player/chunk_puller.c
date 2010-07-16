@@ -1,4 +1,10 @@
-#include <platform.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <memory.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <arpa/inet.h>
 #include <microhttpd.h>
 
 

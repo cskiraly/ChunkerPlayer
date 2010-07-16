@@ -8,15 +8,7 @@
 // Use the file compile.localffmpeg.static to build the program
 
 
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-
-#include <stdio.h>
-#include <unistd.h>
-
 #include "chunker_streamer.h"
-#include "codec_definitions.h"
-#include "external_chunk_transcoding.h"
 
 
 #define DEBUG_AUDIO_FRAMES

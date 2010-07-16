@@ -30,9 +30,6 @@
 #undef main /* Prevents SDL from overriding main() */
 #endif
 
-#include <platform.h>
-#include <microhttpd.h>
-
 #include "http_default_urls.h"
 #include "chunker_player.h"
 #include "codec_definitions.h"
@@ -55,9 +52,9 @@ typedef enum Status { STOPPED, RUNNING, PAUSED } Status;
 
 //#define DEBUG_AUDIO
 //#define DEBUG_VIDEO
-//#define DEBUG_QUEUE
-//#define DEBUG_SOURCE
-#define DEBUG_STATS
+#define DEBUG_QUEUE
+#define DEBUG_SOURCE
+//#define DEBUG_STATS
 //#define DEBUG_AUDIO_BUFFER
 //#define DEBUG_CHUNKER
 
