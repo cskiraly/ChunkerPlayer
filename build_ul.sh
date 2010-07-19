@@ -4,8 +4,15 @@ BASE_UL_DIR=`dirname $SCRIPT`
 EXTERN_DIR="external_libs"
 cd "$BASE_UL_DIR"
 
+LIBTOOLIZE_PATH=`whereis -b libtoolize`
+
+if [ "$LIBTOOLIZE_PATH" = "libtoolize:" ]; then
+	echo "Can't find libtoolize. Try sudo apt-get install libtool"
+	exit
+fi
+
 #try to find libbz2 in your system
-LOCAL_BZ2_A=`locate libbz2.a`
+LOCAL_BZ2_A=`locate -l 1 libbz2.a`
 if [ $LOCAL_BZ2_A = "" ]; then
     if [ -f "/usr/lib/libbz2.a" ]; then
 	echo "You have file libbz2.a in default system"
@@ -141,7 +148,7 @@ if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse" ]; then
     LOCAL_CONFUSE="$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse"
     echo "found LIBCONFUSE in $LOCAL_CONFUSE"
 else
-    LOCAL_CONFUSE_A=`locate libconfuse.a`
+    LOCAL_CONFUSE_A=`locate -l 1 libconfuse.a`
     if [ "$LOCAL_CONFUSE_A" = "" ]; then
         if [ -f "/usr/lib/libconfuse.a" ]; then
 	    echo "You have file libconfuse.a in default system"
@@ -156,14 +163,14 @@ else
     fi
 fi
 make clean
-LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_CURL=$LOCAL_CURL LOCAL_CONFUSE=$LOCAL_CONFUSE make
+LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_CURL=$LOCAL_CURL LOCAL_CONFUSE=$LOCAL_CONFUSE make
 echo "----------------FINISHED COMPILING CHUNKER STREAMER"
 #CHUNKER_PLAYER
 echo "----------------COMPILING CHUNKER PLAYER"
 cd "$BASE_UL_DIR"
 cd chunker_player
 make clean
-LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_MHD=$LOCAL_MHD LOCAL_ABS_SDL=$LOCAL_ABS_SDL LOCAL_SDLIMAGE=$LOCAL_SDLIMAGE make
+LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_MHD=$LOCAL_MHD LOCAL_ABS_SDL=$LOCAL_ABS_SDL LOCAL_SDLIMAGE=$LOCAL_SDLIMAGE make
 echo "----------------FINISHED COMPILING CHUNKER PLAYER"
 
 #compile a version of offerstreamer with UL enabled
@@ -174,7 +181,7 @@ if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent" ]; then
     LOCAL_EVENT="$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent"
     echo "found LIBEVENT in $LOCAL_EVENT"
 else
-    LOCAL_EVENT_A=`locate libevent.a`
+    LOCAL_EVENT_A=`locate -l 1 libevent.a`
     if [ "$LOCAL_EVENT_A" = "" ]; then
         if [ -f "/usr/lib/libevent.a" ]; then
 	    echo "You have file libevent.a in default system"
