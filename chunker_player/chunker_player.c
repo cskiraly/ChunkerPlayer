@@ -1220,10 +1220,11 @@ int main(int argc, char *argv[]) {
 	wanted_spec.samples = SDL_AUDIO_BUFFER_SIZE;
 	wanted_spec.callback = audio_callback;
 	wanted_spec.userdata = aCodecCtx;
-	if(SDL_OpenAudio(&wanted_spec,&spec)<0) {
-		fprintf(stderr,"SDL_OpenAudio: %s\n",SDL_GetError());
-		return -1;
-	}
+	if(!silentMode)
+		if(SDL_OpenAudio(&wanted_spec,&spec)<0) {
+			fprintf(stderr,"SDL_OpenAudio: %s\n",SDL_GetError());
+			return -1;
+		}
 	dimAudioQ = spec.size;
 	deltaAudioQ = (float)((float)spec.samples)*1000/spec.freq;
 
