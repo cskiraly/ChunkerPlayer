@@ -127,6 +127,7 @@ SDL_Surface *nofullscreenHoverIcon;
 SDL_Cursor *defaultCursor;
 SDL_Cursor *handCursor;
 int fullscreenButtonHover = 0;
+int silentMode = 0;
 
 /* XPM */
 static char *handXPM[] = {
@@ -865,9 +866,11 @@ int video_callback(void *valthread) {
 						SaveFrame(pFrame, pCodecCtx->width, pCodecCtx->height);
 					//fwrite(pktvideo.data, 1, pktvideo.size, frecon);
 
+					if(silentMode)
+						continue;
+
 					// Lock SDL_yuv_overlay
 					if(SDL_MUSTLOCK(screen)) {
-
 						if(SDL_LockSurface(screen) < 0) {
 							continue;
 						}
@@ -991,7 +994,7 @@ void SetupGUI()
 	screen = SDL_SetVideoMode(screen_w, screen_h, 24, SDL_SWSURFACE | SDL_RESIZABLE);
 #endif
 	if(!screen) {
-		fprintf(stderr, "SDL: could not set video mode - exiting\n");
+		fprintf(stderr, "SDL_SetVideoMode returned null: could not set video mode - exiting\n");
 		exit(1);
 	}
 	
@@ -1130,6 +1133,7 @@ int main(int argc, char *argv[]) {
 	
 	uint8_t *outbuf,*outbuf_audio;
 	uint8_t *outbuf_audi_audio;
+	int httpPort = -1;
 	
 	AVFormatContext *pFormatCtx;
 
@@ -1150,8 +1154,8 @@ int main(int argc, char *argv[]) {
 	ThreadVal *tval;
 	tval = (ThreadVal *)malloc(sizeof(ThreadVal));
 		
-	if(argc<7) {
-		printf("chunker_player width height aspect_ratio audio_sample_rate audio_channels queue_thresh <YUVFilename>\n");
+	if(argc<9) {
+		printf("chunker_player width height aspect_ratio audio_sample_rate audio_channels queue_thresh httpd_port silentMode <YUVFilename>\n");
 		exit(1);
 	}
 	sscanf(argv[1],"%d",&width);
@@ -1160,9 +1164,12 @@ int main(int argc, char *argv[]) {
 	sscanf(argv[4],"%d",&asample_rate);
 	sscanf(argv[5],"%d",&achannels);
 	sscanf(argv[6],"%d",&queue_filling_threshold);
-	if(argc==8)
+	sscanf(argv[7],"%d",&httpPort);
+	sscanf(argv[8],"%d",&silentMode);
+	
+	if(argc==10)
 	{
-		sscanf(argv[7],"%s",YUVFileName);
+		sscanf(argv[9],"%s",YUVFileName);
 		printf("YUVFile: %s\n",YUVFileName);
 		FILE* fp=fopen(YUVFileName, "wb");
 		if(fp)
@@ -1256,7 +1263,8 @@ int main(int argc, char *argv[]) {
 	initRect->h = rect.h;
 
 	//SetupGUI("napalogo_small.bmp");
-	SetupGUI();
+	if(!silentMode)
+		SetupGUI();
 	
 	// Init audio and video buffers
 	av_init_packet(&AudioPkt);
@@ -1270,7 +1278,7 @@ int main(int argc, char *argv[]) {
 	video_thread = SDL_CreateThread(video_callback,tval);
 	
 	//this thread fetches chunks from the network by listening to the following path, port
-	daemon = initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, UL_DEFAULT_EXTERNALPLAYER_PORT);
+	daemon = initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, httpPort);
 	CurrStatus = RUNNING;
 
 	// Wait for user input
@@ -1319,7 +1327,7 @@ int main(int argc, char *argv[]) {
 					screen = SDL_SetVideoMode(event.resize.w, event.resize.h, 24, SDL_SWSURFACE | SDL_RESIZABLE);
 #endif
 					if(!screen) {
-						fprintf(stderr, "SDL: could not set video mode - exiting\n");
+						fprintf(stderr, "SDL_SetVideoMode returned null: could not set video mode - exiting\n");
 						exit(1);
 					}
 					
@@ -1697,7 +1705,7 @@ void toggle_fullscreen()
 		//If there's an error
 		if( screen == NULL )
 		{
-			printf("CANNOT TOGGLE FULLSCREEN MODE!!!\n");
+			fprintf(stderr, "SDL_SetVideoMode returned null: could not toggle fullscreen mode - exiting\n");
 			exit(1);
 		}
 		
@@ -1723,7 +1731,7 @@ void toggle_fullscreen()
 		//If there's an error
 		if( screen == NULL )
 		{
-			printf("CANNOT TOGGLE FULLSCREEN MODE!!!\n");
+			fprintf(stderr, "SDL_SetVideoMode returned null: could not toggle fullscreen mode - exiting\n");
 			exit(1);
 		}
 		
