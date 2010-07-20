@@ -4,7 +4,7 @@
 #include "external_chunk_transcoding.h"
 #include "chunker_streamer.h"
 
-//#define DEBUG_PUSHER
+#define DEBUG_PUSHER
 
 
 int pushChunkHttp(ExternalChunk *echunk, char *url);
@@ -47,6 +47,13 @@ int pushChunkHttp(ExternalChunk *echunk, char *url) {
 			gchunk.id = gchunk.timestamp; //its ID is its start time
 #ifdef DEBUG_PUSHER
 			fprintf(stderr, "PUSHER: packaged TS chunkID %d\n", gchunk.id);
+#endif
+		}
+		else if(cmeta->cid == 2) {
+			//its ID is offset by actual time in seconds
+			gchunk.id = echunk->seq + cmeta->base_chunkid_sequence_offset;
+#ifdef DEBUG_PUSHER
+			fprintf(stderr, "PUSHER: packaged SEQ + %d offset chunkID %d\n", cmeta->base_chunkid_sequence_offset, gchunk.id);
 #endif
 		}
 		gchunk.attributes = grapes_chunk_attributes_block;

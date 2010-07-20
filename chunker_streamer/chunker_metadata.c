@@ -23,7 +23,7 @@ struct chunker_metadata *chunkerInit() {
 	{
 		CFG_STR("strategyType", "frames", CFGF_NONE), //"frames" or "size"
 		CFG_INT("strategyValue", 10, CFGF_NONE),
-		CFG_STR("chunkID", "sequence", CFGF_NONE), //"sequence" or "starttime"
+		CFG_STR("chunkID", "sequence", CFGF_NONE), //"sequence" or "starttime" or "monotonic"
 		CFG_STR("outsideWorldUrl", "http://localhost:5557/externalplayer", CFGF_NONE),
 		CFG_END()
 	};
@@ -68,6 +68,15 @@ struct chunker_metadata *chunkerInit() {
 		// the chunkID is the chunk start time
 		cmeta->cid = 1;
 		fprintf(stdout, "CONFIG: Will give TIMESTAMP of start time as chunk IDs\n");
+	}
+	else if(!(strcmp(cfg_getstr(cfg, "chunkID"), "monotonic"))) {
+		// the chunkID is always increasing also over different runs
+		//because it's based on the gettimeofday()
+		cmeta->cid = 2;
+		fprintf(stdout, "CONFIG: Will give MONOTONIC INCREASING time of day as chunk IDs\n");
+		struct timeval tv;
+		gettimeofday(&tv, NULL);
+		cmeta->base_chunkid_sequence_offset = tv.tv_sec % INT_MAX; //TODO: verify 32/64 bit;
 	}
 	else {
 		fprintf(stdout, "CONFIG: Unknown chunkID in config file chunker.conf. Exiting.\n");
