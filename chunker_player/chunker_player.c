@@ -1314,10 +1314,15 @@ int main(int argc, char *argv[]) {
 						tmp_switch = 1;
 					}
 #ifndef __DARWIN__
-					SDL_SetVideoMode(event.resize.w, event.resize.h, 0, SDL_SWSURFACE | SDL_RESIZABLE);
+					screen = SDL_SetVideoMode(event.resize.w, event.resize.h, 0, SDL_SWSURFACE | SDL_RESIZABLE);
 #else
-					SDL_SetVideoMode(event.resize.w, event.resize.h, 24, SDL_SWSURFACE | SDL_RESIZABLE);
+					screen = SDL_SetVideoMode(event.resize.w, event.resize.h, 24, SDL_SWSURFACE | SDL_RESIZABLE);
 #endif
+					if(!screen) {
+						fprintf(stderr, "SDL: could not set video mode - exiting\n");
+						exit(1);
+					}
+					
 					window_width = event.resize.w;
 					window_height = event.resize.h;
 					
