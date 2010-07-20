@@ -41,10 +41,10 @@
 #define VIDEO	2
 #define QUEUE_MAX_SIZE 3000
 
-#define PAUSE_ICON_FILE "icons/pause32.png"
-#define PLAY_ICON_FILE "icons/play32.png"
-#define PAUSEHOVER_ICON_FILE "icons/pause32_hover.png"
-#define PLAYHOVER_ICON_FILE "icons/play32_hover.png"
+#define FULLSCREEN_ICON_FILE "icons/fullscreen32.png"
+#define NOFULLSCREEN_ICON_FILE "icons/nofullscreen32.png"
+#define FULLSCREEN_HOVER_ICON_FILE "icons/fullscreen32.png"
+#define NOFULLSCREEN_HOVER_ICON_FILE "icons/nofullscreen32.png"
 
 #define BUTTONS_LAYER_OFFSET 10
 
@@ -92,17 +92,11 @@ int queue_filling_threshold = 0;
 
 SDL_Surface *screen;
 SDL_Overlay *yuv_overlay;
-SDL_Rect    playIconBox;
-SDL_Surface *playIcon;
-SDL_Surface *playHoverIcon;
-SDL_Surface *pauseIcon;
-SDL_Surface *pauseHoverIcon;
-SDL_Cursor *defaultCursor;
-SDL_Cursor *handCursor;
 SDL_Rect    rect;
 SDL_Rect *initRect = NULL;
 SDL_AudioSpec spec;
 Status CurrStatus = STOPPED;
+
 struct SwsContext *img_convert_ctx = NULL;
 float ratio;
 
@@ -118,9 +112,21 @@ float deltaAudioQ;
 float deltaAudioQError=0;
 
 void SaveFrame(AVFrame *pFrame, int width, int height);
+
+// other GUI staff
 SDL_Cursor *init_system_cursor(const char *image[]);
-void refresh_icons(int hover);
+void refresh_fullscreen_button(int hover);
+void toggle_fullscreen();
 void aspect_ratio_resize(float aspect_ratio, int width, int height, int* out_width, int* out_height);
+int fullscreen = 0; // fullscreen vs windowized flag
+SDL_Rect    fullscreenIconBox;
+SDL_Surface *fullscreenIcon;
+SDL_Surface *fullscreenHoverIcon;
+SDL_Surface *nofullscreenIcon;
+SDL_Surface *nofullscreenHoverIcon;
+SDL_Cursor *defaultCursor;
+SDL_Cursor *handCursor;
+int fullscreenButtonHover = 0;
 
 /* XPM */
 static char *handXPM[] = {
@@ -898,7 +904,8 @@ int video_callback(void *valthread) {
 					/**SDL_BlitSurface(image, NULL, screen, &dest);*/
 					/* Update the screen area just changed */
 					/**SDL_UpdateRects(screen, 1, &dest);*/
-
+					
+					refresh_fullscreen_button(fullscreenButtonHover);
 
 					if(SDL_MUSTLOCK(screen)) {
 						SDL_UnlockSurface(screen);
@@ -920,21 +927,6 @@ int video_callback(void *valthread) {
 
 void aspect_ratio_rect(float aspect_ratio, int width, int height)
 {
-	/**float aspect = aspect_ratio * (float)width / (float)height;
-	int h, w, x, y;
-	h = height;
-	w = ((int)rint(h * aspect)) & -3;
-	if(w > width) {
-		w = width;
-		h = ((int)rint(w / aspect)) & -3;
-	}
-	x = (width - w) / 2;
-	y = (height - h) / 2;
-	rect.x = 0;//x;
-	rect.y = 0;//y;
-	rect.w = w;
-	rect.h = h;*/
-	
 	int h = 0, w = 0, x, y;
 	aspect_ratio_resize(aspect_ratio, width, height, &w, &h);
 	x = (width - w) / 2;
@@ -978,9 +970,9 @@ void SetupGUI()
 	int screen_w = 0, screen_h = 0;
 
 	/* Load a BMP file on a surface */
-	temp = IMG_Load(PLAY_ICON_FILE);
+	temp = IMG_Load(FULLSCREEN_ICON_FILE);
 	if (temp == NULL) {
-		fprintf(stderr, "Error loading %s: %s\n", PLAY_ICON_FILE, SDL_GetError());
+		fprintf(stderr, "Error loading %s: %s\n", FULLSCREEN_ICON_FILE, SDL_GetError());
 		exit(1);
 	}
 
@@ -1002,32 +994,36 @@ void SetupGUI()
 		fprintf(stderr, "SDL: could not set video mode - exiting\n");
 		exit(1);
 	}
-	playIcon = SDL_DisplayFormatAlpha(temp);
+	
+	window_width = screen_w;
+	window_height = screen_h;
+	
+	fullscreenIcon = SDL_DisplayFormatAlpha(temp);
 	SDL_FreeSurface(temp);
 
-	// load pause icon buttonm
-	temp = IMG_Load(PAUSE_ICON_FILE);
+	// load icon buttons
+	temp = IMG_Load(NOFULLSCREEN_ICON_FILE);
 	if (temp == NULL) {
-		fprintf(stderr, "Error loading %s: %s\n", PAUSE_ICON_FILE, SDL_GetError());
+		fprintf(stderr, "Error loading %s: %s\n", NOFULLSCREEN_ICON_FILE, SDL_GetError());
 		exit(1);
 	}
-	pauseIcon = SDL_DisplayFormatAlpha(temp);
+	nofullscreenIcon = SDL_DisplayFormatAlpha(temp);
 	SDL_FreeSurface(temp);
 
-	temp = IMG_Load(PAUSEHOVER_ICON_FILE);
+	temp = IMG_Load(NOFULLSCREEN_HOVER_ICON_FILE);
 	if (temp == NULL) {
-		fprintf(stderr, "Error loading %s: %s\n", PAUSEHOVER_ICON_FILE, SDL_GetError());
+		fprintf(stderr, "Error loading %s: %s\n", NOFULLSCREEN_HOVER_ICON_FILE, SDL_GetError());
 		exit(1);
 	}
-	pauseHoverIcon = SDL_DisplayFormatAlpha(temp);
+	nofullscreenHoverIcon = SDL_DisplayFormatAlpha(temp);
 	SDL_FreeSurface(temp);
 
-	temp = IMG_Load(PLAYHOVER_ICON_FILE);
+	temp = IMG_Load(FULLSCREEN_HOVER_ICON_FILE);
 	if (temp == NULL) {
-		fprintf(stderr, "Error loading %s: %s\n", PLAYHOVER_ICON_FILE, SDL_GetError());
+		fprintf(stderr, "Error loading %s: %s\n", FULLSCREEN_HOVER_ICON_FILE, SDL_GetError());
 		exit(1);
 	}
-	playHoverIcon = SDL_DisplayFormatAlpha(temp);
+	fullscreenHoverIcon = SDL_DisplayFormatAlpha(temp);
 	SDL_FreeSurface(temp);
 
 	defaultCursor = SDL_GetCursor();
@@ -1036,11 +1032,11 @@ void SetupGUI()
 	/* Copy on the screen surface 
 	surface should be blocked now.
 	*/
-	playIconBox.x = (screen_w - playIcon->w) / 2;
-	playIconBox.y = rect.h + (BUTTONS_LAYER_OFFSET/2);
-	playIconBox.w = playIcon->w;
-	playIconBox.h = playIcon->h;
-	printf("x%d y%d w%d h%d\n", playIconBox.x, playIconBox.y, playIconBox.w, playIconBox.h);
+	fullscreenIconBox.x = (screen_w - fullscreenIcon->w) / 2;
+	fullscreenIconBox.y = rect.h + (BUTTONS_LAYER_OFFSET/2);
+	fullscreenIconBox.w = fullscreenIcon->w;
+	fullscreenIconBox.h = fullscreenIcon->h;
+	printf("x%d y%d w%d h%d\n", fullscreenIconBox.x, fullscreenIconBox.y, fullscreenIconBox.w, fullscreenIconBox.h);
 
 	//create video overlay for display of video frames
 	yuv_overlay = SDL_CreateYUVOverlay(rect.w, rect.h, SDL_YV12_OVERLAY, screen);
@@ -1056,9 +1052,9 @@ void SetupGUI()
 	SDL_DisplayYUVOverlay(yuv_overlay, &rect);
 
 	/**SDL_BlitSurface(image, NULL, screen, &dest);*/
-	SDL_BlitSurface(playIcon, NULL, screen, &playIconBox);
+	SDL_BlitSurface(fullscreenIcon, NULL, screen, &fullscreenIconBox);
 	/* Update the screen area just changed */
-	SDL_UpdateRects(screen, 1, &playIconBox);
+	SDL_UpdateRects(screen, 1, &fullscreenIconBox);
 }
 
 void SaveFrame(AVFrame *pFrame, int width, int height) {
@@ -1106,7 +1102,7 @@ void ProcessKeys() {
 		QueueStopped=!QueueStopped;
 		if(QueueStopped) CurrStatus = PAUSED;
 		else CurrStatus = RUNNING;
-		refresh_icons(0);
+		refresh_fullscreen_button(0);
 	}
 	if(keystate[SDLK_ESCAPE] &&
 	  (LastKey!=SDLK_ESCAPE || (LastKey==SDLK_ESCAPE && (Now-LastTime>1000))))
@@ -1261,6 +1257,21 @@ int main(int argc, char *argv[]) {
 
 	//SetupGUI("napalogo_small.bmp");
 	SetupGUI();
+	
+	// Init audio and video buffers
+	av_init_packet(&AudioPkt);
+	av_init_packet(&VideoPkt);
+	AudioPkt.data=(uint8_t *)malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
+	if(!AudioPkt.data) return 0;
+	VideoPkt.data=(uint8_t *)malloc(width*height*3/2);
+	if(!VideoPkt.data) return 0;
+	
+	SDL_PauseAudio(0);
+	video_thread = SDL_CreateThread(video_callback,tval);
+	
+	//this thread fetches chunks from the network by listening to the following path, port
+	daemon = initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, UL_DEFAULT_EXTERNALPLAYER_PORT);
+	CurrStatus = RUNNING;
 
 	// Wait for user input
 	while(!quit) {
@@ -1307,15 +1318,20 @@ int main(int argc, char *argv[]) {
 #else
 					SDL_SetVideoMode(event.resize.w, event.resize.h, 24, SDL_SWSURFACE | SDL_RESIZABLE);
 #endif
-					aspect_ratio_rect(ratio, event.resize.w, event.resize.h - BUTTONS_LAYER_OFFSET - playIconBox.h);
+					window_width = event.resize.w;
+					window_height = event.resize.h;
 					
-					playIconBox.x = (event.resize.w - playIcon->w) / 2;
+					aspect_ratio_rect(ratio, event.resize.w, event.resize.h - BUTTONS_LAYER_OFFSET - fullscreenIconBox.h);
+					
+					fullscreenIconBox.x = (event.resize.w - fullscreenIcon->w) / 2;
 
 					// put the button just below the video overlay
-// 					playIconBox.y = rect.y+rect.h + (BUTTONS_LAYER_OFFSET/2);
+// 					fullscreenIcon.y = rect.y+rect.h + (BUTTONS_LAYER_OFFSET/2);
 
 					// put the button at the bottom edge of the screen
-					playIconBox.y = event.resize.h - playIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+					fullscreenIconBox.y = event.resize.h - fullscreenIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+					
+					// refresh_fullscreen_button(0);
 					
 					if(tmp_switch)
 					{
@@ -1323,13 +1339,11 @@ int main(int argc, char *argv[]) {
 						CurrStatus= RUNNING;
 						tmp_switch = 0;
 					}
-
-					refresh_icons(0);
 				break;
 				case SDL_ACTIVEEVENT:
 					//printf("\tSDL_ACTIVEEVENT\n");
 					// if the window was iconified or restored
-					if(event.active.state & SDL_APPACTIVE)
+					/*if(event.active.state & SDL_APPACTIVE)
 					{
 						//If the application is being reactivated
 						if( event.active.gain != 0 )
@@ -1337,13 +1351,13 @@ int main(int argc, char *argv[]) {
 							//SDL_WM_SetCaption( "Window Event Test restored", NULL );
 						}
 					}
+
 					//If something happened to the keyboard focus
 					else if( event.active.state & SDL_APPINPUTFOCUS )
 					{
 						//If the application gained keyboard focus
 						if( event.active.gain != 0 )
 						{
-							refresh_icons(0);
 						}
 					}
 					//If something happened to the mouse focus
@@ -1352,9 +1366,8 @@ int main(int argc, char *argv[]) {
 						//If the application gained mouse focus
 						if( event.active.gain != 0 )
 						{
-							refresh_icons(0);
 						}
-					}
+					}*/
 					break;
 				case SDL_MOUSEMOTION:
 					//printf("\tSDL_MOUSEMOTION\n");
@@ -1362,17 +1375,17 @@ int main(int argc, char *argv[]) {
 					y = event.motion.y;
 					//If the mouse is over the button
 					if(
-						( x > playIconBox.x ) && ( x < playIconBox.x + playIcon->w )
-						&& ( y > playIconBox.y ) && ( y < playIconBox.y + playIcon->h )
+						( x > fullscreenIconBox.x ) && ( x < fullscreenIconBox.x + fullscreenIcon->w )
+						&& ( y > fullscreenIconBox.y ) && ( y < fullscreenIconBox.y + fullscreenIcon->h )
 					)
 					{
-						refresh_icons(1);
+						fullscreenButtonHover = 1;
 						SDL_SetCursor(handCursor);
 					}
 					//If not
 					else
 					{
-						refresh_icons(0);
+						fullscreenButtonHover = 0;
 						SDL_SetCursor(defaultCursor);
 					}
 				break;
@@ -1385,38 +1398,29 @@ int main(int argc, char *argv[]) {
 					y = event.motion.y;
 					//If the mouse is over the button
 					if(
-						( x > playIconBox.x ) && ( x < playIconBox.x + playIcon->w )
-						&& ( y > playIconBox.y ) && ( y < playIconBox.y + playIcon->h )
+						( x > fullscreenIconBox.x ) && ( x < fullscreenIconBox.x + fullscreenIcon->w )
+						&& ( y > fullscreenIconBox.y ) && ( y < fullscreenIconBox.y + fullscreenIcon->h )
 					)
 					{
-						switch(CurrStatus)
+						
+						// if running, pause until resize has done
+						if(CurrStatus == RUNNING)
 						{
-							case STOPPED:
-								// Init audio and video buffers
-								av_init_packet(&AudioPkt);
-								av_init_packet(&VideoPkt);
-								AudioPkt.data=(uint8_t *)malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
-								if(!AudioPkt.data) return 0;
-								VideoPkt.data=(uint8_t *)malloc(width*height*3/2);
-								if(!VideoPkt.data) return 0;
-								
-								SDL_PauseAudio(0);
-								video_thread = SDL_CreateThread(video_callback,tval);
-								
-								//this thread fetches chunks from the network by listening to the following path, port
-								daemon = initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, UL_DEFAULT_EXTERNALPLAYER_PORT);
-								CurrStatus = RUNNING;
-								break;
-							case RUNNING:
-								QueueStopped = 1;
-								CurrStatus = PAUSED;
-								break;
-							case PAUSED:
-								QueueStopped = 0;
-								CurrStatus = RUNNING;
-								break;
+							QueueStopped = 1;
+							CurrStatus = PAUSED;
+							tmp_switch = 1;
 						}
-						refresh_icons(1);
+						
+						toggle_fullscreen();
+						
+						fullscreenButtonHover = 1;
+						
+						if(tmp_switch)
+						{
+							QueueStopped = 0;
+							CurrStatus= RUNNING;
+							tmp_switch = 0;
+						}
 					}
 				break;
 			}
@@ -1624,34 +1628,32 @@ SDL_Cursor *init_system_cursor(const char *image[])
 	return SDL_CreateCursor(data, mask, 32, 32, hot_x, hot_y);
 }
 
-void refresh_icons(int hover)
+void refresh_fullscreen_button(int hover)
 {
 	if(!hover)
 	{
-		switch(CurrStatus)
+		if(!fullscreen)
 		{
-			case RUNNING:
-				SDL_BlitSurface(pauseIcon, NULL, screen, &playIconBox);
-				SDL_UpdateRects(screen, 1, &playIconBox);
-			break;
-			default:
-				SDL_BlitSurface(playIcon, NULL, screen, &playIconBox);
-				SDL_UpdateRects(screen, 1, &playIconBox);
-			break;
+			SDL_BlitSurface(fullscreenIcon, NULL, screen, &fullscreenIconBox);
+			SDL_UpdateRects(screen, 1, &fullscreenIconBox);
+		}
+		else
+		{
+			SDL_BlitSurface(nofullscreenIcon, NULL, screen, &fullscreenIconBox);
+			SDL_UpdateRects(screen, 1, &fullscreenIconBox);
 		}
 	}
 	else
 	{
-		switch(CurrStatus)
+		if(!fullscreen)
 		{
-			case RUNNING:
-				SDL_BlitSurface(pauseHoverIcon, NULL, screen, &playIconBox);
-				SDL_UpdateRects(screen, 1, &playIconBox);
-			break;
-			default:
-				SDL_BlitSurface(playHoverIcon, NULL, screen, &playIconBox);
-				SDL_UpdateRects(screen, 1, &playIconBox);
-			break;
+			SDL_BlitSurface(fullscreenHoverIcon, NULL, screen, &fullscreenIconBox);
+			SDL_UpdateRects(screen, 1, &fullscreenIconBox);
+		}
+		else
+		{
+			SDL_BlitSurface(nofullscreenHoverIcon, NULL, screen, &fullscreenIconBox);
+			SDL_UpdateRects(screen, 1, &fullscreenIconBox);
 		}
 	}
 }
@@ -1671,4 +1673,61 @@ void aspect_ratio_resize(float aspect_ratio, int width, int height, int* out_wid
 	}
 	*out_width = w;
 	*out_height = h;
+}
+
+void toggle_fullscreen()
+{
+	//If the screen is windowed
+	if( !fullscreen )
+	{
+		//Set the screen to fullscreen
+#ifndef __DARWIN__
+		// screen = SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 0, SDL_SWSURFACE | SDL_RESIZABLE | SDL_FULLSCREEN);
+		screen = SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 0, SDL_SWSURFACE | SDL_NOFRAME | SDL_FULLSCREEN);
+#else
+		// screen = SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 24, SDL_SWSURFACE | SDL_RESIZABLE | SDL_FULLSCREEN);
+		screen = SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 24, SDL_SWSURFACE | SDL_NOFRAME | SDL_FULLSCREEN);
+#endif
+
+		//If there's an error
+		if( screen == NULL )
+		{
+			printf("CANNOT TOGGLE FULLSCREEN MODE!!!\n");
+			exit(1);
+		}
+		
+		aspect_ratio_rect(ratio, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT - BUTTONS_LAYER_OFFSET - fullscreenIconBox.h);
+		fullscreenIconBox.x = (FULLSCREEN_WIDTH - fullscreenIcon->w) / 2;
+		// fullscreenIcon.y = rect.y+rect.h + (BUTTONS_LAYER_OFFSET/2); // put the button just below the video overlay
+		fullscreenIconBox.y = FULLSCREEN_HEIGHT - fullscreenIconBox.h - (BUTTONS_LAYER_OFFSET/2); // put the button at the bottom edge of the screen
+		
+		//Set the window state flag
+		fullscreen = 1;
+	}
+	
+	//If the screen is fullscreen
+	else
+	{
+		//Window the screen
+#ifndef __DARWIN__
+		screen = SDL_SetVideoMode(window_width, window_height, 0, SDL_SWSURFACE | SDL_RESIZABLE);
+#else
+		screen = SDL_SetVideoMode(window_width, window_height, 24, SDL_SWSURFACE | SDL_RESIZABLE);
+#endif
+		
+		//If there's an error
+		if( screen == NULL )
+		{
+			printf("CANNOT TOGGLE FULLSCREEN MODE!!!\n");
+			exit(1);
+		}
+		
+		aspect_ratio_rect(ratio, window_width, window_height - BUTTONS_LAYER_OFFSET - fullscreenIconBox.h);
+		fullscreenIconBox.x = (window_width - fullscreenIcon->w) / 2;
+		// fullscreenIcon.y = rect.y+rect.h + (BUTTONS_LAYER_OFFSET/2); // put the button just below the video overlay
+		fullscreenIconBox.y = window_height - fullscreenIconBox.h - (BUTTONS_LAYER_OFFSET/2); // put the button at the bottom edge of the screen
+		
+		//Set the window state flag
+		fullscreen = 0;
+	}
 }
