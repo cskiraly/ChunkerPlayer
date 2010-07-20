@@ -5,9 +5,14 @@ EXTERN_DIR="external_libs"
 cd "$BASE_UL_DIR"
 
 LIBTOOLIZE_PATH=`whereis -b libtoolize`
-
 if [ "$LIBTOOLIZE_PATH" = "libtoolize:" ]; then
 	echo "Can't find libtoolize. Try sudo apt-get install libtool"
+	exit
+fi
+
+YASM_PATH=`whereis -b yasm`
+if [ "$YASM_PATH" = "yasm:" ]; then
+	echo "Can't find yasm assembler. Try sudo apt-get install yasm"
 	exit
 fi
 
@@ -115,7 +120,7 @@ if [ -n "$BUILD_CURL" ]; then
 	wget http://curl.haxx.se/download/curl-7.21.0.tar.bz2; tar xjf curl-7.21.0.tar.bz2; mv curl-7.21.0 curl
 	cd curl
 	#make and simulate install in local folder
-	./configure --disable-ldap --without-libssh2 --without-ssl --without-krb4 --enable-static --disable-shared --without-zlib --without-libidn --prefix="$BASE_UL_DIR/$EXTERN_DIR/curl/temp_curl_install"
+	./configure --disable-ftp --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --without-libssh2 --without-ssl --without-krb4 --enable-static --disable-shared --without-zlib --without-libidn --prefix="$BASE_UL_DIR/$EXTERN_DIR/curl/temp_curl_install"
 	make; make install
 fi
 
