@@ -16,10 +16,15 @@
 #define PLAYER_FAIL_RETURN -1
 #define PLAYER_OK_RETURN 0
 
-#define FULLSCREEN_WIDTH 640
-#define FULLSCREEN_HEIGHT 480
+// #define FULLSCREEN_WIDTH 640
+// #define FULLSCREEN_HEIGHT 480
+
+int FullscreenWidth = 0;
+int FullscreenHeight = 0;
 
 AVCodecContext  *aCodecCtx;
+SDL_Thread *video_thread;
+uint8_t *outbuf_audio;
 
 int window_width, window_height;
 
@@ -46,15 +51,15 @@ int window_width, window_height;
 #define BUTTONS_CONTAINER_HEIGHT 40
 #define BUTTONS_CONTAINER_WIDTH 100
 
-typedef enum Status { STOPPED, RUNNING, PAUSED } Status;
+// typedef enum Status { STOPPED, RUNNING, PAUSED } Status;
 
-//#define DEBUG_AUDIO
-//#define DEBUG_VIDEO
+#define DEBUG_AUDIO
+#define DEBUG_VIDEO
 #define DEBUG_QUEUE
 #define DEBUG_SOURCE
 //#define DEBUG_STATS
 //#define DEBUG_AUDIO_BUFFER
-//#define DEBUG_CHUNKER
+#define DEBUG_CHUNKER
 
 
 short int QueueFillingMode=1;
@@ -78,12 +83,15 @@ typedef struct threadVal {
 	float aspect_ratio;
 } ThreadVal;
 
+ThreadVal VideoCallbackThreadParams;
+
 int AudioQueueOffset=0;
 PacketQueue audioq;
 PacketQueue videoq;
 AVPacket AudioPkt, VideoPkt;
 int quit = 0;
 int SaveYUV=0;
+int AVPlaying = 0;
 char YUVFileName[256];
 
 int queue_filling_threshold = 0;
@@ -93,7 +101,6 @@ SDL_Overlay *yuv_overlay;
 SDL_Rect    rect;
 SDL_Rect *initRect = NULL;
 SDL_AudioSpec spec;
-Status CurrStatus = STOPPED;
 
 struct SwsContext *img_convert_ctx = NULL;
 float ratio;
@@ -191,6 +198,11 @@ typedef struct SChannel
 {
 	char LaunchString[255];
 	char Title[255];
+	int Width;
+	int Height;
+	float Ratio;
+	int SampleRate;
+	short int AudioChannels;
 } SChannel;
 
 SChannel Channels[255];

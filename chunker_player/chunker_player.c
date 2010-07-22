@@ -24,6 +24,7 @@
 #include <SDL_thread.h>
 #include <SDL_mutex.h>
 #include <SDL_image.h>
+#include <SDL_video.h>
 #include <math.h>
 #include <confuse.h>
 
@@ -623,6 +624,7 @@ int video_callback(void *valthread) {
 	// resolution must be a multiple of two
 	pCodecCtx->width = tval->width;//176;//352;
 	pCodecCtx->height = tval->height;//144;//288;
+	
 	// frames per second
 	//pCodecCtx->time_base = (AVRational){1,25};
 	//pCodecCtx->gop_size = 10; // emit one intra frame every ten frames
@@ -643,8 +645,11 @@ int video_callback(void *valthread) {
 		printf("Memory error!!!\n");
 		return -1;
 	}
-
-	while(!quit) {
+	
+#ifdef DEBUG_VIDEO
+ 	printf("VIDEO: video_callback entering main cycle\n");
+#endif
+	while(AVPlaying && !quit) {
 		if(QueueFillingMode || QueueStopped)
 		{
 			//SDL_LockMutex(timing_mutex);
@@ -792,6 +797,7 @@ int video_callback(void *valthread) {
 
 		usleep(5000);
 	}
+	
 	av_free(pCodecCtx);
 	//fclose(frecon);
 #ifdef DEBUG_VIDEO
@@ -800,21 +806,20 @@ int video_callback(void *valthread) {
 	return 1;
 }
 
-
+/**
+ * Updates the overlay surface size, mantaining the aspect ratio
+ */
 void aspect_ratio_rect(float aspect_ratio, int width, int height)
 {
 	int h = 0, w = 0, x, y;
 	aspect_ratio_resize(aspect_ratio, width, height, &w, &h);
 	x = (width - w) / 2;
 	y = (height - h) / 2;
-	rect.x = x;//x;
-	rect.y = y;//y;
+	rect.x = x;
+	rect.y = y;
 	rect.w = w;
 	rect.h = h;
-
-// 	printf("setting video mode %dx%d\n", rect.w, rect.h);
 }
-
 
 void audio_callback(void *userdata, Uint8 *stream, int len) {
 
@@ -841,6 +846,12 @@ void SetupGUI()
 		printf("IMG_Init: %s\n", IMG_GetError());
 		exit(1);
 	}
+	
+	SDL_VideoInfo* InitialVideoInfo = SDL_GetVideoInfo();
+	FullscreenWidth = InitialVideoInfo->current_w;
+	FullscreenHeight = InitialVideoInfo->current_h;
+	
+	// SDL_GetDesktopDisplayMode(&DesktopDisplayMode);
 
 	SDL_Surface *temp;
 	int screen_w = 0, screen_h = 0;
@@ -953,16 +964,16 @@ void SetupGUI()
 	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h = Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIcon->h;
 	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
 	
-	Buttons[CHANNEL_UP_BUTTON_INDEX].XOffset = -50;
+	Buttons[CHANNEL_UP_BUTTON_INDEX].XOffset = -61;
 	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.w = Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIcon->w;
 	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.h = Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIcon->h;
-	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.x = (screen_w - 50);
+	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.x = (screen_w + Buttons[CHANNEL_UP_BUTTON_INDEX].XOffset);
 	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
 	
-	Buttons[CHANNEL_DOWN_BUTTON_INDEX].XOffset = -25;
+	Buttons[CHANNEL_DOWN_BUTTON_INDEX].XOffset = -36;
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.w = Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIcon->w;
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.h = Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIcon->h;
-	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.x = (screen_w - 25);
+	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.x = (screen_w + Buttons[CHANNEL_DOWN_BUTTON_INDEX].XOffset);
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
 	
 	/** Setting up buttons events */
@@ -1060,46 +1071,29 @@ int main(int argc, char *argv[]) {
 	memset((void*)Channels, 0, (255*sizeof(SChannel)));
 
 	int y;
-	
-	uint8_t *outbuf,*outbuf_audio;
-	uint8_t *outbuf_audi_audio;
 	int httpPort = -1;
+	struct MHD_Daemon *daemon = NULL;
 	
-	AVFormatContext *pFormatCtx;
-
-	AVCodec         *pCodec,*aCodec;
-	AVFrame         *pFrame; 
-
-	AVPicture pict;
-	SDL_Thread *video_thread;//exit_thread,*exit_thread2;
 	SDL_Event event;
-	SDL_AudioSpec wanted_spec;
-	
-	struct MHD_Daemon *daemon = NULL;	
 
 	char buf[1024],outfile[1024], basereadfile[1024],readfile[1024];
 	FILE *fp;	
 	int width,height,asample_rate,achannels;
-
-	ThreadVal *tval;
-	tval = (ThreadVal *)malloc(sizeof(ThreadVal));
 		
-	if(argc<9) {
-		printf("chunker_player width height aspect_ratio audio_sample_rate audio_channels queue_thresh httpd_port silentMode <YUVFilename>\n");
+	if(argc<7) {
+		printf("chunker_player width height aspect_ratio queue_thresh httpd_port silentMode <YUVFilename>\n");
 		exit(1);
 	}
 	sscanf(argv[1],"%d",&width);
 	sscanf(argv[2],"%d",&height);
 	sscanf(argv[3],"%f",&ratio);
-	sscanf(argv[4],"%d",&asample_rate);
-	sscanf(argv[5],"%d",&achannels);
-	sscanf(argv[6],"%d",&queue_filling_threshold);
-	sscanf(argv[7],"%d",&httpPort);
-	sscanf(argv[8],"%d",&silentMode);
+	sscanf(argv[4],"%d",&queue_filling_threshold);
+	sscanf(argv[5],"%d",&httpPort);
+	sscanf(argv[6],"%d",&silentMode);
 	
-	if(argc==10)
+	if(argc==8)
 	{
-		sscanf(argv[9],"%s",YUVFileName);
+		sscanf(argv[7],"%s",YUVFileName);
 		printf("YUVFile: %s\n",YUVFileName);
 		FILE* fp=fopen(YUVFileName, "wb");
 		if(fp)
@@ -1111,85 +1105,26 @@ int main(int argc, char *argv[]) {
 			printf("ERROR: Unable to create YUVFile\n");
 	}
 	
+	//calculate aspect ratio and put updated values in rect
+	aspect_ratio_rect(ratio, width, height);
+	
+	if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
+		fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
+		return -1;
+	}
+	
+	RedrawMutex = SDL_CreateMutex();
+	if(!silentMode)
+		SetupGUI();
+	
 	if(parse_conf())
 	{
 		printf("Error while parsing configuration file, exiting...\n");
 		exit(1);
 	}
-	SelectedChannel = 0;
 	
+	SelectedChannel = 0;
 	switch_channel(&(Channels[SelectedChannel]));
-
-	tval->width = width;
-	tval->height = height;
-	tval->aspect_ratio = ratio;
-
-	// Register all formats and codecs
-	av_register_all();
-	if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
-		fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
-		return -1;
-	}
-
-	aCodecCtx = avcodec_alloc_context();
-	//aCodecCtx->bit_rate = 64000;
-	aCodecCtx->sample_rate = asample_rate;
-	aCodecCtx->channels = achannels;
-#ifdef MP3_AUDIO_ENCODER
-	aCodec = avcodec_find_decoder(CODEC_ID_MP3); // codec audio
-#else
-	aCodec = avcodec_find_decoder(CODEC_ID_MP2);
-#endif
-	printf("MP2 codec id %d MP3 codec id %d\n",CODEC_ID_MP2,CODEC_ID_MP3);
-	if(!aCodec) {
-		printf("Codec not found!\n");
-		return -1;
-	}
-	if(avcodec_open(aCodecCtx, aCodec)<0) {
-		fprintf(stderr, "could not open codec\n");
-		return -1; // Could not open codec
-	}
-	printf("using audio Codecid: %d ",aCodecCtx->codec_id);
-	printf("samplerate: %d ",aCodecCtx->sample_rate);
-	printf("channels: %d\n",aCodecCtx->channels);
-	wanted_spec.freq = aCodecCtx->sample_rate;
-	wanted_spec.format = AUDIO_S16SYS;
-	wanted_spec.channels = aCodecCtx->channels;
-	wanted_spec.silence = 0;
-	wanted_spec.samples = SDL_AUDIO_BUFFER_SIZE;
-	wanted_spec.callback = audio_callback;
-	wanted_spec.userdata = aCodecCtx;
-	if(!silentMode)
-		if(SDL_OpenAudio(&wanted_spec,&spec)<0) {
-			fprintf(stderr,"SDL_OpenAudio: %s\n",SDL_GetError());
-			return -1;
-		}
-	dimAudioQ = spec.size;
-	deltaAudioQ = (float)((float)spec.samples)*1000/spec.freq;
-
-#ifdef DEBUG_AUDIO
-	printf("freq:%d\n",spec.freq);
-	printf("format:%d\n",spec.format);
-	printf("channels:%d\n",spec.channels);
-	printf("silence:%d\n",spec.silence);
-	printf("samples:%d\n",spec.samples);
-	printf("size:%d\n",spec.size);
-	printf("deltaAudioQ: %f\n",deltaAudioQ);
-#endif
-
-	pFrame=avcodec_alloc_frame();
-	if(pFrame==NULL) {
-		printf("Memory error!!!\n");
-		return -1;
-	}
-	outbuf_audio = malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
-
-	//initialize the audio and the video queues
-	packet_queue_init(&audioq, AUDIO);
-	packet_queue_init(&videoq, VIDEO);
-
-	//calculate aspect ratio and put updated values in rect
-	aspect_ratio_rect(ratio, width, height);
 
 	initRect = (SDL_Rect*) malloc(sizeof(SDL_Rect));
 	if(!initRect)
@@ -1202,24 +1137,14 @@ int main(int argc, char *argv[]) {
 	initRect->w = rect.w;
 	initRect->h = rect.h;
 	
-	RedrawMutex = SDL_CreateMutex();
-	if(!silentMode)
-		SetupGUI();
-	
-	// Init audio and video buffers
-	av_init_packet(&AudioPkt);
-	av_init_packet(&VideoPkt);
-	AudioPkt.data=(uint8_t *)malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
-	if(!AudioPkt.data) return 0;
-	VideoPkt.data=(uint8_t *)malloc(width*height*3/2);
-	if(!VideoPkt.data) return 0;
-	
-	SDL_PauseAudio(0);
-	video_thread = SDL_CreateThread(video_callback,tval);
-	
 	//this thread fetches chunks from the network by listening to the following path, port
 	daemon = initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, httpPort);
-	CurrStatus = RUNNING;
+	
+	if(daemon == NULL)
+	{
+		printf("CANNOT START MICROHTTPD SERVICE, EXITING...\n");
+		exit(2);
+	}
 
 	// Wait for user input
 	while(!quit) {
@@ -1293,12 +1218,13 @@ int main(int argc, char *argv[]) {
 				case SDL_ACTIVEEVENT:
 					//printf("\tSDL_ACTIVEEVENT\n");
 					// if the window was iconified or restored
-					/*if(event.active.state & SDL_APPACTIVE)
+					if(event.active.state & SDL_APPACTIVE)
 					{
 						//If the application is being reactivated
 						if( event.active.gain != 0 )
 						{
 							//SDL_WM_SetCaption( "Window Event Test restored", NULL );
+							redraw_buttons();
 						}
 					}
 
@@ -1308,6 +1234,7 @@ int main(int argc, char *argv[]) {
 						//If the application gained keyboard focus
 						if( event.active.gain != 0 )
 						{
+							redraw_buttons();
 						}
 					}
 					//If something happened to the mouse focus
@@ -1316,8 +1243,9 @@ int main(int argc, char *argv[]) {
 						//If the application gained mouse focus
 						if( event.active.gain != 0 )
 						{
+							redraw_buttons();
 						}
-					}*/
+					}
 					break;
 				case SDL_MOUSEMOTION:
 					//printf("\tSDL_MOUSEMOTION\n");
@@ -1373,23 +1301,8 @@ int main(int argc, char *argv[]) {
 
 	//TERMINATE
 	IMG_Quit();
-
-	// Stop audio&video playback
-	SDL_WaitThread(video_thread,NULL);
-	SDL_PauseAudio(1);
-	SDL_CloseAudio();
-	//SDL_DestroyMutex(timing_mutex);
 	SDL_Quit();
-	
-	if(child_pid > 0)
-		KILL_PROCESS(child_pid);
-	
-	av_free(aCodecCtx);
-	free(AudioPkt.data);
-	free(VideoPkt.data);
-	free(outbuf_audio);
 	finalizeChunkPuller(daemon);
-	free(tval);
 	free(initRect);
 	return 0;
 }
@@ -1602,9 +1515,9 @@ void toggle_fullscreen()
 	{
 		//Set the screen to fullscreen
 #ifndef __DARWIN__
-		screen = SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 0, SDL_SWSURFACE | SDL_NOFRAME | SDL_FULLSCREEN);
+		screen = SDL_SetVideoMode(FullscreenWidth, FullscreenHeight, 0, SDL_SWSURFACE | SDL_NOFRAME | SDL_FULLSCREEN);
 #else
-		screen = SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 24, SDL_SWSURFACE | SDL_NOFRAME | SDL_FULLSCREEN);
+		screen = SDL_SetVideoMode(FullscreenWidth, FullscreenHeight, 24, SDL_SWSURFACE | SDL_NOFRAME | SDL_FULLSCREEN);
 #endif
 
 		//If there's an error
@@ -1615,7 +1528,7 @@ void toggle_fullscreen()
 		}
 		
 		// update the overlay surface size, mantaining the aspect ratio
-		aspect_ratio_rect(ratio, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT - BUTTONS_LAYER_OFFSET - BUTTONS_CONTAINER_HEIGHT);
+		aspect_ratio_rect(ratio, FullscreenWidth, FullscreenHeight - BUTTONS_LAYER_OFFSET - BUTTONS_CONTAINER_HEIGHT);
 		
 		// update each button coordinates
 		for(i=0; i<NBUTTONS; i++)
@@ -1623,9 +1536,9 @@ void toggle_fullscreen()
 			if(Buttons[i].XOffset > 0)
 				Buttons[i].ButtonIconBox.x = Buttons[i].XOffset;
 			else
-				Buttons[i].ButtonIconBox.x = (FULLSCREEN_WIDTH + Buttons[i].XOffset);
+				Buttons[i].ButtonIconBox.x = (FullscreenWidth + Buttons[i].XOffset);
 				
-			Buttons[i].ButtonIconBox.y = FULLSCREEN_HEIGHT - Buttons[i].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+			Buttons[i].ButtonIconBox.y = FullscreenHeight - Buttons[i].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
 		}
 
 		//Set the window state flag
@@ -1651,6 +1564,7 @@ void toggle_fullscreen()
 			fprintf(stderr, "SDL_SetVideoMode returned null: could not toggle fullscreen mode - exiting\n");
 			exit(1);
 		}
+		// CurrentVideoInfo = SDL_GetVideoInfo();
 		
 		// update the overlay surface size, mantaining the aspect ratio
 		aspect_ratio_rect(ratio, window_width, window_height - BUTTONS_LAYER_OFFSET - BUTTONS_CONTAINER_HEIGHT);
@@ -1687,6 +1601,11 @@ int parse_conf()
 	{
 		CFG_STR("Title", "", CFGF_NONE),
 		CFG_STR("LaunchString", "", CFGF_NONE),
+		CFG_INT("AudioChannels", 2, CFGF_NONE),
+		CFG_INT("SampleRate", 48000, CFGF_NONE),
+		CFG_INT("Width", 176, CFGF_NONE),
+		CFG_INT("Height", 144, CFGF_NONE),
+		CFG_FLOAT("Ratio", 1.22, CFGF_NONE),
 		CFG_END()
 	};
 	cfg_opt_t opts[] =
@@ -1711,6 +1630,11 @@ int parse_conf()
 		// printf("parsing channel %s...", Channels[j].Title);
 		// printf(", %s\n", cfg_getstr(cfg_channel, "LaunchString"));
 		sprintf(Channels[j].LaunchString, "%s", cfg_getstr(cfg_channel, "LaunchString"));
+		Channels[j].Width = cfg_getint(cfg_channel, "Width");
+		Channels[j].Height = cfg_getint(cfg_channel, "Height");
+		Channels[j].AudioChannels = cfg_getint(cfg_channel, "AudioChannels");
+		Channels[j].SampleRate = cfg_getint(cfg_channel, "SampleRate");
+		Channels[j].Ratio = cfg_getfloat(cfg_channel, "Ratio");
 		NChannels++;
 	}
 	cfg_free(cfg);
@@ -1721,8 +1645,6 @@ int parse_conf()
 void zap_down()
 {
 	SelectedChannel = ((SelectedChannel+1) %NChannels);
-	packet_queue_reset(&audioq, AUDIO);
-	packet_queue_reset(&videoq, VIDEO);
 	switch_channel(&(Channels[SelectedChannel]));
 }
 
@@ -1731,16 +1653,19 @@ void zap_up()
 	SelectedChannel--;
 	if(SelectedChannel < 0)
 		SelectedChannel = NChannels-1;
-		
-	packet_queue_reset(&audioq, AUDIO);
-	packet_queue_reset(&videoq, VIDEO);
+
 	switch_channel(&(Channels[SelectedChannel]));
 }
 
 int switch_channel(SChannel* channel)
 {
+	if(AVPlaying)
+		StopAVPlaying();
+
 	if(child_pid > 0)
 		KILL_PROCESS(child_pid);
+		
+	InitCodecs(channel);
 		
 	char* parameters_vector[255];
 	char argv0[255], parameters_string[255];
@@ -1819,4 +1744,120 @@ void redraw_buttons()
 			}
 		}
 	}
+}
+
+int InitCodecs(SChannel* channel)
+{
+	SDL_AudioSpec wanted_spec;
+	
+	AVFormatContext *pFormatCtx;
+	AVCodec         *aCodec;
+	AVFrame         *pFrame; 
+
+	AVPicture pict;
+	
+	uint8_t *outbuf;
+	uint8_t *outbuf_audi_audio;
+	
+	memset(&VideoCallbackThreadParams, 0, sizeof(ThreadVal));
+	
+	VideoCallbackThreadParams.width = channel->Width;
+	VideoCallbackThreadParams.height = channel->Height;
+	VideoCallbackThreadParams.aspect_ratio = channel->Ratio;
+
+	// Register all formats and codecs
+	av_register_all();
+
+	aCodecCtx = avcodec_alloc_context();
+	//aCodecCtx->bit_rate = 64000;
+	aCodecCtx->sample_rate = channel->SampleRate;
+	aCodecCtx->channels = channel->AudioChannels;
+#ifdef MP3_AUDIO_ENCODER
+	aCodec = avcodec_find_decoder(CODEC_ID_MP3); // codec audio
+#else
+	aCodec = avcodec_find_decoder(CODEC_ID_MP2);
+#endif
+	printf("MP2 codec id %d MP3 codec id %d\n",CODEC_ID_MP2,CODEC_ID_MP3);
+	if(!aCodec) {
+		printf("Codec not found!\n");
+		return -1;
+	}
+	if(avcodec_open(aCodecCtx, aCodec)<0) {
+		fprintf(stderr, "could not open codec\n");
+		return -1; // Could not open codec
+	}
+	printf("using audio Codecid: %d ",aCodecCtx->codec_id);
+	printf("samplerate: %d ",aCodecCtx->sample_rate);
+	printf("channels: %d\n",aCodecCtx->channels);
+	wanted_spec.freq = aCodecCtx->sample_rate;
+	wanted_spec.format = AUDIO_S16SYS;
+	wanted_spec.channels = aCodecCtx->channels;
+	wanted_spec.silence = 0;
+	wanted_spec.samples = SDL_AUDIO_BUFFER_SIZE;
+	wanted_spec.callback = audio_callback;
+	wanted_spec.userdata = aCodecCtx;
+	if(!silentMode)
+		if(SDL_OpenAudio(&wanted_spec,&spec)<0) {
+			fprintf(stderr,"SDL_OpenAudio: %s\n",SDL_GetError());
+			return -1;
+		}
+	dimAudioQ = spec.size;
+	deltaAudioQ = (float)((float)spec.samples)*1000/spec.freq;
+
+#ifdef DEBUG_AUDIO
+	printf("freq:%d\n",spec.freq);
+	printf("format:%d\n",spec.format);
+	printf("channels:%d\n",spec.channels);
+	printf("silence:%d\n",spec.silence);
+	printf("samples:%d\n",spec.samples);
+	printf("size:%d\n",spec.size);
+	printf("deltaAudioQ: %f\n",deltaAudioQ);
+#endif
+
+	pFrame=avcodec_alloc_frame();
+	if(pFrame==NULL) {
+		printf("Memory error!!!\n");
+		return -1;
+	}
+	outbuf_audio = malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
+
+	//initialize the audio and the video queues
+	packet_queue_init(&audioq, AUDIO);
+	packet_queue_init(&videoq, VIDEO);
+	
+	// Init audio and video buffers
+	av_init_packet(&AudioPkt);
+	av_init_packet(&VideoPkt);
+	AudioPkt.data=(uint8_t *)malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
+	if(!AudioPkt.data) return 0;
+	VideoPkt.data=(uint8_t *)malloc(channel->Width*channel->Height*3/2);
+	if(!VideoPkt.data) return 0;
+	
+	SDL_PauseAudio(0);
+	
+	AVPlaying = 1;
+	video_thread = SDL_CreateThread(video_callback, &VideoCallbackThreadParams);
+	
+	return 0;
+}
+
+int StopAVPlaying()
+{
+	AVPlaying = 0;
+	
+	// Stop audio&video playback
+	SDL_WaitThread(video_thread, NULL);
+	SDL_PauseAudio(1);
+	SDL_CloseAudio();
+	//SDL_DestroyMutex(timing_mutex);
+	
+	packet_queue_reset(&audioq, AUDIO);
+	packet_queue_reset(&videoq, VIDEO);
+	
+	av_free(aCodecCtx);
+	free(AudioPkt.data);
+	free(VideoPkt.data);
+	free(outbuf_audio);
+	
+	return 0;
 }
