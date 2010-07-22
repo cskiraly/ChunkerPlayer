@@ -25,6 +25,7 @@
 #include <SDL_mutex.h>
 #include <SDL_image.h>
 #include <math.h>
+#include <confuse.h>
 
 #ifdef __MINGW32__
 #undef main /* Prevents SDL from overriding main() */
@@ -34,143 +35,15 @@
 #include "chunker_player.h"
 #include "codec_definitions.h"
 
-#define SDL_AUDIO_BUFFER_SIZE 1024
-
-#define MAX_TOLLERANCE 40
-#define AUDIO	1
-#define VIDEO	2
-#define QUEUE_MAX_SIZE 3000
-
-#define FULLSCREEN_ICON_FILE "icons/fullscreen32.png"
-#define NOFULLSCREEN_ICON_FILE "icons/nofullscreen32.png"
-#define FULLSCREEN_HOVER_ICON_FILE "icons/fullscreen32.png"
-#define NOFULLSCREEN_HOVER_ICON_FILE "icons/nofullscreen32.png"
-
-#define BUTTONS_LAYER_OFFSET 10
-
-typedef enum Status { STOPPED, RUNNING, PAUSED } Status;
-
-//#define DEBUG_AUDIO
-//#define DEBUG_VIDEO
-#define DEBUG_QUEUE
-#define DEBUG_SOURCE
-//#define DEBUG_STATS
-//#define DEBUG_AUDIO_BUFFER
-//#define DEBUG_CHUNKER
-
-
-short int QueueFillingMode=1;
-short int QueueStopped=0;
-
-typedef struct PacketQueue {
-	AVPacketList *first_pkt;
-	AVPacketList *last_pkt;
-	int nb_packets;
-	int size;
-	SDL_mutex *mutex;
-	short int queueType;
-	int last_frame_extracted; //HINT THIS SHOULD BE MORE THAN 4 BYTES
-	int total_lost_frames;
-	double density;
-} PacketQueue;
-
-typedef struct threadVal {
-	int width;
-	int height;
-	float aspect_ratio;
-} ThreadVal;
-
-int AudioQueueOffset=0;
-PacketQueue audioq;
-PacketQueue videoq;
-AVPacket AudioPkt, VideoPkt;
-int quit = 0;
-int SaveYUV=0;
-char YUVFileName[256];
-
-int queue_filling_threshold = 0;
-
-SDL_Surface *screen;
-SDL_Overlay *yuv_overlay;
-SDL_Rect    rect;
-SDL_Rect *initRect = NULL;
-SDL_AudioSpec spec;
-Status CurrStatus = STOPPED;
-
-struct SwsContext *img_convert_ctx = NULL;
-float ratio;
-
-//SDL_mutex *timing_mutex;
-
-int got_sigint = 0;
-
-long long DeltaTime;
-short int FirstTimeAudio=1, FirstTime = 1;
-
-int dimAudioQ;
-float deltaAudioQ;
-float deltaAudioQError=0;
-
-void SaveFrame(AVFrame *pFrame, int width, int height);
-
-// other GUI staff
-SDL_Cursor *init_system_cursor(const char *image[]);
-void refresh_fullscreen_button(int hover);
-void toggle_fullscreen();
-void aspect_ratio_resize(float aspect_ratio, int width, int height, int* out_width, int* out_height);
-int fullscreen = 0; // fullscreen vs windowized flag
-SDL_Rect    fullscreenIconBox;
-SDL_Surface *fullscreenIcon;
-SDL_Surface *fullscreenHoverIcon;
-SDL_Surface *nofullscreenIcon;
-SDL_Surface *nofullscreenHoverIcon;
-SDL_Cursor *defaultCursor;
-SDL_Cursor *handCursor;
-int fullscreenButtonHover = 0;
-int silentMode = 0;
-
-/* XPM */
-static char *handXPM[] = {
-/* columns rows colors chars-per-pixel */
-"32 32 3 1",
-"  c black",
-". c gray100",
-"X c None",
-/* pixels */
-"XXXXX  XXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXX .. XXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXX .. XXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXX .. XXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXX .. XXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXX ..   XXXXXXXXXXXXXXXXXXXXXX",
-"XXXX .. ..   XXXXXXXXXXXXXXXXXXX",
-"XXXX .. .. ..  XXXXXXXXXXXXXXXXX",
-"XXXX .. .. .. . XXXXXXXXXXXXXXXX",
-"   X .. .. .. .. XXXXXXXXXXXXXXX",
-" ..  ........ .. XXXXXXXXXXXXXXX",
-" ... ........... XXXXXXXXXXXXXXX",
-"X .. ........... XXXXXXXXXXXXXXX",
-"XX . ........... XXXXXXXXXXXXXXX",
-"XX ............. XXXXXXXXXXXXXXX",
-"XXX ............ XXXXXXXXXXXXXXX",
-"XXX ........... XXXXXXXXXXXXXXXX",
-"XXXX .......... XXXXXXXXXXXXXXXX",
-"XXXX .......... XXXXXXXXXXXXXXXX",
-"XXXXX ........ XXXXXXXXXXXXXXXXX",
-"XXXXX ........ XXXXXXXXXXXXXXXXX",
-"XXXXX          XXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-"0,0"
-};
+#ifdef __WIN32__
+#define KILL_PROCESS(pid) {char command_name[255]; sprintf(command_name, "taskkill /pid %d /F", pid); system(command_name);}
+#endif
+#ifdef __LINUX__
+#define KILL_PROCESS(pid) {char command_name[255]; sprintf(command_name, "kill %d", pid); system(command_name);}
+#endif
+#ifdef __MACOS__
+#define KILL_PROCESS(pid) {char command_name[255]; sprintf(command_name, "kill %d", pid); system(command_name);}
+#endif
 
 void packet_queue_init(PacketQueue *q, short int Type) {
 #ifdef DEBUG_QUEUE
@@ -208,7 +81,7 @@ void packet_queue_reset(PacketQueue *q, short int Type) {
 		av_free_packet(&(tmp1->pkt));
 		av_free(tmp1);
 #ifdef DEBUG_QUEUE
-	printf("F ");
+		printf("F ");
 #endif
 	}
 #ifdef DEBUG_QUEUE
@@ -388,7 +261,6 @@ int decode_enqueued_audio_packet(AVPacket *pkt, PacketQueue *q) {
 	}
 	return ret; //problems occurred
 }
-
 
 //removes a packet from the list and returns the next
 AVPacketList *remove_from_queue(PacketQueue *q, AVPacketList *p) {
@@ -882,6 +754,7 @@ int video_callback(void *valthread) {
 						}
 						continue;
 					}
+					
 					pict.data[0] = yuv_overlay->pixels[0];
 					pict.data[1] = yuv_overlay->pixels[2];
 					pict.data[2] = yuv_overlay->pixels[1];
@@ -901,14 +774,14 @@ int video_callback(void *valthread) {
 					sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, tval->height, pict.data, pict.linesize);
 					SDL_UnlockYUVOverlay(yuv_overlay);
 					// Show, baby, show!
+					SDL_LockMutex(RedrawMutex);
 					SDL_DisplayYUVOverlay(yuv_overlay, &rect);
+					SDL_UnlockMutex(RedrawMutex);
 
 					//redisplay logo
 					/**SDL_BlitSurface(image, NULL, screen, &dest);*/
 					/* Update the screen area just changed */
 					/**SDL_UpdateRects(screen, 1, &dest);*/
-					
-					refresh_fullscreen_button(fullscreenButtonHover);
 
 					if(SDL_MUSTLOCK(screen)) {
 						SDL_UnlockSurface(screen);
@@ -972,19 +845,12 @@ void SetupGUI()
 	SDL_Surface *temp;
 	int screen_w = 0, screen_h = 0;
 
-	/* Load a BMP file on a surface */
-	temp = IMG_Load(FULLSCREEN_ICON_FILE);
-	if (temp == NULL) {
-		fprintf(stderr, "Error loading %s: %s\n", FULLSCREEN_ICON_FILE, SDL_GetError());
-		exit(1);
-	}
-
-	if(rect.w > temp->w)
+	if(rect.w > BUTTONS_CONTAINER_WIDTH)
 		screen_w = rect.w;
 	else
-		screen_w = temp->w;
+		screen_w = BUTTONS_CONTAINER_WIDTH;
 
-		screen_h = rect.h + temp->h + BUTTONS_LAYER_OFFSET;
+		screen_h = rect.h + BUTTONS_CONTAINER_HEIGHT + BUTTONS_LAYER_OFFSET;
 
 	SDL_WM_SetCaption("Filling buffer...", NULL);
 	// Make a screen to put our video
@@ -1001,45 +867,110 @@ void SetupGUI()
 	window_width = screen_w;
 	window_height = screen_h;
 	
-	fullscreenIcon = SDL_DisplayFormatAlpha(temp);
-	SDL_FreeSurface(temp);
-
-	// load icon buttons
-	temp = IMG_Load(NOFULLSCREEN_ICON_FILE);
+	/** Setting up cursors */
+	defaultCursor = SDL_GetCursor();
+	handCursor = init_system_cursor(handXPM);
+	
+	/** Init Buttons */
+	int i;
+	for(i=0; i<NBUTTONS; i++)
+	{
+		SButton* tmp = &(Buttons[i]);
+		tmp->Hover = 0;
+		tmp->ToggledButton = NULL;
+		tmp->Visible = 1;
+		tmp->HoverCallback = NULL;
+		tmp->LButtonUpCallback = NULL;
+	}
+	
+	/** Loading icons */
+	
+	// fullscreen
+	temp = IMG_Load(FULLSCREEN_ICON_FILE);
 	if (temp == NULL) {
-		fprintf(stderr, "Error loading %s: %s\n", NOFULLSCREEN_ICON_FILE, SDL_GetError());
+		fprintf(stderr, "Error loading %s: %s\n", FULLSCREEN_ICON_FILE, SDL_GetError());
 		exit(1);
 	}
-	nofullscreenIcon = SDL_DisplayFormatAlpha(temp);
+	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIcon = SDL_DisplayFormatAlpha(temp);
 	SDL_FreeSurface(temp);
-
-	temp = IMG_Load(NOFULLSCREEN_HOVER_ICON_FILE);
-	if (temp == NULL) {
-		fprintf(stderr, "Error loading %s: %s\n", NOFULLSCREEN_HOVER_ICON_FILE, SDL_GetError());
-		exit(1);
-	}
-	nofullscreenHoverIcon = SDL_DisplayFormatAlpha(temp);
-	SDL_FreeSurface(temp);
-
+	
+	// fullscreen hover
 	temp = IMG_Load(FULLSCREEN_HOVER_ICON_FILE);
 	if (temp == NULL) {
 		fprintf(stderr, "Error loading %s: %s\n", FULLSCREEN_HOVER_ICON_FILE, SDL_GetError());
 		exit(1);
 	}
-	fullscreenHoverIcon = SDL_DisplayFormatAlpha(temp);
+	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonHoverIcon = SDL_DisplayFormatAlpha(temp);
 	SDL_FreeSurface(temp);
 
-	defaultCursor = SDL_GetCursor();
-	handCursor = init_system_cursor(handXPM);
+	// no fullscreen
+	temp = IMG_Load(NOFULLSCREEN_ICON_FILE);
+	if (temp == NULL) {
+		fprintf(stderr, "Error loading %s: %s\n", NOFULLSCREEN_ICON_FILE, SDL_GetError());
+		exit(1);
+	}
+	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIcon = SDL_DisplayFormatAlpha(temp);
+	SDL_FreeSurface(temp);
 
-	/* Copy on the screen surface 
-	surface should be blocked now.
-	*/
-	fullscreenIconBox.x = (screen_w - fullscreenIcon->w) / 2;
-	fullscreenIconBox.y = rect.h + (BUTTONS_LAYER_OFFSET/2);
-	fullscreenIconBox.w = fullscreenIcon->w;
-	fullscreenIconBox.h = fullscreenIcon->h;
-	printf("x%d y%d w%d h%d\n", fullscreenIconBox.x, fullscreenIconBox.y, fullscreenIconBox.w, fullscreenIconBox.h);
+	// no fullscreen hover
+	temp = IMG_Load(NOFULLSCREEN_HOVER_ICON_FILE);
+	if (temp == NULL) {
+		fprintf(stderr, "Error loading %s: %s\n", NOFULLSCREEN_HOVER_ICON_FILE, SDL_GetError());
+		exit(1);
+	}
+	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonHoverIcon = SDL_DisplayFormatAlpha(temp);
+	SDL_FreeSurface(temp);
+	
+	// channel up
+	temp = IMG_Load(CHANNEL_UP_ICON_FILE);
+	if (temp == NULL) {
+		fprintf(stderr, "Error loading %s: %s\n", CHANNEL_UP_ICON_FILE, SDL_GetError());
+		exit(1);
+	}
+	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIcon = SDL_DisplayFormatAlpha(temp);
+	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonHoverIcon = SDL_DisplayFormatAlpha(temp);
+	SDL_FreeSurface(temp);
+	
+	// channel down
+	temp = IMG_Load(CHANNEL_DOWN_ICON_FILE);
+	if (temp == NULL) {
+		fprintf(stderr, "Error loading %s: %s\n", CHANNEL_DOWN_ICON_FILE, SDL_GetError());
+		exit(1);
+	}
+	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIcon = SDL_DisplayFormatAlpha(temp);
+	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonHoverIcon = SDL_DisplayFormatAlpha(temp);
+	SDL_FreeSurface(temp);
+
+	/** Setting up icon boxes */
+	Buttons[FULLSCREEN_BUTTON_INDEX].XOffset = Buttons[NO_FULLSCREEN_BUTTON_INDEX].XOffset = 20;
+	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.x = 20;
+	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.w = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIcon->w;
+	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIcon->h;
+	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+	
+	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.x = 20;
+	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.w = Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIcon->w;
+	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h = Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIcon->h;
+	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+	
+	Buttons[CHANNEL_UP_BUTTON_INDEX].XOffset = -50;
+	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.w = Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIcon->w;
+	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.h = Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIcon->h;
+	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.x = (screen_w - 50);
+	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+	
+	Buttons[CHANNEL_DOWN_BUTTON_INDEX].XOffset = -25;
+	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.w = Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIcon->w;
+	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.h = Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIcon->h;
+	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.x = (screen_w - 25);
+	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+	
+	/** Setting up buttons events */
+	Buttons[FULLSCREEN_BUTTON_INDEX].ToggledButton = &(Buttons[NO_FULLSCREEN_BUTTON_INDEX]);
+	Buttons[FULLSCREEN_BUTTON_INDEX].LButtonUpCallback = &toggle_fullscreen;
+	Buttons[NO_FULLSCREEN_BUTTON_INDEX].LButtonUpCallback = &toggle_fullscreen;
+	Buttons[CHANNEL_UP_BUTTON_INDEX].LButtonUpCallback = &zap_up;
+	Buttons[CHANNEL_DOWN_BUTTON_INDEX].LButtonUpCallback = &zap_down;
 
 	//create video overlay for display of video frames
 	yuv_overlay = SDL_CreateYUVOverlay(rect.w, rect.h, SDL_YV12_OVERLAY, screen);
@@ -1054,10 +985,7 @@ void SetupGUI()
 	rect.x = (screen_w - rect.w) / 2;
 	SDL_DisplayYUVOverlay(yuv_overlay, &rect);
 
-	/**SDL_BlitSurface(image, NULL, screen, &dest);*/
-	SDL_BlitSurface(fullscreenIcon, NULL, screen, &fullscreenIconBox);
-	/* Update the screen area just changed */
-	SDL_UpdateRects(screen, 1, &fullscreenIconBox);
+	redraw_buttons();
 }
 
 void SaveFrame(AVFrame *pFrame, int width, int height) {
@@ -1097,7 +1025,7 @@ void ProcessKeys() {
 
 	Uint32 Now=SDL_GetTicks();
 	Uint8* keystate=SDL_GetKeyState(NULL);
-	if(keystate[SDLK_SPACE] &&
+	/*if(keystate[SDLK_SPACE] &&
 	  (LastKey!=SDLK_SPACE || (LastKey==SDLK_SPACE && (Now-LastTime>1000))))
 	{
 		LastKey=SDLK_SPACE;
@@ -1105,8 +1033,8 @@ void ProcessKeys() {
 		QueueStopped=!QueueStopped;
 		if(QueueStopped) CurrStatus = PAUSED;
 		else CurrStatus = RUNNING;
-		refresh_fullscreen_button(0);
-	}
+		// refresh_fullscreen_button(0);
+	}*/
 	if(keystate[SDLK_ESCAPE] &&
 	  (LastKey!=SDLK_ESCAPE || (LastKey==SDLK_ESCAPE && (Now-LastTime>1000))))
 	{
@@ -1128,6 +1056,8 @@ int main(int argc, char *argv[]) {
 	int len1, data_size, stime, cont=0;
 	int frameFinished, len_audio;
 	int numBytes, outbuf_audio_size, audio_size;
+	
+	memset((void*)Channels, 0, (255*sizeof(SChannel)));
 
 	int y;
 	
@@ -1180,6 +1110,15 @@ int main(int argc, char *argv[]) {
 		else
 			printf("ERROR: Unable to create YUVFile\n");
 	}
+	
+	if(parse_conf())
+	{
+		printf("Error while parsing configuration file, exiting...\n");
+		exit(1);
+	}
+	SelectedChannel = 0;
+	
+	switch_channel(&(Channels[SelectedChannel]));
 
 	tval->width = width;
 	tval->height = height;
@@ -1262,8 +1201,8 @@ int main(int argc, char *argv[]) {
 	initRect->y = rect.y;
 	initRect->w = rect.w;
 	initRect->h = rect.h;
-
-	//SetupGUI("napalogo_small.bmp");
+	
+	RedrawMutex = SDL_CreateMutex();
 	if(!silentMode)
 		SetupGUI();
 	
@@ -1305,23 +1244,18 @@ int main(int argc, char *argv[]) {
 		int x = 0, y = 0;
 		int resize_w, resize_h;
 		int tmp_switch = 0;
+		int i;
 		//listen for key and mouse
 		while(SDL_PollEvent(&event)) {
 			switch(event.type) {
 				case SDL_QUIT:
 					//exit(0);
 					quit=1;
+					if(child_pid > 0)
+						KILL_PROCESS(child_pid);
 				break;
 				case SDL_VIDEORESIZE:
-					//printf("\tSDL_VIDEORESIZE\n");
-					
-					// if running, pause until resize has done
-					if(CurrStatus == RUNNING)
-					{
-						QueueStopped = 1;
-						CurrStatus = PAUSED;
-						tmp_switch = 1;
-					}
+					SDL_LockMutex(RedrawMutex);
 #ifndef __DARWIN__
 					screen = SDL_SetVideoMode(event.resize.w, event.resize.h, 0, SDL_SWSURFACE | SDL_RESIZABLE);
 #else
@@ -1332,27 +1266,29 @@ int main(int argc, char *argv[]) {
 						exit(1);
 					}
 					
+					SDL_UnlockMutex(RedrawMutex);
+					
 					window_width = event.resize.w;
 					window_height = event.resize.h;
 					
-					aspect_ratio_rect(ratio, event.resize.w, event.resize.h - BUTTONS_LAYER_OFFSET - fullscreenIconBox.h);
+					// update the overlay surface size, mantaining the aspect ratio
+					aspect_ratio_rect(ratio, event.resize.w, event.resize.h - BUTTONS_LAYER_OFFSET - BUTTONS_CONTAINER_HEIGHT);
 					
-					fullscreenIconBox.x = (event.resize.w - fullscreenIcon->w) / 2;
-
-					// put the button just below the video overlay
-// 					fullscreenIcon.y = rect.y+rect.h + (BUTTONS_LAYER_OFFSET/2);
-
-					// put the button at the bottom edge of the screen
-					fullscreenIconBox.y = event.resize.h - fullscreenIconBox.h - (BUTTONS_LAYER_OFFSET/2);
-					
-					// refresh_fullscreen_button(0);
-					
-					if(tmp_switch)
+					// update each button coordinates
+					for(i=0; i<NBUTTONS; i++)
 					{
-						QueueStopped = 0;
-						CurrStatus= RUNNING;
-						tmp_switch = 0;
+						if(Buttons[i].XOffset > 0)
+							Buttons[i].ButtonIconBox.x = Buttons[i].XOffset;
+						else
+							Buttons[i].ButtonIconBox.x = (event.resize.w + Buttons[i].XOffset);
+							
+						Buttons[i].ButtonIconBox.y = event.resize.h - Buttons[i].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
 					}
+					
+					SDL_LockMutex(RedrawMutex);
+					redraw_buttons();
+					SDL_UnlockMutex(RedrawMutex);
+					
 				break;
 				case SDL_ACTIVEEVENT:
 					//printf("\tSDL_ACTIVEEVENT\n");
@@ -1387,53 +1323,45 @@ int main(int argc, char *argv[]) {
 					//printf("\tSDL_MOUSEMOTION\n");
 					x = event.motion.x;
 					y = event.motion.y;
-					//If the mouse is over the button
-					if(
-						( x > fullscreenIconBox.x ) && ( x < fullscreenIconBox.x + fullscreenIcon->w )
-						&& ( y > fullscreenIconBox.y ) && ( y < fullscreenIconBox.y + fullscreenIcon->h )
-					)
+					
+					for(i=0; i<NBUTTONS; i++)
 					{
-						fullscreenButtonHover = 1;
-						SDL_SetCursor(handCursor);
-					}
-					//If not
-					else
-					{
-						fullscreenButtonHover = 0;
-						SDL_SetCursor(defaultCursor);
+						//If the mouse is over the button
+						if(
+							( x > Buttons[i].ButtonIconBox.x ) && ( x < Buttons[i].ButtonIconBox.x + Buttons[i].ButtonIcon->w )
+							&& ( y > Buttons[i].ButtonIconBox.y ) && ( y < Buttons[i].ButtonIconBox.y + Buttons[i].ButtonIcon->h )
+						)
+						{
+							Buttons[i].Hover = 1;
+							SDL_SetCursor(handCursor);
+							break;
+						}
+						
+						else
+						{
+							Buttons[i].Hover = 0;
+							SDL_SetCursor(defaultCursor);
+						}
 					}
 				break;
 				case SDL_MOUSEBUTTONUP:
 					//printf("\tSDL_MOUSEBUTTONUP\n");
 					if( event.button.button != SDL_BUTTON_LEFT )
-        					break;
+						break;
 					
 					x = event.motion.x;
 					y = event.motion.y;
-					//If the mouse is over the button
-					if(
-						( x > fullscreenIconBox.x ) && ( x < fullscreenIconBox.x + fullscreenIcon->w )
-						&& ( y > fullscreenIconBox.y ) && ( y < fullscreenIconBox.y + fullscreenIcon->h )
-					)
+					
+					for(i=0; i<NBUTTONS; i++)
 					{
-						
-						// if running, pause until resize has done
-						if(CurrStatus == RUNNING)
+						//If the mouse is over the button
+						if(
+							( x > Buttons[i].ButtonIconBox.x ) && ( x < Buttons[i].ButtonIconBox.x + Buttons[i].ButtonIcon->w )
+							&& ( y > Buttons[i].ButtonIconBox.y ) && ( y < Buttons[i].ButtonIconBox.y + Buttons[i].ButtonIcon->h )
+						)
 						{
-							QueueStopped = 1;
-							CurrStatus = PAUSED;
-							tmp_switch = 1;
-						}
-						
-						toggle_fullscreen();
-						
-						fullscreenButtonHover = 1;
-						
-						if(tmp_switch)
-						{
-							QueueStopped = 0;
-							CurrStatus= RUNNING;
-							tmp_switch = 0;
+							Buttons[i].LButtonUpCallback();
+							break;
 						}
 					}
 				break;
@@ -1452,6 +1380,10 @@ int main(int argc, char *argv[]) {
 	SDL_CloseAudio();
 	//SDL_DestroyMutex(timing_mutex);
 	SDL_Quit();
+	
+	if(child_pid > 0)
+		KILL_PROCESS(child_pid);
+	
 	av_free(aCodecCtx);
 	free(AudioPkt.data);
 	free(VideoPkt.data);
@@ -1642,36 +1574,6 @@ SDL_Cursor *init_system_cursor(const char *image[])
 	return SDL_CreateCursor(data, mask, 32, 32, hot_x, hot_y);
 }
 
-void refresh_fullscreen_button(int hover)
-{
-	if(!hover)
-	{
-		if(!fullscreen)
-		{
-			SDL_BlitSurface(fullscreenIcon, NULL, screen, &fullscreenIconBox);
-			SDL_UpdateRects(screen, 1, &fullscreenIconBox);
-		}
-		else
-		{
-			SDL_BlitSurface(nofullscreenIcon, NULL, screen, &fullscreenIconBox);
-			SDL_UpdateRects(screen, 1, &fullscreenIconBox);
-		}
-	}
-	else
-	{
-		if(!fullscreen)
-		{
-			SDL_BlitSurface(fullscreenHoverIcon, NULL, screen, &fullscreenIconBox);
-			SDL_UpdateRects(screen, 1, &fullscreenIconBox);
-		}
-		else
-		{
-			SDL_BlitSurface(nofullscreenHoverIcon, NULL, screen, &fullscreenIconBox);
-			SDL_UpdateRects(screen, 1, &fullscreenIconBox);
-		}
-	}
-}
-
 void aspect_ratio_resize(float aspect_ratio, int width, int height, int* out_width, int* out_height)
 {
 	int h,w,x,y;
@@ -1691,15 +1593,17 @@ void aspect_ratio_resize(float aspect_ratio, int width, int height, int* out_wid
 
 void toggle_fullscreen()
 {
+	SDL_LockMutex(RedrawMutex);
+	
+	int i;
+	
 	//If the screen is windowed
 	if( !fullscreen )
 	{
 		//Set the screen to fullscreen
 #ifndef __DARWIN__
-		// screen = SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 0, SDL_SWSURFACE | SDL_RESIZABLE | SDL_FULLSCREEN);
 		screen = SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 0, SDL_SWSURFACE | SDL_NOFRAME | SDL_FULLSCREEN);
 #else
-		// screen = SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 24, SDL_SWSURFACE | SDL_RESIZABLE | SDL_FULLSCREEN);
 		screen = SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 24, SDL_SWSURFACE | SDL_NOFRAME | SDL_FULLSCREEN);
 #endif
 
@@ -1710,13 +1614,25 @@ void toggle_fullscreen()
 			exit(1);
 		}
 		
-		aspect_ratio_rect(ratio, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT - BUTTONS_LAYER_OFFSET - fullscreenIconBox.h);
-		fullscreenIconBox.x = (FULLSCREEN_WIDTH - fullscreenIcon->w) / 2;
-		// fullscreenIcon.y = rect.y+rect.h + (BUTTONS_LAYER_OFFSET/2); // put the button just below the video overlay
-		fullscreenIconBox.y = FULLSCREEN_HEIGHT - fullscreenIconBox.h - (BUTTONS_LAYER_OFFSET/2); // put the button at the bottom edge of the screen
+		// update the overlay surface size, mantaining the aspect ratio
+		aspect_ratio_rect(ratio, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT - BUTTONS_LAYER_OFFSET - BUTTONS_CONTAINER_HEIGHT);
 		
+		// update each button coordinates
+		for(i=0; i<NBUTTONS; i++)
+		{
+			if(Buttons[i].XOffset > 0)
+				Buttons[i].ButtonIconBox.x = Buttons[i].XOffset;
+			else
+				Buttons[i].ButtonIconBox.x = (FULLSCREEN_WIDTH + Buttons[i].XOffset);
+				
+			Buttons[i].ButtonIconBox.y = FULLSCREEN_HEIGHT - Buttons[i].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+		}
+
 		//Set the window state flag
 		fullscreen = 1;
+		
+		Buttons[FULLSCREEN_BUTTON_INDEX].Visible = 0;
+		Buttons[NO_FULLSCREEN_BUTTON_INDEX].Visible = 1;
 	}
 	
 	//If the screen is fullscreen
@@ -1736,12 +1652,171 @@ void toggle_fullscreen()
 			exit(1);
 		}
 		
-		aspect_ratio_rect(ratio, window_width, window_height - BUTTONS_LAYER_OFFSET - fullscreenIconBox.h);
-		fullscreenIconBox.x = (window_width - fullscreenIcon->w) / 2;
-		// fullscreenIcon.y = rect.y+rect.h + (BUTTONS_LAYER_OFFSET/2); // put the button just below the video overlay
-		fullscreenIconBox.y = window_height - fullscreenIconBox.h - (BUTTONS_LAYER_OFFSET/2); // put the button at the bottom edge of the screen
+		// update the overlay surface size, mantaining the aspect ratio
+		aspect_ratio_rect(ratio, window_width, window_height - BUTTONS_LAYER_OFFSET - BUTTONS_CONTAINER_HEIGHT);
+		
+		// update each button coordinates
+		for(i=0; i<NBUTTONS; i++)
+		{
+			if(Buttons[i].XOffset > 0)
+				Buttons[i].ButtonIconBox.x = Buttons[i].XOffset;
+			else
+				Buttons[i].ButtonIconBox.x = (window_width + Buttons[i].XOffset);
+				
+			Buttons[i].ButtonIconBox.y = window_height - Buttons[i].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+		}
 		
 		//Set the window state flag
 		fullscreen = 0;
+		
+		Buttons[FULLSCREEN_BUTTON_INDEX].Visible = 1;
+		Buttons[NO_FULLSCREEN_BUTTON_INDEX].Visible = 0;
+	}
+	
+	redraw_buttons();
+	
+	SDL_UnlockMutex(RedrawMutex);
+}
+
+int parse_conf()
+{
+	int j;
+	
+	// PARSING CONF FILE
+	cfg_opt_t channel_opts[] =
+	{
+		CFG_STR("Title", "", CFGF_NONE),
+		CFG_STR("LaunchString", "", CFGF_NONE),
+		CFG_END()
+	};
+	cfg_opt_t opts[] =
+	{
+		CFG_STR("ExecPath", DEFAULT_CHANNEL_EXEC_PATH, CFGF_NONE),
+		CFG_STR("ExecName", DEFAULT_CHANNEL_EXEC_NAME, CFGF_NONE),
+		CFG_SEC("Channel", channel_opts, CFGF_TITLE | CFGF_MULTI),
+		CFG_END()
+	};
+	cfg_t *cfg, *cfg_channel;
+	cfg = cfg_init(opts, CFGF_NONE);
+	if(cfg_parse(cfg, DEFAULT_CONF_FILENAME) == CFG_PARSE_ERROR)
+	{
+		return 1;
+	}
+	sprintf(OfferStreamerPath, "%s", cfg_getstr(cfg, "ExecPath"));
+	sprintf(OfferStreamerFilename, "%s", cfg_getstr(cfg, "ExecName"));
+	for(j = 0; j < cfg_size(cfg, "Channel"); j++)
+	{
+		cfg_channel = cfg_getnsec(cfg, "Channel", j);
+		sprintf(Channels[j].Title, "%s", cfg_title(cfg_channel));
+		// printf("parsing channel %s...", Channels[j].Title);
+		// printf(", %s\n", cfg_getstr(cfg_channel, "LaunchString"));
+		sprintf(Channels[j].LaunchString, "%s", cfg_getstr(cfg_channel, "LaunchString"));
+		NChannels++;
+	}
+	cfg_free(cfg);
+	
+	return 0;
+}
+
+void zap_down()
+{
+	SelectedChannel = ((SelectedChannel+1) %NChannels);
+	packet_queue_reset(&audioq, AUDIO);
+	packet_queue_reset(&videoq, VIDEO);
+	switch_channel(&(Channels[SelectedChannel]));
+}
+
+void zap_up()
+{
+	SelectedChannel--;
+	if(SelectedChannel < 0)
+		SelectedChannel = NChannels-1;
+		
+	packet_queue_reset(&audioq, AUDIO);
+	packet_queue_reset(&videoq, VIDEO);
+	switch_channel(&(Channels[SelectedChannel]));
+}
+
+int switch_channel(SChannel* channel)
+{
+	if(child_pid > 0)
+		KILL_PROCESS(child_pid);
+		
+	char* parameters_vector[255];
+	char argv0[255], parameters_string[255];
+	sprintf(argv0, "%s%s", OfferStreamerPath, OfferStreamerFilename);
+	
+	sprintf(parameters_string, "%s %s", argv0, channel->LaunchString);
+	
+	int par_count=0;
+	
+	// split parameters and count them
+	char* pch = strtok (parameters_string, " ");
+	
+	while (pch != NULL)
+	{
+		if(par_count > 255) break;
+		// printf ("%s\n",pch);
+		parameters_vector[par_count] = (char*) malloc(sizeof(char)*strlen(pch));
+		strcpy(parameters_vector[par_count], pch);
+		pch = strtok (NULL, " ");
+		par_count++;
+	}
+	parameters_vector[par_count] = NULL;
+
+#ifdef __LINUX__
+
+	int d;
+	int stdoutS, stderrS;
+	FILE* stream;
+	stream = fopen("/dev/null", "a+");
+	d = fileno(stream);
+
+	// create backup descriptors for the current stdout and stderr devices
+	stdoutS = dup(STDOUT_FILENO);
+	stderrS = dup(STDERR_FILENO);
+	
+	// redirect child output to /dev/null
+	dup2(d, STDOUT_FILENO);
+	dup2(d, STDERR_FILENO);
+
+	int pid = fork();
+	if(pid == 0)
+		execv(argv0, parameters_vector);
+	else
+		child_pid = pid;
+	
+	// restore backup descriptors in the parent process
+	dup2(stdoutS, STDOUT_FILENO);
+	dup2(stderrS, STDERR_FILENO);
+	
+	int i;
+	for(i=0; i<par_count; i++)
+		free(parameters_vector[i]);
+		
+	return 0;
+#endif
+
+	return 1;
+}
+
+void redraw_buttons()
+{
+	int i;
+	for(i=0; i<NBUTTONS; i++)
+	{
+		if(Buttons[i].Visible)
+		{
+			if(!Buttons[i].Hover)
+			{
+				SDL_BlitSurface(Buttons[i].ButtonIcon, NULL, screen, &Buttons[i].ButtonIconBox);
+				SDL_UpdateRects(screen, 1, &Buttons[i].ButtonIconBox);
+			}
+			else
+			{
+				SDL_BlitSurface(Buttons[i].ButtonHoverIcon, NULL, screen, &(Buttons[i].ButtonIconBox));
+				SDL_UpdateRects(screen, 1, &(Buttons[i].ButtonIconBox));
+			}
+		}
 	}
 }

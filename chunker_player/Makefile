@@ -4,6 +4,7 @@ include ../common.mak
 LOCAL_ABS_SDL ?= /mnt/hgfs/triplo/dipartimento/napawine/StreamerPlayerChunker.bak/ExternalDependancies/SDL-1.2.14/my_SDL_deploy
 LOCAL_SDLIMAGE ?= /mnt/hgfs/triplo/dipartimento/napawine/StreamerPlayerChunker.bak/ExternalDependancies/SDL-1.2.14/my_SDL_deploy
 LOCAL_MHD ?= ../../../../../StreamerPlayerChunker.bak/ExternalDependancies/libmicrohttpd
+LOCAL_CONFUSE ?= "/usr"
 
 #SDL config here
 #LOCAL_SDL_CPPFLAGS = $(shell $(LOCAL_SDL)/bin/sdl-config --static-libs --cflags;)
@@ -23,9 +24,12 @@ LOCAL_MHD_CPPFLAGS = -I$(LOCAL_MHD)/include
 LOCAL_MHD_LDFLAGS = -L$(LOCAL_MHD)/lib
 LOCAL_MHD_LDLIBS = $(LOCAL_MHD)/lib/libmicrohttpd.a
 
+LOCAL_CONFUSE_CPPFLAGS = -I$(LOCAL_CONFUSE)/include
+LOCAL_CONFUSE_LDLIBS = $(LOCAL_CONFUSE)/lib/libconfuse.a
+
 CPPFLAGS += $(LOCAL_SDL_CPPFLAGS) $(LOCAL_MHD_CPPFLAGS)
-LDFLAGS += $(LOCAL_SDL_LDFLAGS) $(LOCAL_MHD_LDFLAGS)
-LDLIBS += $(LOCAL_SDL_LDLIBS) $(LOCAL_MHD_LDLIBS)
+LDFLAGS += $(LOCAL_SDL_LDFLAGS) $(LOCAL_MHD_LDFLAGS) $(LOCAL_CONFUSE_LDFLAGS)
+LDLIBS += $(LOCAL_SDL_LDLIBS) $(LOCAL_MHD_LDLIBS) $(LOCAL_CONFUSE_LDLIBS)
 
 all: chunker_player
 
