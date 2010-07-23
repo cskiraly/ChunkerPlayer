@@ -23,6 +23,7 @@
 #include <SDL.h>
 #include <SDL_thread.h>
 #include <SDL_mutex.h>
+#include <SDL_ttf.h>
 #include <SDL_image.h>
 #include <SDL_video.h>
 #include <math.h>
@@ -838,10 +839,29 @@ void audio_callback(void *userdata, Uint8 *stream, int len) {
 
 void SetupGUI()
 {
+	//Initialize SDL_ttf 
+	if( TTF_Init() == -1 )
+	{
+		printf("TTF_Init: Failed to init SDL_ttf library!\n");
+		printf("TTF_Init: %s\n", TTF_GetError());
+		exit(1);
+	}
+	
+	//Open the font
+	MainFont = TTF_OpenFont(MAIN_FONT_FILE , MAIN_FONT_SIZE );
+	
+	//If there was an error in loading the font
+	if( MainFont == NULL )
+	{
+		printf("Cannot initialize GUI, %s file not found\n", MAIN_FONT_FILE);
+		exit(1);
+	}
+	
 	// init SDL_image
 	int flags=IMG_INIT_JPG|IMG_INIT_PNG;
 	int initted=IMG_Init(flags);
-	if(initted&flags != flags) {
+	if(initted&flags != flags)
+	{
 		printf("IMG_Init: Failed to init required jpg and png support!\n");
 		printf("IMG_Init: %s\n", IMG_GetError());
 		exit(1);
@@ -992,11 +1012,12 @@ void SetupGUI()
 	}
 
 	if ( yuv_overlay->hw_overlay )
-		fprintf(stderr,"SDL: Using hardware overlay.");
+		fprintf(stderr,"SDL: Using hardware overlay.\n");
 	rect.x = (screen_w - rect.w) / 2;
 	SDL_DisplayYUVOverlay(yuv_overlay, &rect);
 
 	redraw_buttons();
+	redraw_channel_name();
 }
 
 void SaveFrame(AVFrame *pFrame, int width, int height) {
@@ -1119,7 +1140,6 @@ int main(int argc, char *argv[]) {
 	
 	if(parse_conf())
 	{
-		printf("Error while parsing configuration file, exiting...\n");
 		exit(1);
 	}
 	
@@ -1174,10 +1194,8 @@ int main(int argc, char *argv[]) {
 		while(SDL_PollEvent(&event)) {
 			switch(event.type) {
 				case SDL_QUIT:
-					//exit(0);
+					StopAVPlaying();
 					quit=1;
-					if(child_pid > 0)
-						KILL_PROCESS(child_pid);
 				break;
 				case SDL_VIDEORESIZE:
 					SDL_LockMutex(RedrawMutex);
@@ -1212,6 +1230,7 @@ int main(int argc, char *argv[]) {
 					
 					SDL_LockMutex(RedrawMutex);
 					redraw_buttons();
+					redraw_channel_name();
 					SDL_UnlockMutex(RedrawMutex);
 					
 				break;
@@ -1225,6 +1244,7 @@ int main(int argc, char *argv[]) {
 						{
 							//SDL_WM_SetCaption( "Window Event Test restored", NULL );
 							redraw_buttons();
+							redraw_channel_name();
 						}
 					}
 
@@ -1235,6 +1255,7 @@ int main(int argc, char *argv[]) {
 						if( event.active.gain != 0 )
 						{
 							redraw_buttons();
+							redraw_channel_name();
 						}
 					}
 					//If something happened to the mouse focus
@@ -1244,6 +1265,7 @@ int main(int argc, char *argv[]) {
 						if( event.active.gain != 0 )
 						{
 							redraw_buttons();
+							redraw_channel_name();
 						}
 					}
 					break;
@@ -1298,6 +1320,9 @@ int main(int argc, char *argv[]) {
 		}
 		usleep(120000);
 	}
+	
+	if(P2PProcessID > 0)
+		KILL_PROCESS(P2PProcessID);
 
 	//TERMINATE
 	IMG_Quit();
@@ -1588,6 +1613,7 @@ void toggle_fullscreen()
 	}
 	
 	redraw_buttons();
+	redraw_channel_name();
 	
 	SDL_UnlockMutex(RedrawMutex);
 }
@@ -1619,8 +1645,16 @@ int parse_conf()
 	cfg = cfg_init(opts, CFGF_NONE);
 	if(cfg_parse(cfg, DEFAULT_CONF_FILENAME) == CFG_PARSE_ERROR)
 	{
+		printf("Error while parsing configuration file, exiting...\n");
 		return 1;
 	}
+	
+	if(cfg_parse(cfg, DEFAULT_CONF_FILENAME) == CFG_FILE_ERROR)
+	{
+		printf("Error trying parsing configuration file. '%s' file couldn't be opened for reading\n", DEFAULT_CONF_FILENAME);
+		return 1;
+	}
+	
 	sprintf(OfferStreamerPath, "%s", cfg_getstr(cfg, "ExecPath"));
 	sprintf(OfferStreamerFilename, "%s", cfg_getstr(cfg, "ExecName"));
 	for(j = 0; j < cfg_size(cfg, "Channel"); j++)
@@ -1662,8 +1696,8 @@ int switch_channel(SChannel* channel)
 	if(AVPlaying)
 		StopAVPlaying();
 
-	if(child_pid > 0)
-		KILL_PROCESS(child_pid);
+	if(P2PProcessID > 0)
+		KILL_PROCESS(P2PProcessID);
 		
 	InitCodecs(channel);
 		
@@ -1709,7 +1743,7 @@ int switch_channel(SChannel* channel)
 	if(pid == 0)
 		execv(argv0, parameters_vector);
 	else
-		child_pid = pid;
+		P2PProcessID = pid;
 	
 	// restore backup descriptors in the parent process
 	dup2(stdoutS, STDOUT_FILENO);
@@ -1718,7 +1752,16 @@ int switch_channel(SChannel* channel)
 	int i;
 	for(i=0; i<par_count; i++)
 		free(parameters_vector[i]);
-		
+	
+	SDL_FreeSurface( ChannelTitleSurface );
+	// ChannelTitleSurface = TTF_RenderText_Solid( MainFont, channel->Title, ChannelTitleColor );
+	ChannelTitleSurface = TTF_RenderText_Shaded( MainFont, channel->Title, ChannelTitleColor, ChannelTitleBgColor );
+	redraw_channel_name();
+	if(ChannelTitleSurface == NULL)
+	{
+		printf("WARNING: CANNOT RENDER CHANNEL TITLE\n");
+	}
+	
 	return 0;
 #endif
 
@@ -1743,6 +1786,19 @@ void redraw_buttons()
 				SDL_UpdateRects(screen, 1, &(Buttons[i].ButtonIconBox));
 			}
 		}
+	}
+}
+
+void redraw_channel_name()
+{
+	if(ChannelTitleSurface != NULL)
+	{
+		ChannelTitleRect.w = ChannelTitleSurface->w;
+		ChannelTitleRect.h = ChannelTitleSurface->h;
+		ChannelTitleRect.x = ((fullscreen?FullscreenWidth:window_width) - ChannelTitleRect.w)/2;
+		ChannelTitleRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+5;
+		SDL_BlitSurface(ChannelTitleSurface, NULL, screen, &ChannelTitleRect);
+		SDL_UpdateRects(screen, 1, &ChannelTitleRect);
 	}
 }
 

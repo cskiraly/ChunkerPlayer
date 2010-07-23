@@ -9,7 +9,6 @@
 #include <sys/select.h>
 #include <arpa/inet.h>
 #include <microhttpd.h>
-
 #include "external_chunk_transcoding.h"
 #include "frame.h"
 
@@ -151,6 +150,14 @@ typedef struct SButton
 
 SButton Buttons[NBUTTONS];
 
+#define MAIN_FONT_FILE "mainfont.ttf"
+#define MAIN_FONT_SIZE 18
+SDL_Surface *ChannelTitleSurface = NULL;
+SDL_Rect ChannelTitleRect;
+SDL_Color ChannelTitleColor = { 255, 255, 255 }; 
+SDL_Color ChannelTitleBgColor = { 0, 0, 0 };
+TTF_Font *MainFont = NULL;
+
 /* XPM */
 static char *handXPM[] = {
 /* columns rows colors chars-per-pixel */
@@ -213,7 +220,7 @@ char OfferStreamerFilename[255];
 
 int parse_conf();
 int switch_channel(SChannel* channel);
-int child_pid = -1;
+int P2PProcessID = -1;
 
 void refresh_channel_buttons(int hover);
 

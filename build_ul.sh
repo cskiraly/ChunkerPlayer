@@ -112,6 +112,31 @@ if [ -n "$BUILD_SDLIMAGE" ]; then
 	make; make install
 fi
 
+if [ -n "$BUILD_SDLTTF" ]; then
+	cd "$BASE_UL_DIR/$EXTERN_DIR"
+	rm -r -r sdlttf
+	#get and compile SDLTTF lib
+	rm -f SDL_ttf-2.0.10.tar.gz
+	wget http://www.libsdl.org/projects/SDL_ttf/release/SDL_ttf-2.0.10.tar.gz; tar xzf SDL_ttf-2.0.10.tar.gz; mv SDL_ttf-2.0.10 sdlttf
+	cd sdlttf
+	#make and simulate install in local folder
+	./configure --prefix="$BASE_UL_DIR/$EXTERN_DIR/sdlttf/temp_sdlttf_install"
+	make; make install
+fi
+
+# SDL_ttf depends on freetype
+if [ -n "$BUILD_SDLTTF" ]; then
+	cd "$BASE_UL_DIR/$EXTERN_DIR"
+	rm -r -r freetype
+	#get and compile SDLTTF lib
+	rm -f freetype-2.1.10.tar.gz
+	wget http://mirror.lihnidos.org/GNU/savannah/freetype/freetype-2.1.10.tar.gz; tar xzf freetype-2.1.10.tar.gz; mv freetype-2.1.10 freetype
+	cd freetype
+	#make and simulate install in local folder
+	./configure --prefix="$BASE_UL_DIR/$EXTERN_DIR/freetype/temp_freetype_install"
+	make; make install
+fi
+
 if [ -n "$BUILD_CURL" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -r -r curl
@@ -138,6 +163,10 @@ LOCAL_ABS_SDL="$BASE_UL_DIR/$EXTERN_DIR/sdl/temp_sdl_install"
 echo "path for SDL dependancy set to $LOCAL_ABS_SDL"
 LOCAL_SDLIMAGE="$BASE_UL_DIR/$EXTERN_DIR/sdlimage/temp_sdlimage_install"
 echo "path for SDLIMAGE dependancy set to $LOCAL_SDLIMAGE"
+LOCAL_SDLTTF="$BASE_UL_DIR/$EXTERN_DIR/sdlttf/temp_sdlttf_install"
+echo "path for SDLTTF dependancy set to $LOCAL_SDLTTF"
+LOCAL_FREETYPE="$BASE_UL_DIR/$EXTERN_DIR/freetype/temp_freetype_install"
+echo "path for FREETYPE dependancy set to $LOCAL_FREETYPE"
 LOCAL_CURL="$BASE_UL_DIR/$EXTERN_DIR/curl/temp_curl_install"
 echo "path for CURL dependancy set to $LOCAL_CURL"
 
@@ -175,7 +204,7 @@ echo "----------------COMPILING CHUNKER PLAYER"
 cd "$BASE_UL_DIR"
 cd chunker_player
 make clean
-LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_MHD=$LOCAL_MHD LOCAL_ABS_SDL=$LOCAL_ABS_SDL LOCAL_SDLIMAGE=$LOCAL_SDLIMAGE LOCAL_CONFUSE=$LOCAL_CONFUSE make
+LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_MHD=$LOCAL_MHD LOCAL_ABS_SDL=$LOCAL_ABS_SDL LOCAL_SDLIMAGE=$LOCAL_SDLIMAGE LOCAL_FREETYPE=$LOCAL_FREETYPE LOCAL_SDLTTF=$LOCAL_SDLTTF LOCAL_CONFUSE=$LOCAL_CONFUSE make
 echo "----------------FINISHED COMPILING CHUNKER PLAYER"
 
 #compile a version of offerstreamer with UL enabled
