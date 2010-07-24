@@ -2,6 +2,7 @@
 SCRIPT=$(readlink -f $0)
 BASE_UL_DIR=`dirname $SCRIPT`
 EXTERN_DIR="external_libs"
+MAKE="make -j 4"
 cd "$BASE_UL_DIR"
 
 LIBTOOLIZE_PATH=`whereis -b libtoolize`
@@ -47,7 +48,7 @@ if [ -n "$BUILD_X264" ]; then
 	cd x264
 	#make and simulate install in local folder
 	./configure --prefix="$BASE_UL_DIR/$EXTERN_DIR/x264/temp_x264_install"
-	make; make install
+	$MAKE; $MAKE install
 fi
 
 if [ -n "$BUILD_MP3LAME" ]; then
@@ -59,7 +60,7 @@ if [ -n "$BUILD_MP3LAME" ]; then
 	cd mp3lame
 	#make and simulate install in local folder
 	./configure --disable-gtktest --disable-frontend --prefix="$BASE_UL_DIR/$EXTERN_DIR/mp3lame/temp_mp3lame_install"
-	make; make install
+	$MAKE; $MAKE install
 fi
 
 if [ -n "$BUILD_FFMPEG" ]; then
@@ -74,7 +75,7 @@ if [ -n "$BUILD_FFMPEG" ]; then
 	#svn -r 21010 checkout svn://svn.ffmpeg.org/ffmpeg/trunk ffmpeg
 	cd ffmpeg
 	./configure --enable-gpl --enable-nonfree --enable-version3 --enable-libmp3lame --enable-libx264 --enable-pthreads --extra-cflags="-I../x264/temp_x264_install/include -I../mp3lame/temp_mp3lame_install/include" --extra-ldflags="-L../x264/temp_x264_install/lib -L../mp3lame/temp_mp3lame_install/lib"
-	make
+	$MAKE
 fi
 
 if [ -n "$BUILD_MHD" ]; then
@@ -85,7 +86,7 @@ if [ -n "$BUILD_MHD" ]; then
 	cd libmicrohttpd
 	autoreconf -fi
 	./configure --disable-curl --disable-https --enable-messages --disable-client-side --prefix="$BASE_UL_DIR/$EXTERN_DIR/libmicrohttpd/temp_mhd_install"
-	make; make install
+	$MAKE; $MAKE install
 fi
 
 if [ -n "$BUILD_SDL" ]; then
@@ -97,7 +98,7 @@ if [ -n "$BUILD_SDL" ]; then
 	cd sdl
 	#make and simulate install in local folder
 	./configure --disable-video-directfb --prefix="$BASE_UL_DIR/$EXTERN_DIR/sdl/temp_sdl_install"
-	make; make install
+	$MAKE; $MAKE install
 fi
 
 if [ -n "$BUILD_SDLIMAGE" ]; then
@@ -109,7 +110,7 @@ if [ -n "$BUILD_SDLIMAGE" ]; then
 	cd sdlimage
 	#make and simulate install in local folder
 	./configure --prefix="$BASE_UL_DIR/$EXTERN_DIR/sdlimage/temp_sdlimage_install"
-	make; make install
+	$MAKE; $MAKE install
 fi
 
 if [ -n "$BUILD_SDLTTF" ]; then
@@ -121,7 +122,7 @@ if [ -n "$BUILD_SDLTTF" ]; then
 	cd sdlttf
 	#make and simulate install in local folder
 	./configure --prefix="$BASE_UL_DIR/$EXTERN_DIR/sdlttf/temp_sdlttf_install"
-	make; make install
+	$MAKE; $MAKE install
 fi
 
 # SDL_ttf depends on freetype
@@ -134,7 +135,7 @@ if [ -n "$BUILD_SDLTTF" ]; then
 	cd freetype
 	#make and simulate install in local folder
 	./configure --prefix="$BASE_UL_DIR/$EXTERN_DIR/freetype/temp_freetype_install"
-	make; make install
+	$MAKE; $MAKE install
 fi
 
 if [ -n "$BUILD_CURL" ]; then
@@ -146,7 +147,7 @@ if [ -n "$BUILD_CURL" ]; then
 	cd curl
 	#make and simulate install in local folder
 	./configure --disable-ftp --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --without-libssh2 --without-ssl --without-krb4 --enable-static --disable-shared --without-zlib --without-libidn --prefix="$BASE_UL_DIR/$EXTERN_DIR/curl/temp_curl_install"
-	make; make install
+	$MAKE; $MAKE install
 fi
 
 #set needed paths to external libraries
@@ -196,21 +197,21 @@ else
 	LOCAL_CONFUSE=`dirname $LOCAL_CONFUSE_A`/..
     fi
 fi
-make clean
-LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_CURL=$LOCAL_CURL LOCAL_CONFUSE=$LOCAL_CONFUSE make
+$MAKE clean
+LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_CURL=$LOCAL_CURL LOCAL_CONFUSE=$LOCAL_CONFUSE $MAKE
 echo "----------------FINISHED COMPILING CHUNKER STREAMER"
 #CHUNKER_PLAYER
 echo "----------------COMPILING CHUNKER PLAYER"
 cd "$BASE_UL_DIR"
 cd chunker_player
-make clean
-LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_MHD=$LOCAL_MHD LOCAL_ABS_SDL=$LOCAL_ABS_SDL LOCAL_SDLIMAGE=$LOCAL_SDLIMAGE LOCAL_FREETYPE=$LOCAL_FREETYPE LOCAL_SDLTTF=$LOCAL_SDLTTF LOCAL_CONFUSE=$LOCAL_CONFUSE make
+$MAKE clean
+LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_MHD=$LOCAL_MHD LOCAL_ABS_SDL=$LOCAL_ABS_SDL LOCAL_SDLIMAGE=$LOCAL_SDLIMAGE LOCAL_FREETYPE=$LOCAL_FREETYPE LOCAL_SDLTTF=$LOCAL_SDLTTF LOCAL_CONFUSE=$LOCAL_CONFUSE $MAKE
 echo "----------------FINISHED COMPILING CHUNKER PLAYER"
 
 #compile a version of offerstreamer with UL enabled
 #static needs fix??
 cd "$BASE_UL_DIR/../OfferStreamer"
-make clean
+$MAKE clean
 if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent" ]; then
     LOCAL_EVENT="$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent"
     echo "found LIBEVENT in $LOCAL_EVENT"
@@ -229,4 +230,4 @@ else
 	LOCAL_EVENT=`dirname $LOCAL_EVENT_A`/..
     fi
 fi
-ULPLAYER=$BASE_UL_DIR ULPLAYER_EXTERNAL_LIBS=$EXTERN_DIR LIBEVENT_DIR=$LOCAL_EVENT ML=1 STATIC= MONL=1 HTTPIO=1 DEBUG=1 make
+ULPLAYER=$BASE_UL_DIR ULPLAYER_EXTERNAL_LIBS=$EXTERN_DIR LIBEVENT_DIR=$LOCAL_EVENT ML=1 STATIC= MONL=1 HTTPIO=1 DEBUG=1 $MAKE
