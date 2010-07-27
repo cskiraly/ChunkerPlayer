@@ -336,8 +336,9 @@ int main(int argc, char *argv[]) {
 	/* initialize the HTTP chunk pusher */
 	initChunkPusher(); //TRIPLO
 
-//	i=0;
 	long sleep=0;
+ //this label here in case of recurring errors, so we goto here
+readloop:
 	//main loop to read from the input file
 	while(av_read_frame(pFormatCtx, &packet)>=0) {
 		if(!live_source) {
@@ -429,7 +430,7 @@ int main(int argc, char *argv[]) {
 #endif
 						}
 					}
-					else //live source
+					else //we want to compensate audio and video offset for this source
 					{
 						if(FirstTimeVideo && packet.dts>0) {
 							//maintain the offset between audio pts and video pts
@@ -546,7 +547,7 @@ int main(int argc, char *argv[]) {
 #endif
 					}
 				}
-				else //live source
+				else //we want to compensate audio and video offset for this source
 				{
 					if(FirstTimeAudio && packet.dts>0) {
 						//maintain the offset between audio pts and video pts
@@ -607,24 +608,40 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else {
-#ifdef DEBUG_AUDIO_FRAMES
+#ifdef DEBUG_CHUNKER
 			fprintf(stderr,"Free the packet that was allocated by av_read_frame\n");
 #endif
 			av_free_packet(&packet);
 		}
 	}
 
-	if(chunk->frames_num>0) {
+	if(live_source) {
+		//we are a live source but the av_read_frame stopped
+		//lets wait a 5 secs, and cycle in again
+		usleep(5000000);
+#ifdef DEBUG_CHUNKER
+		fprintf(stderr, "CHUNKER: WAITING 5 secs FOR LIVE SOURCE TO SKIP ERRORS\n");
+#endif
+		goto readloop;
+	}
+
+	if(chunk->seq != 0 && chunk->frames_num>0) {
 		//SAVE ON FILE
 		//saveChunkOnFile(chunk);
 		//Send the chunk via http to an external transport/player
 		pushChunkHttp(chunk, cmeta->outside_world_url);
+#ifdef DEBUG_CHUNKER
+		fprintf(stderr, "CHUNKER: SENDING LAST VIDEO CHUNK\n");
+#endif
 	}
-	if(chunkaudio->frames_num>0) {
+	if(chunkaudio->seq != 0 && chunkaudio->frames_num>0) {
 		//SAVE ON FILE
 		//saveChunkOnFile(chunkaudio);
 		//Send the chunk via http to an external transport/player
 		pushChunkHttp(chunkaudio, cmeta->outside_world_url);
+#ifdef DEBUG_CHUNKER
+		fprintf(stderr, "CHUNKER: SENDING LAST AUDIO CHUNK\n");
+#endif
 	}
 
 	/* finalize the HTTP chunk pusher */
