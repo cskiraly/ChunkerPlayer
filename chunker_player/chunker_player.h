@@ -33,6 +33,7 @@ int window_width, window_height;
 #define AUDIO	1
 #define VIDEO	2
 #define QUEUE_MAX_SIZE 3000
+#define LOSS_HISTORY_MAX_SIZE 100
 
 #define FULLSCREEN_ICON_FILE "icons/fullscreen32.png"
 #define NOFULLSCREEN_ICON_FILE "icons/nofullscreen32.png"
@@ -46,19 +47,23 @@ int window_width, window_height;
 #define DEFAULT_CHANNEL_EXEC_NAME "offerstreamer-ml-monl-http"
 #define DEFAULT_CONF_FILENAME "channels.conf"
 
+#define DEFAULT_WIDTH 704
+#define DEFAULT_HEIGHT 576
+#define DEFAULT_RATIO 1.22
+
 #define BUTTONS_LAYER_OFFSET 10
 #define BUTTONS_CONTAINER_HEIGHT 40
 #define BUTTONS_CONTAINER_WIDTH 100
 
 // typedef enum Status { STOPPED, RUNNING, PAUSED } Status;
 
-#define DEBUG_AUDIO
-#define DEBUG_VIDEO
-#define DEBUG_QUEUE
-#define DEBUG_SOURCE
-//#define DEBUG_STATS
+// #define DEBUG_AUDIO
+// #define DEBUG_VIDEO
+// #define DEBUG_QUEUE
+// #define DEBUG_SOURCE
+// #define DEBUG_STATS
 //#define DEBUG_AUDIO_BUFFER
-#define DEBUG_CHUNKER
+// #define DEBUG_CHUNKER
 
 
 short int QueueFillingMode=1;
@@ -73,13 +78,16 @@ typedef struct PacketQueue {
 	short int queueType;
 	int last_frame_extracted; //HINT THIS SHOULD BE MORE THAN 4 BYTES
 	int total_lost_frames;
+	int loss_history[LOSS_HISTORY_MAX_SIZE];
+	int instant_lost_frames;
+	int history_index;
 	double density;
 } PacketQueue;
 
 typedef struct threadVal {
 	int width;
 	int height;
-	float aspect_ratio;
+	// float aspect_ratio;
 } ThreadVal;
 
 ThreadVal VideoCallbackThreadParams;
@@ -122,7 +130,7 @@ SDL_Cursor *init_system_cursor(const char *image[]);
 void refresh_fullscreen_button(int hover);
 void toggle_fullscreen();
 void aspect_ratio_resize(float aspect_ratio, int width, int height, int* out_width, int* out_height);
-int fullscreen = 0; // fullscreen vs windowized flag
+int FullscreenMode = 0; // fullscreen vs windowized flag
 
 SDL_Cursor *defaultCursor;
 SDL_Cursor *handCursor;
@@ -227,6 +235,7 @@ void refresh_channel_buttons(int hover);
 void zap_up();
 void zap_down();
 void redraw_buttons();
+int InitCodecs(int width, int height, int sample_rate, short audio_channels);
 
 SDL_mutex *RedrawMutex;
 
