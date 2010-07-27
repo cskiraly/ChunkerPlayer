@@ -75,8 +75,11 @@ struct chunker_metadata *chunkerInit() {
 		cmeta->cid = 2;
 		fprintf(stdout, "CONFIG: Will give MONOTONIC INCREASING time of day as chunk IDs\n");
 		struct timeval tv;
+		uint64_t start_time;
 		gettimeofday(&tv, NULL);
-		cmeta->base_chunkid_sequence_offset = tv.tv_sec % INT_MAX; //TODO: verify 32/64 bit;
+		start_time = tv.tv_usec + tv.tv_sec * 1000000ULL; //microseconds
+		start_time /= 1000ULL; //milliseconds
+		cmeta->base_chunkid_sequence_offset = start_time % INT_MAX; //TODO: verify 32/64 bit;
 	}
 	else {
 		fprintf(stdout, "CONFIG: Unknown chunkID in config file chunker.conf. Exiting.\n");

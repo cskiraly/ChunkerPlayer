@@ -623,15 +623,17 @@ restart:
 #ifdef DEBUG_CHUNKER
 		fprintf(stderr, "CHUNKER: SENDING LAST VIDEO CHUNK\n");
 #endif
+		chunk->seq = 0; //signal that we need an increase just in case we will restart
 	}
 	if(chunkaudio->seq != 0 && chunkaudio->frames_num>0) {
-		//SAVE ON FILE
+		//SAVE ON FILE     
 		//saveChunkOnFile(chunkaudio);
 		//Send the chunk via http to an external transport/player
 		pushChunkHttp(chunkaudio, cmeta->outside_world_url);
 #ifdef DEBUG_CHUNKER
 		fprintf(stderr, "CHUNKER: SENDING LAST AUDIO CHUNK\n");
 #endif
+		chunkaudio->seq = 0; //signal that we need an increase just in case we will restart
 	}
 
 	/* finalize the HTTP chunk pusher */
