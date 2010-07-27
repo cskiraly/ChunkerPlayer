@@ -117,6 +117,7 @@ int main(int argc, char *argv[]) {
 	if(argc>=5) sscanf(argv[4],"%d", &live_source);
 	if(argc==6) sscanf(argv[5],"%d", &offset_av);
 
+restart:
 	// read the configuration file
 	cmeta = chunkerInit();
 	if(live_source)
@@ -337,8 +338,7 @@ int main(int argc, char *argv[]) {
 	initChunkPusher(); //TRIPLO
 
 	long sleep=0;
- //this label here in case of recurring errors, so we goto here
-readloop:
+
 	//main loop to read from the input file
 	while(av_read_frame(pFormatCtx, &packet)>=0) {
 		if(!live_source) {
@@ -615,16 +615,6 @@ readloop:
 		}
 	}
 
-	if(live_source) {
-		//we are a live source but the av_read_frame stopped
-		//lets wait a 5 secs, and cycle in again
-		usleep(5000000);
-#ifdef DEBUG_CHUNKER
-		fprintf(stderr, "CHUNKER: WAITING 5 secs FOR LIVE SOURCE TO SKIP ERRORS\n");
-#endif
-		goto readloop;
-	}
-
 	if(chunk->seq != 0 && chunk->frames_num>0) {
 		//SAVE ON FILE
 		//saveChunkOnFile(chunk);
@@ -669,6 +659,33 @@ readloop:
   
 	// Close the video file
 	av_close_input_file(pFormatCtx);
+
+	if(live_source) {
+		//we are a live source but the av_read_frame stopped
+		//lets wait a 5 secs, and cycle in again
+		usleep(5000000);
+#ifdef DEBUG_CHUNKER
+		fprintf(stderr, "CHUNKER: WAITING 5 secs FOR LIVE SOURCE TO SKIP ERRORS AND RESTARTING\n");
+#endif
+		videoStream = -1;
+		audioStream = -1;
+		FirstTimeAudio=1;
+		FirstTimeVideo=1;
+		pts_anomalies_counter=0;
+		newTime=0;
+		newTime_video=0;
+		newTime_prev=0;
+		ptsvideo1=0.0;
+		ptsaudio1=0.0;
+		last_pkt_dts=0;
+		delta_video=0;
+		delta_audio=0;
+		last_pkt_dts_audio=0;
+		target_pts=0;
+		i=0;
+		goto restart;
+	}
+
 	return 0;
 }
 
