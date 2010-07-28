@@ -48,7 +48,6 @@ int P2PProcessID;
 SChannel Channels[MAX_CHANNELS_NUM];
 int NChannels;
 int SelectedChannel;
-char OfferStreamerPath[255];
 char OfferStreamerFilename[255];
 int FullscreenMode; // fullscreen vs windowized flag
 int window_width, window_height;

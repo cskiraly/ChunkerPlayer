@@ -356,6 +356,7 @@ AVPacketList *SeekAndDecodePacketStartingFrom(AVPacketList *p, PacketQueue *q)
 void UpdateQueueStats(PacketQueue *q, int packet_index)
 {
 	static int N = 50;
+	static int last_print;
 	
 	if(q == NULL)
 		return;
@@ -403,6 +404,15 @@ void UpdateQueueStats(PacketQueue *q, int packet_index)
 				printf("STATS: VIDEO FRAMES LOST: instant %d, total %d, total percentage %f\n", q->instant_lost_frames, q->total_lost_frames, percentage);
 #endif
 		}
+	}
+	
+	int now = time(NULL);
+	if((now-last_print) > 1)
+	{
+		char stats[255];
+		sprintf(stats, "queue density = %d, lost frames (50 frames window) = %d", (int)q->density, q->instant_lost_frames);
+		ChunkerPlayerGUI_SetStatsText(stats);
+		last_print = now;
 	}
 }
 

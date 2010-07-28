@@ -44,7 +44,7 @@
 #define MAIN_FONT_SIZE 18
 
 #define STATS_FONT_FILE "mainfont.ttf"
-#define STATS_FONT_SIZE 14
+#define STATS_FONT_SIZE 16
 #define STATS_BOX_HEIGHT 20
 
 #define RESTORE_SCREEN_ON_ZAPPING

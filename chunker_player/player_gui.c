@@ -1,10 +1,12 @@
 #include "player_gui.h"
 // #include "player_commons.h"
 
+#define OVERLAY_H_OFFSET (BUTTONS_LAYER_OFFSET + BUTTONS_CONTAINER_HEIGHT + STATS_BOX_HEIGHT)
+
 SDL_Surface *ChannelTitleSurface = NULL;
 SDL_Surface *StatisticsSurface = NULL;
 SDL_Rect ChannelTitleRect, StatisticsRect;
-SDL_Color ChannelTitleColor = { 255, 255, 255 }, StatisticsColor = { 255, 255, 255 }; ;
+SDL_Color ChannelTitleColor = { 255, 0, 0 }, StatisticsColor = { 255, 255, 255 }; ;
 SDL_Color ChannelTitleBgColor = { 0, 0, 0 }, StatisticsBgColor = { 0, 0, 0 };
 TTF_Font *MainFont = NULL;
 TTF_Font *StatisticsFont = NULL;
@@ -73,7 +75,7 @@ void ChunkerPlayerGUI_HandleResize(int resize_w, int resize_h)
 		else
 			Buttons[i].ButtonIconBox.x = (resize_w + Buttons[i].XOffset);
 			
-		Buttons[i].ButtonIconBox.y = resize_h - Buttons[i].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+		Buttons[i].ButtonIconBox.y = resize_h - Buttons[i].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
 	}
 	
 	RedrawButtons();
@@ -217,7 +219,7 @@ void ChunkerPlayerGUI_ToggleFullscreen()
 			else
 				Buttons[i].ButtonIconBox.x = (FullscreenWidth + Buttons[i].XOffset);
 				
-			Buttons[i].ButtonIconBox.y = FullscreenHeight - Buttons[i].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+			Buttons[i].ButtonIconBox.y = FullscreenHeight - Buttons[i].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
 		}
 
 		//Set the window state flag
@@ -244,7 +246,7 @@ void ChunkerPlayerGUI_ToggleFullscreen()
 			else
 				Buttons[i].ButtonIconBox.x = (window_width + Buttons[i].XOffset);
 				
-			Buttons[i].ButtonIconBox.y = window_height - Buttons[i].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+			Buttons[i].ButtonIconBox.y = window_height - Buttons[i].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
 		}
 		
 		//Set the window state flag
@@ -281,8 +283,8 @@ void AspectRatioResize(float aspect_ratio, int width, int height, int* out_width
 void UpdateOverlaySize(float aspect_ratio, int width, int height)
 {
 	// printf("UpdateOverlaySize(%f, %d, %d)\n", aspect_ratio, width, height);
-	height -= (BUTTONS_LAYER_OFFSET + BUTTONS_CONTAINER_HEIGHT);
-	// height -= (BUTTONS_LAYER_OFFSET + BUTTONS_CONTAINER_HEIGHT + STATS_BOX_HEIGHT);
+	// height -= (BUTTONS_LAYER_OFFSET + BUTTONS_CONTAINER_HEIGHT);
+	height -= OVERLAY_H_OFFSET;
 	int h = 0, w = 0, x, y;
 	AspectRatioResize(aspect_ratio, width, height, &w, &h);
 	x = (width - w) / 2;
@@ -297,7 +299,7 @@ void UpdateOverlaySize(float aspect_ratio, int width, int height)
 
 void GetScreenSizeFromOverlay(int overlayWidth, int overlayHeight, int* screenWidth, int* screenHeight)
 {
-	*screenHeight = overlayHeight + (BUTTONS_LAYER_OFFSET + BUTTONS_CONTAINER_HEIGHT);
+	*screenHeight = overlayHeight + OVERLAY_H_OFFSET;
 	*screenWidth = overlayWidth;
 }
 
@@ -380,7 +382,7 @@ void SetupGUI()
 		screen_w = OverlayRect.w;
 	else
 		screen_w = BUTTONS_CONTAINER_WIDTH;
-	screen_h = OverlayRect.h + BUTTONS_CONTAINER_HEIGHT + BUTTONS_LAYER_OFFSET;
+	screen_h = OverlayRect.h + OVERLAY_H_OFFSET;
 
 	SDL_WM_SetCaption("Filling buffer...", NULL);
 	// Make a screen to put our video
@@ -476,24 +478,24 @@ void SetupGUI()
 	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.x = 20;
 	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.w = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIcon->w;
 	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIcon->h;
-	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
 	
 	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.x = 20;
 	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.w = Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIcon->w;
 	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h = Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIcon->h;
-	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
 	
 	Buttons[CHANNEL_UP_BUTTON_INDEX].XOffset = -61;
 	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.w = Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIcon->w;
 	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.h = Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIcon->h;
 	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.x = (screen_w + Buttons[CHANNEL_UP_BUTTON_INDEX].XOffset);
-	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
 	
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].XOffset = -36;
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.w = Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIcon->w;
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.h = Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIcon->h;
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.x = (screen_w + Buttons[CHANNEL_DOWN_BUTTON_INDEX].XOffset);
-	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.h - (BUTTONS_LAYER_OFFSET/2);
+	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
 	
 	// Setting up buttons events
 	Buttons[FULLSCREEN_BUTTON_INDEX].ToggledButton = &(Buttons[NO_FULLSCREEN_BUTTON_INDEX]);
@@ -535,7 +537,7 @@ void ChunkerPlayerGUI_SetStatsText(char* text)
 	StatisticsRect.w = StatisticsSurface->w;
 	StatisticsRect.h = StatisticsSurface->h;
 	StatisticsRect.x = ((FullscreenMode?FullscreenWidth:window_width) - StatisticsRect.w)/2;
-	StatisticsRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+5;
+	StatisticsRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+40;
 	
 	SDL_LockMutex(OverlayMutex);
 	SDL_BlitSurface(StatisticsSurface, NULL, MainScreen, &StatisticsRect);

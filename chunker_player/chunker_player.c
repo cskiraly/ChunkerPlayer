@@ -188,8 +188,7 @@ int ParseConf()
 	};
 	cfg_opt_t opts[] =
 	{
-		CFG_STR("ExecPath", DEFAULT_CHANNEL_EXEC_PATH, CFGF_NONE),
-		CFG_STR("ExecName", DEFAULT_CHANNEL_EXEC_NAME, CFGF_NONE),
+		CFG_STR("PeerExecName", DEFAULT_CHANNEL_EXEC_NAME, CFGF_NONE),
 		CFG_SEC("Channel", channel_opts, CFGF_TITLE | CFGF_MULTI),
 		CFG_END()
 	};
@@ -207,8 +206,19 @@ int ParseConf()
 		return 1;
 	}
 	
-	sprintf(OfferStreamerPath, "%s", cfg_getstr(cfg, "ExecPath"));
-	sprintf(OfferStreamerFilename, "%s", cfg_getstr(cfg, "ExecName"));
+	sprintf(OfferStreamerFilename, "%s", cfg_getstr(cfg, "PeerExecName"));
+	
+	FILE * tmp_file;
+	if(tmp_file = fopen(OfferStreamerFilename, "r"))
+    {
+        fclose(tmp_file);
+    }
+    else
+	{
+		printf("Could not find peer application (named '%s') into the current folder, please copy or link it into the player folder, then retry\n\n", OfferStreamerFilename);
+		exit(1);
+	}
+	
 	for(j = 0; j < cfg_size(cfg, "Channel"); j++)
 	{
 		cfg_channel = cfg_getnsec(cfg, "Channel", j);
@@ -229,18 +239,7 @@ int ParseConf()
 
 int SwitchChannel(SChannel* channel)
 {
-	// int k =0;
-	// for(; k<NChannels; k++)
-	// {
-		// printf("\tChannels[%d].LaunchString = %s\n", k, Channels[k].LaunchString);
-		// printf("\tChannels[%d].Title = %s\n", k, Channels[k].Title);
-		// printf("\tChannels[%d].Width = %d\n", k, Channels[k].Width);
-		// printf("\tChannels[%d].Height = %d\n", k, Channels[k].Height);
-		// printf("\tChannels[%d].Ratio = %f\n", k, Channels[k].Ratio);
-		// printf("\tChannels[%d].SampleRate = %d\n", k, Channels[k].SampleRate);
-		// printf("\tChannels[%d].AudioChannels = %d\n", k, Channels[k].AudioChannels);
-	// }
-	
+
 #ifdef RESTORE_SCREEN_ON_ZAPPING
 	int was_fullscreen = FullscreenMode;
 	int old_width = window_width, old_height = window_height;
@@ -261,7 +260,7 @@ int SwitchChannel(SChannel* channel)
 		
 	char* parameters_vector[255];
 	char argv0[255], parameters_string[511];
-	sprintf(argv0, "%s%s", OfferStreamerPath, OfferStreamerFilename);
+	sprintf(argv0, "%s", OfferStreamerFilename);
 	
 	sprintf(parameters_string, "%s %s %s %d %s %d", argv0, channel->LaunchString, "-P", (HttpPort+channel->Index), "-F", HttpPort);
 	
