@@ -113,20 +113,8 @@ if [ -n "$BUILD_SDLIMAGE" ]; then
 	$MAKE; $MAKE install
 fi
 
-if [ -n "$BUILD_SDLTTF" ]; then
-	cd "$BASE_UL_DIR/$EXTERN_DIR"
-	rm -r -r sdlttf
-	#get and compile SDLTTF lib
-	rm -f SDL_ttf-2.0.10.tar.gz
-	wget http://www.libsdl.org/projects/SDL_ttf/release/SDL_ttf-2.0.10.tar.gz; tar xzf SDL_ttf-2.0.10.tar.gz; mv SDL_ttf-2.0.10 sdlttf
-	cd sdlttf
-	#make and simulate install in local folder
-	./configure --prefix="$BASE_UL_DIR/$EXTERN_DIR/sdlttf/temp_sdlttf_install"
-	$MAKE; $MAKE install
-fi
-
 # SDL_ttf depends on freetype
-if [ -n "$BUILD_SDLTTF" ]; then
+if [ -n "$BUILD_FREETYPE" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -r -r freetype
 	#get and compile SDLTTF lib
@@ -135,6 +123,18 @@ if [ -n "$BUILD_SDLTTF" ]; then
 	cd freetype
 	#make and simulate install in local folder
 	./configure --prefix="$BASE_UL_DIR/$EXTERN_DIR/freetype/temp_freetype_install"
+	$MAKE; $MAKE install
+fi
+
+if [ -n "$BUILD_SDLTTF" ]; then
+	cd "$BASE_UL_DIR/$EXTERN_DIR"
+	rm -r -r sdlttf
+	#get and compile SDLTTF lib
+	rm -f SDL_ttf-2.0.10.tar.gz
+	wget http://www.libsdl.org/projects/SDL_ttf/release/SDL_ttf-2.0.10.tar.gz; tar xzf SDL_ttf-2.0.10.tar.gz; mv SDL_ttf-2.0.10 sdlttf
+	cd sdlttf
+	#make and simulate install in local folder
+	./configure --with-freetype-prefix="$BASE_UL_DIR/$EXTERN_DIR/freetype/temp_freetype_install" --with-sdl-prefix="$BASE_UL_DIR/$EXTERN_DIR/sdl/temp_sdl_install" --prefix="$BASE_UL_DIR/$EXTERN_DIR/sdlttf/temp_sdlttf_install"
 	$MAKE; $MAKE install
 fi
 
