@@ -662,8 +662,8 @@ restart:
 	// Close the video file
 	av_close_input_file(pFormatCtx);
 
-	if(live_source) {
-		//we are a live source but the av_read_frame stopped
+	if(LOOP_MODE) {
+		//we want video to continue, but the av_read_frame stopped
 		//lets wait a 5 secs, and cycle in again
 		usleep(5000000);
 #ifdef DEBUG_CHUNKER
