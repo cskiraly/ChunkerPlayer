@@ -45,7 +45,7 @@ LDLIBS += $(LOCAL_SDLTTF_LDLIBS) $(LOCAL_SDLIMAGE_LDLIBS) $(LOCAL_SDL_LDLIBS) $(
 
 all: chunker_player
 
-chunker_player: ../chunk_transcoding/external_chunk_transcoding.o	chunk_puller.o chunker_player.o
+chunker_player: ../chunk_transcoding/external_chunk_transcoding.o chunk_puller.o chunker_player.o player_core.o player_gui.o
 
 clean:
 	rm -f chunker_player
