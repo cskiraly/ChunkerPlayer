@@ -1,14 +1,14 @@
 include ../common.mak
 
-#these libraries are required by the chunker_streamer
-#default config here, it should come from outside the script
-LOCAL_CURL ?= /usr
-#confuse here, GRAPES should already have this in 3DPARTY_LIBS
-LOCAL_CONFUSE ?= "/usr"
-
 CPPFLAGS += -I$(LOCAL_CONFUSE)/include -I$(LOCAL_CURL)/include
 LDLIBS += $(LOCAL_CURL)/lib/libcurl.a -lrt
 LDLIBS += $(LOCAL_CONFUSE)/lib/libconfuse.a
+
+CPPFLAGS += $(LOCAL_FFMPEG_CPPFLAGS) $(LOCAL_COMMON_CPPFLAGS)
+LDFLAGS += $(LOCAL_FFMPEG_LDFLAGS) $(LOCAL_COMMON_LDFLAGS)
+LDLIBS += $(LOCAL_FFMPEG_LDLIBS) $(LOCAL_COMMON_LDLIBS)
+
+LDLIBS += $(DYNAMIC_LDLIBS)
 
 all: chunker_streamer
 

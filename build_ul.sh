@@ -40,7 +40,7 @@ fi
 
 mkdir $EXTERN_DIR
 
-if [ -n "$BUILD_X264" ]; then
+if [ -n "$BUILD_X264" ] || [ -n "$BUILD_ALL" -a ! -e "$BASE_UL_DIR/$EXTERN_DIR/x264" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -r -f x264
 	#get and compile latest x264 library
@@ -51,7 +51,7 @@ if [ -n "$BUILD_X264" ]; then
 	$MAKE; $MAKE install
 fi
 
-if [ -n "$BUILD_MP3LAME" ]; then
+if [ -n "$BUILD_MP3LAME" ] || [ -n "$BUILD_ALL" -a ! -e "$BASE_UL_DIR/$EXTERN_DIR/mp3lame" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -r -f mp3lame
 	#get and compile latest mp3lame library
@@ -63,22 +63,27 @@ if [ -n "$BUILD_MP3LAME" ]; then
 	$MAKE; $MAKE install
 fi
 
-if [ -n "$BUILD_FFMPEG" ]; then
+if [ -n "$BUILD_FFMPEG" ] || [ -n "$BUILD_ALL" -a ! -e "$BASE_UL_DIR/$EXTERN_DIR/ffmpeg" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -r -f ffmpeg
 	#get and compile ffmpeg with x264 support
 	#get latest snapshot
-	rm -f ffmpeg-checkout-snapshot.tar.bz2
-	wget http://ffmpeg.org/releases/ffmpeg-checkout-snapshot.tar.bz2; tar xjf ffmpeg-checkout-snapshot.tar.bz2; mv ffmpeg-checkout-20* ffmpeg
+	#rm -f ffmpeg-checkout-snapshot.tar.bz2
+	#wget http://ffmpeg.org/releases/ffmpeg-checkout-snapshot.tar.bz2; tar xjf ffmpeg-checkout-snapshot.tar.bz2; mv ffmpeg-checkout-20* ffmpeg
+	#do not get latest snapshot
+	#get a release tarball instead
+	rm -f ffmpeg-0.6.tar.bz2
+	wget http://ffmpeg.org/releases/ffmpeg-0.6.tar.bz2; tar xjf ffmpeg-0.6.tar.bz2; mv ffmpeg-0.6 ffmpeg
+	#svn -r 21010 checkout svn://svn.ffmpeg.org/ffmpeg/trunk ffmpeg
 	#do not get latest snapshot
 	#get instead a specific one because allows output video rate resampling
 	#svn -r 21010 checkout svn://svn.ffmpeg.org/ffmpeg/trunk ffmpeg
 	cd ffmpeg
-	./configure --enable-gpl --enable-nonfree --enable-version3 --enable-libmp3lame --enable-libx264 --enable-pthreads --extra-cflags="-I../x264/temp_x264_install/include -I../mp3lame/temp_mp3lame_install/include" --extra-ldflags="-L../x264/temp_x264_install/lib -L../mp3lame/temp_mp3lame_install/lib"
-	$MAKE
+	./configure --enable-gpl --enable-nonfree --enable-version3 --enable-libmp3lame --enable-libx264 --enable-pthreads --extra-cflags="-I../x264/temp_x264_install/include -I../mp3lame/temp_mp3lame_install/include" --extra-ldflags="-L../x264/temp_x264_install/lib -L../mp3lame/temp_mp3lame_install/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$BASE_UL_DIR/$EXTERN_DIR/ffmpeg/temp_ffmpeg_install"
+	$MAKE; $MAKE install
 fi
 
-if [ -n "$BUILD_MHD" ]; then
+if [ -n "$BUILD_MHD" ] || [ -n "$BUILD_ALL" -a ! -e "$BASE_UL_DIR/$EXTERN_DIR/libmicrohttpd" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -r -f libmicrohttpd
 	#get and compile libmicrohttpd lib
@@ -89,7 +94,7 @@ if [ -n "$BUILD_MHD" ]; then
 	$MAKE; $MAKE install
 fi
 
-if [ -n "$BUILD_SDL" ]; then
+if [ -n "$BUILD_SDL" ] || [ -n "$BUILD_ALL" -a ! -e "$BASE_UL_DIR/$EXTERN_DIR/sdl" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -r -r sdl
 	#get and compile SDL lib
@@ -101,7 +106,7 @@ if [ -n "$BUILD_SDL" ]; then
 	$MAKE; $MAKE install
 fi
 
-if [ -n "$BUILD_SDLIMAGE" ]; then
+if [ -n "$BUILD_SDLIMAGE" ] || [ -n "$BUILD_ALL" -a ! -e "$BASE_UL_DIR/$EXTERN_DIR/sdlimage" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -r -r sdlimage
 	#get and compile SDLIMAGE lib
@@ -114,7 +119,7 @@ if [ -n "$BUILD_SDLIMAGE" ]; then
 fi
 
 # SDL_ttf depends on freetype
-if [ -n "$BUILD_FREETYPE" ]; then
+if [ -n "$BUILD_FREETYPE" ] || [ -n "$BUILD_ALL" -a ! -e "$BASE_UL_DIR/$EXTERN_DIR/freetype" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -r -r freetype
 	#get and compile SDLTTF lib
@@ -126,7 +131,7 @@ if [ -n "$BUILD_FREETYPE" ]; then
 	$MAKE; $MAKE install
 fi
 
-if [ -n "$BUILD_SDLTTF" ]; then
+if [ -n "$BUILD_SDLTTF" ] || [ -n "$BUILD_ALL" -a ! -e "$BASE_UL_DIR/$EXTERN_DIR/sdlttf" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -r -r sdlttf
 	#get and compile SDLTTF lib
@@ -138,7 +143,7 @@ if [ -n "$BUILD_SDLTTF" ]; then
 	$MAKE; $MAKE install
 fi
 
-if [ -n "$BUILD_CURL" ]; then
+if [ -n "$BUILD_CURL" ] || [ -n "$BUILD_ALL" -a ! -e "$BASE_UL_DIR/$EXTERN_DIR/curl" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -r -r curl
 	#get and compile CURL lib
@@ -156,7 +161,7 @@ LOCAL_X264="$BASE_UL_DIR/$EXTERN_DIR/x264/temp_x264_install"
 echo "path for X264 dependancy set to $LOCAL_X264"
 LOCAL_MP3LAME="$BASE_UL_DIR/$EXTERN_DIR/mp3lame/temp_mp3lame_install"
 echo "path for MP3LAME dependancy set to $LOCAL_MP3LAME"
-LOCAL_FFMPEG="$BASE_UL_DIR/$EXTERN_DIR/ffmpeg"
+LOCAL_FFMPEG="$BASE_UL_DIR/$EXTERN_DIR/ffmpeg/temp_ffmpeg_install"
 echo "path for FFMPEG dependancy set to $LOCAL_FFMPEG"
 LOCAL_MHD="$BASE_UL_DIR/$EXTERN_DIR/libmicrohttpd/temp_mhd_install"
 echo "path for LIBMICROHTTPD dependancy set to $LOCAL_MHD"
