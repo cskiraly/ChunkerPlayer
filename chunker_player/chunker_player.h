@@ -23,8 +23,6 @@ SDL_Rect OverlayRect;
 SDL_Surface *MainScreen;
 int SilentMode;
 int queue_filling_threshold;
-char YUVFileName[256];
-int SaveYUV;
 int quit;
 short int QueueFillingMode;
 int P2PProcessID;

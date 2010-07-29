@@ -1,8 +1,14 @@
 #include "player_defines.h"
 #include "chunker_player.h"
-// #include "player_commons.h"
+#include "player_gui.h"
 #include "player_core.h"
 #include <assert.h>
+
+void SaveFrame(AVFrame *pFrame, int width, int height);
+int VideoCallback(void *valthread);
+void AudioCallback(void *userdata, Uint8 *stream, int len);
+void UpdateQueueStats(PacketQueue *q, int packet_index);
+void UpdateLossTraces(int type, int first_lost, int n_lost);
 
 void PacketQueueInit(PacketQueue *q, short int Type)
 {
@@ -51,12 +57,15 @@ void PacketQueueReset(PacketQueue *q, short int Type)
 
 	QueueFillingMode=1;
 	q->last_frame_extracted = -1;
-	q->total_lost_frames = 0;
+	
+	// on queue reset do not reset loss count
+	// (loss count reset is done on queue init, ie channel switch)
+	// q->total_lost_frames = 0;
+	q->density=0.0;
 	q->first_pkt= NULL;
 	//q->last_pkt = NULL;
 	q->nb_packets = 0;
 	q->size = 0;
-	q->density= 0.0;
 	FirstTime = 1;
 	FirstTimeAudio = 1;
 #ifdef DEBUG_QUEUE
@@ -178,8 +187,6 @@ int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short i
 	img_convert_ctx = NULL;
 	
 	SDL_AudioSpec wanted_spec;
-	
-	AVFormatContext *pFormatCtx;
 	AVCodec         *aCodec;
 	
 	memset(&VideoCallbackThreadParams, 0, sizeof(ThreadVal));
@@ -261,6 +268,11 @@ int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short i
 	InitRect->y = OverlayRect.y;
 	InitRect->w = OverlayRect.w;
 	InitRect->h = OverlayRect.h;
+	
+	char audio_stats[255], video_stats[255];
+	sprintf(audio_stats, "waiting for incoming audio packets...");
+	sprintf(video_stats, "waiting for incoming video packets...");
+	ChunkerPlayerGUI_SetStatsText(audio_stats, video_stats);
 	
 	return 0;
 }
@@ -356,7 +368,7 @@ AVPacketList *SeekAndDecodePacketStartingFrom(AVPacketList *p, PacketQueue *q)
 void UpdateQueueStats(PacketQueue *q, int packet_index)
 {
 	static int N = 50;
-	static int last_print;
+	static int last_print = 0;
 	
 	if(q == NULL)
 		return;
@@ -365,12 +377,10 @@ void UpdateQueueStats(PacketQueue *q, int packet_index)
 	if(q->last_pkt == NULL)
 		return;
 	
-	// assert(q != NULL);
-	// assert(q->last_pkt != NULL);
-	// assert(q->first_pkt != NULL);
-	
 	if(q->last_pkt->pkt.stream_index > q->first_pkt->pkt.stream_index)
+	{
 		q->density = (double)q->nb_packets / (double)(q->last_pkt->pkt.stream_index - q->first_pkt->pkt.stream_index) * 100.0;
+	}
 	
 #ifdef DEBUG_STATS
 	if(q->queueType == AUDIO)
@@ -379,23 +389,35 @@ void UpdateQueueStats(PacketQueue *q, int packet_index)
 		printf("STATS: VIDEO QUEUE DENSITY percentage %f\n", q->density);
 #endif
 	
+	if(!last_print)
+		last_print = time(NULL);
+		
+	int now = time(NULL);
+	int lost_frames = 0;
+	
 	if(packet_index != -1)
 	{
 		double percentage = 0.0;	
 		//compute lost frame statistics
 		if(q->last_frame_extracted > 0 && packet_index > q->last_frame_extracted)
 		{
-			int lost_frames = packet_index - q->last_frame_extracted - 1;
+			lost_frames = packet_index - q->last_frame_extracted - 1;
 			q->total_lost_frames += lost_frames ;
 			percentage = (double)q->total_lost_frames / (double)q->last_frame_extracted * 100.0;
 			
-			q->loss_history[q->history_index] = lost_frames;
+			q->instant_lost_frames += lost_frames;
+			
+			//save a trace of lost frames to file
+			//we have lost "lost_frames" frames starting from the last extracted (excluded of course)
+			UpdateLossTraces(q->queueType, q->last_frame_extracted+1, lost_frames);
+			
+			/**q->loss_history[q->history_index] = lost_frames;
 			q->history_index = (q->history_index+1)%N;
 			
 			int i;
 			q->instant_lost_frames = 0;
 			for(i=0; i<N; i++)
-				q->instant_lost_frames += q->loss_history[i];
+				q->instant_lost_frames += q->loss_history[i];*/
 			
 #ifdef DEBUG_STATS
 			if(q->queueType == AUDIO)
@@ -406,14 +428,48 @@ void UpdateQueueStats(PacketQueue *q, int packet_index)
 		}
 	}
 	
-	int now = time(NULL);
-	if((now-last_print) > 1)
+	if((now-last_print) >= 1)
 	{
 		char stats[255];
-		sprintf(stats, "queue density = %d, lost frames (50 frames window) = %d", (int)q->density, q->instant_lost_frames);
-		ChunkerPlayerGUI_SetStatsText(stats);
+		if(q->queueType == AUDIO)
+		{
+			sprintf(stats, "[AUDIO] queue density: %d --- lost_frames/sec: %d --- total_lost_frames: %d", (int)q->density, q->instant_lost_frames, q->total_lost_frames);
+			ChunkerPlayerGUI_SetStatsText(stats, NULL);
+		}
+		else if(q->queueType == VIDEO)
+		{
+			sprintf(stats, "[VIDEO] queue density: %d --- lost_frames/sec: %d --- total_lost_frames: %d", (int)q->density, q->instant_lost_frames, q->total_lost_frames);
+			ChunkerPlayerGUI_SetStatsText(NULL, stats);
+		}
+		
 		last_print = now;
+		q->instant_lost_frames = 0;
 	}
+}
+
+void UpdateLossTraces(int type, int first_lost, int n_lost)
+{
+	FILE *lossFile;
+	int i;
+
+	// Open loss traces file
+	char filename[255];
+	if(type == AUDIO)
+		sprintf(filename, "audio_%s", LossTracesFilename);
+	else
+		sprintf(filename, "video_%s", LossTracesFilename);
+
+	lossFile=fopen(filename, "a");
+	if(lossFile==NULL) {
+		printf("STATS: UNABLE TO OPEN Loss FILE: %s\n", filename);
+		return;
+	}
+
+	for(i=0; i<n_lost; i++) {
+		fprintf(lossFile, "%d\n", first_lost+i);
+	}
+
+	fclose(lossFile);
 }
 
 int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
@@ -535,9 +591,6 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 				}
 				else {
 					AudioQueueOffset=0;
-#ifdef DEBUG_AUDIO_BUFFER
-					printf("0: idx %d    \taqo %d    \tstc %d    \taqe %f    \tpsz %d\n", pkt1->pkt.stream_index, AudioQueueOffset, SizeToCopy, deltaAudioQError, pkt1->pkt.size);
-#endif
 				}
 #ifdef DEBUG_QUEUE
 				printf("   deltaAudioQError = %f\n",deltaAudioQError);
@@ -692,12 +745,8 @@ int VideoCallback(void *valthread)
 	AVCodecContext  *pCodecCtx;
 	AVCodec         *pCodec;
 	AVFrame         *pFrame;
-	AVPacket        packet;
 	int frameFinished;
-	int countexit;
 	AVPicture pict;
-	//FILE *frecon;
-	SDL_Event event;
 	long long Now;
 	short int SkipVideo, DecodeVideo;
 
@@ -994,11 +1043,9 @@ void ChunkerPlayerCore_Stop()
 	free(VideoPkt.data);
 	free(outbuf_audio);
 	free(InitRect);
-	
-	return 0;
 }
 
-int ChunkerPlayerCore_VideoEnded()
+int ChunkerPlayerCore_AudioEnded()
 {
 	return (audioq.nb_packets==0 && audioq.last_frame_extracted>0);
 }
@@ -1018,7 +1065,7 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 	ExternalChunk *echunk = NULL;
 	int decoded_size = -1;
 	uint8_t *tempdata, *buffer;
-	int i, j;
+	int j;
 	Frame *frame = NULL;
 	AVPacket packet, packetaudio;
 
@@ -1151,10 +1198,21 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 		free(frame);
 	if(audio_bufQ)
 		av_free(audio_bufQ);
+		
+	return PLAYER_OK_RETURN;
 }
 
 void ChunkerPlayerCore_SetupOverlay(int width, int height)
 {
+	// if(!MainScreen && !SilentMode)
+	// {
+		// printf("Cannot find main screen, exiting...\n");
+		// exit(1);
+	// }
+	
+	if(SilentMode)
+		return;
+		
 	SDL_LockMutex(OverlayMutex);
 	if(YUVOverlay != NULL)
 	{

@@ -43,18 +43,18 @@
 #define MAIN_FONT_FILE "mainfont.ttf"
 #define MAIN_FONT_SIZE 18
 
-#define STATS_FONT_FILE "mainfont.ttf"
+#define STATS_FONT_FILE "stats_font.ttf"
 #define STATS_FONT_SIZE 16
-#define STATS_BOX_HEIGHT 20
+#define STATS_BOX_HEIGHT 10
 
 #define RESTORE_SCREEN_ON_ZAPPING
 
-// #define DEBUG_AUDIO
-// #define DEBUG_VIDEO
-// #define DEBUG_QUEUE
-// #define DEBUG_SOURCE
-// #define DEBUG_STATS
-//#define DEBUG_AUDIO_BUFFER
-// #define DEBUG_CHUNKER
+#define DEBUG_AUDIO
+#define DEBUG_VIDEO
+#define DEBUG_QUEUE
+#define DEBUG_SOURCE
+#define DEBUG_STATS
+#define DEBUG_AUDIO_BUFFER
+#define DEBUG_CHUNKER
 
 #endif // _CHUNKER_PLAYER_DEFINES_H

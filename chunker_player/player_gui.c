@@ -1,15 +1,69 @@
 #include "player_gui.h"
 // #include "player_commons.h"
 
-#define OVERLAY_H_OFFSET (BUTTONS_LAYER_OFFSET + BUTTONS_CONTAINER_HEIGHT + STATS_BOX_HEIGHT)
+#define SCREEN_BOTTOM_PADDING (BUTTONS_LAYER_OFFSET + BUTTONS_CONTAINER_HEIGHT + STATS_BOX_HEIGHT)
+
+SDL_Cursor *InitSystemCursor(const char *image[]);
+void AspectRatioResize(float aspect_ratio, int width, int height, int* out_width, int* out_height);
+void UpdateOverlaySize(float aspect_ratio, int width, int height);
+void RedrawButtons();
+void RedrawChannelName();
+void RedrawStats();
+void SetupGUI();
+
+static char AudioStatsText[255];
+static char VideoStatsText[255];
 
 SDL_Surface *ChannelTitleSurface = NULL;
-SDL_Surface *StatisticsSurface = NULL;
-SDL_Rect ChannelTitleRect, StatisticsRect;
+SDL_Surface *AudioStatisticsSurface = NULL, *VideoStatisticsSurface = NULL;
+SDL_Rect ChannelTitleRect, StatisticsRect, StatisticsRect;
 SDL_Color ChannelTitleColor = { 255, 0, 0 }, StatisticsColor = { 255, 255, 255 }; ;
 SDL_Color ChannelTitleBgColor = { 0, 0, 0 }, StatisticsBgColor = { 0, 0, 0 };
 TTF_Font *MainFont = NULL;
 TTF_Font *StatisticsFont = NULL;
+
+/* XPM */
+static const char *handXPM[] = {
+/* columns rows colors chars-per-pixel */
+"32 32 3 1",
+"  c black",
+". c gray100",
+"X c None",
+/* pixels */
+"XXXXX  XXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXX .. XXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXX .. XXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXX .. XXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXX .. XXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXX ..   XXXXXXXXXXXXXXXXXXXXXX",
+"XXXX .. ..   XXXXXXXXXXXXXXXXXXX",
+"XXXX .. .. ..  XXXXXXXXXXXXXXXXX",
+"XXXX .. .. .. . XXXXXXXXXXXXXXXX",
+"   X .. .. .. .. XXXXXXXXXXXXXXX",
+" ..  ........ .. XXXXXXXXXXXXXXX",
+" ... ........... XXXXXXXXXXXXXXX",
+"X .. ........... XXXXXXXXXXXXXXX",
+"XX . ........... XXXXXXXXXXXXXXX",
+"XX ............. XXXXXXXXXXXXXXX",
+"XXX ............ XXXXXXXXXXXXXXX",
+"XXX ........... XXXXXXXXXXXXXXXX",
+"XXXX .......... XXXXXXXXXXXXXXXX",
+"XXXX .......... XXXXXXXXXXXXXXXX",
+"XXXXX ........ XXXXXXXXXXXXXXXXX",
+"XXXXX ........ XXXXXXXXXXXXXXXXX",
+"XXXXX          XXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+"0,0"
+};
 
 int ChunkerPlayerGUI_Init()
 {
@@ -28,6 +82,9 @@ int ChunkerPlayerGUI_Init()
 
 void SetVideoMode(int width, int height, int fullscreen)
 {
+	if(SilentMode)
+		return;
+		
 	// printf("SetVideoMode(%d, %d, %d)\n", width, height, fullscreen);
 	SDL_LockMutex(OverlayMutex);
 
@@ -75,17 +132,19 @@ void ChunkerPlayerGUI_HandleResize(int resize_w, int resize_h)
 		else
 			Buttons[i].ButtonIconBox.x = (resize_w + Buttons[i].XOffset);
 			
-		Buttons[i].ButtonIconBox.y = resize_h - Buttons[i].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
+		Buttons[i].ButtonIconBox.y = resize_h - Buttons[i].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
 	}
 	
 	RedrawButtons();
 	RedrawChannelName();
+	RedrawStats();
 }
 
 void ChunkerPlayerGUI_HandleGetFocus()
 {
 	RedrawButtons();
 	RedrawChannelName();
+	RedrawStats();
 }
 
 void ChunkerPlayerGUI_HandleMouseMotion(int x, int y)
@@ -150,8 +209,10 @@ void ChunkerPlayerGUI_Close()
 	if(ChannelTitleSurface != NULL)
 		SDL_FreeSurface( ChannelTitleSurface );
 	
-	if(StatisticsSurface != NULL)
-		SDL_FreeSurface( StatisticsSurface );
+	if(AudioStatisticsSurface != NULL)
+		SDL_FreeSurface( AudioStatisticsSurface );
+	if(VideoStatisticsSurface != NULL)
+		SDL_FreeSurface( VideoStatisticsSurface );
 	
 	TTF_CloseFont( MainFont );
 	TTF_CloseFont( StatisticsFont );
@@ -219,7 +280,7 @@ void ChunkerPlayerGUI_ToggleFullscreen()
 			else
 				Buttons[i].ButtonIconBox.x = (FullscreenWidth + Buttons[i].XOffset);
 				
-			Buttons[i].ButtonIconBox.y = FullscreenHeight - Buttons[i].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
+			Buttons[i].ButtonIconBox.y = FullscreenHeight - Buttons[i].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
 		}
 
 		//Set the window state flag
@@ -246,7 +307,7 @@ void ChunkerPlayerGUI_ToggleFullscreen()
 			else
 				Buttons[i].ButtonIconBox.x = (window_width + Buttons[i].XOffset);
 				
-			Buttons[i].ButtonIconBox.y = window_height - Buttons[i].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
+			Buttons[i].ButtonIconBox.y = window_height - Buttons[i].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
 		}
 		
 		//Set the window state flag
@@ -258,11 +319,12 @@ void ChunkerPlayerGUI_ToggleFullscreen()
 
 	RedrawButtons();
 	RedrawChannelName();
+	RedrawStats();
 }
 
 void AspectRatioResize(float aspect_ratio, int width, int height, int* out_width, int* out_height)
 {
-	int h,w,x,y;
+	int h,w;
 	h = (int)((float)width/aspect_ratio);
 	if(h<=height)
 	{
@@ -284,7 +346,7 @@ void UpdateOverlaySize(float aspect_ratio, int width, int height)
 {
 	// printf("UpdateOverlaySize(%f, %d, %d)\n", aspect_ratio, width, height);
 	// height -= (BUTTONS_LAYER_OFFSET + BUTTONS_CONTAINER_HEIGHT);
-	height -= OVERLAY_H_OFFSET;
+	height -= SCREEN_BOTTOM_PADDING;
 	int h = 0, w = 0, x, y;
 	AspectRatioResize(aspect_ratio, width, height, &w, &h);
 	x = (width - w) / 2;
@@ -299,7 +361,7 @@ void UpdateOverlaySize(float aspect_ratio, int width, int height)
 
 void GetScreenSizeFromOverlay(int overlayWidth, int overlayHeight, int* screenWidth, int* screenHeight)
 {
-	*screenHeight = overlayHeight + OVERLAY_H_OFFSET;
+	*screenHeight = overlayHeight + SCREEN_BOTTOM_PADDING;
 	*screenWidth = overlayWidth;
 }
 
@@ -355,9 +417,14 @@ void SetupGUI()
 	StatisticsFont = TTF_OpenFont(STATS_FONT_FILE, STATS_FONT_SIZE );
 	
 	//If there was an error in loading the font
-	if( MainFont == NULL || StatisticsFont == NULL)
+	if( MainFont == NULL)
 	{
 		printf("Cannot initialize GUI, %s file not found\n", MAIN_FONT_FILE);
+		exit(1);
+	}
+	if( StatisticsFont == NULL )
+	{
+		printf("Cannot initialize GUI, %s file not found\n", STATS_FONT_FILE);
 		exit(1);
 	}
 	
@@ -382,7 +449,7 @@ void SetupGUI()
 		screen_w = OverlayRect.w;
 	else
 		screen_w = BUTTONS_CONTAINER_WIDTH;
-	screen_h = OverlayRect.h + OVERLAY_H_OFFSET;
+	screen_h = OverlayRect.h + SCREEN_BOTTOM_PADDING;
 
 	SDL_WM_SetCaption("Filling buffer...", NULL);
 	// Make a screen to put our video
@@ -478,24 +545,24 @@ void SetupGUI()
 	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.x = 20;
 	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.w = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIcon->w;
 	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIcon->h;
-	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
+	Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
 	
 	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.x = 20;
 	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.w = Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIcon->w;
 	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h = Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIcon->h;
-	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
+	Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[NO_FULLSCREEN_BUTTON_INDEX].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
 	
 	Buttons[CHANNEL_UP_BUTTON_INDEX].XOffset = -61;
 	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.w = Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIcon->w;
 	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.h = Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIcon->h;
 	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.x = (screen_w + Buttons[CHANNEL_UP_BUTTON_INDEX].XOffset);
-	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
+	Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[CHANNEL_UP_BUTTON_INDEX].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
 	
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].XOffset = -36;
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.w = Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIcon->w;
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.h = Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIcon->h;
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.x = (screen_w + Buttons[CHANNEL_DOWN_BUTTON_INDEX].XOffset);
-	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.h - (OVERLAY_H_OFFSET/2);
+	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
 	
 	// Setting up buttons events
 	Buttons[FULLSCREEN_BUTTON_INDEX].ToggledButton = &(Buttons[NO_FULLSCREEN_BUTTON_INDEX]);
@@ -522,25 +589,69 @@ void ChunkerPlayerGUI_SetChannelTitle(char* title)
 	RedrawChannelName();
 }
 
-void ChunkerPlayerGUI_SetStatsText(char* text)
+void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text)
+{
+	if(audio_text == NULL)
+		audio_text = AudioStatsText;
+	
+	if(video_text == NULL)
+		video_text = VideoStatsText;
+
+	if((strlen(audio_text) > 255) || (strlen(video_text) > 255))
+	{
+		printf("WARNING IN player_gui.c: stats text too long, could not refresh text\n");
+		return;
+	}
+	
+	strcpy(AudioStatsText, audio_text);
+	strcpy(VideoStatsText, video_text);
+	
+	RedrawStats();
+}
+
+void RedrawStats()
 {
 	SDL_LockMutex(OverlayMutex);
 	
-	SDL_FreeSurface( StatisticsSurface );
+	SDL_FreeSurface( AudioStatisticsSurface );
 	// ChannelTitleSurface = TTF_RenderText_Solid( MainFont, channel->Title, ChannelTitleColor );
-	StatisticsSurface = TTF_RenderText_Shaded( StatisticsFont, text, StatisticsColor, StatisticsBgColor );
-	if(StatisticsSurface == NULL)
-		printf("WARNING: CANNOT RENDER CHANNEL TITLE\n");
-		
+	AudioStatisticsSurface = TTF_RenderText_Shaded( StatisticsFont, AudioStatsText, StatisticsColor, StatisticsBgColor );
+	if(AudioStatisticsSurface == NULL)
+	{
+		printf("WARNING: CANNOT PRINT STATS\n");
+		return;
+	}
 	SDL_UnlockMutex(OverlayMutex);
 	
-	StatisticsRect.w = StatisticsSurface->w;
-	StatisticsRect.h = StatisticsSurface->h;
+	StatisticsRect.w = AudioStatisticsSurface->w;
+	StatisticsRect.h = AudioStatisticsSurface->h;
 	StatisticsRect.x = ((FullscreenMode?FullscreenWidth:window_width) - StatisticsRect.w)/2;
 	StatisticsRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+40;
 	
 	SDL_LockMutex(OverlayMutex);
-	SDL_BlitSurface(StatisticsSurface, NULL, MainScreen, &StatisticsRect);
+	SDL_BlitSurface(AudioStatisticsSurface, NULL, MainScreen, &StatisticsRect);
+	SDL_UpdateRects(MainScreen, 1, &StatisticsRect);
+	SDL_UnlockMutex(OverlayMutex);
+	
+	
+	
+	SDL_FreeSurface( VideoStatisticsSurface );
+	// ChannelTitleSurface = TTF_RenderText_Solid( MainFont, channel->Title, ChannelTitleColor );
+	VideoStatisticsSurface = TTF_RenderText_Shaded( StatisticsFont, VideoStatsText, StatisticsColor, StatisticsBgColor );
+	if( VideoStatisticsSurface == NULL )
+	{
+		printf("WARNING: CANNOT PRINT STATS\n");
+		return;
+	}
+	SDL_UnlockMutex(OverlayMutex);
+	
+	StatisticsRect.w = VideoStatisticsSurface->w;
+	StatisticsRect.h = VideoStatisticsSurface->h;
+	StatisticsRect.x = ((FullscreenMode?FullscreenWidth:window_width) - StatisticsRect.w)/2;
+	StatisticsRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+25;
+	
+	SDL_LockMutex(OverlayMutex);
+	SDL_BlitSurface(VideoStatisticsSurface, NULL, MainScreen, &StatisticsRect);
 	SDL_UpdateRects(MainScreen, 1, &StatisticsRect);
 	SDL_UnlockMutex(OverlayMutex);
 }

@@ -25,7 +25,6 @@
 typedef struct threadVal {
 	int width;
 	int height;
-	// float aspect_ratio;
 } ThreadVal;
 
 typedef struct PacketQueue {
@@ -54,12 +53,7 @@ int AudioQueueOffset;
 PacketQueue audioq;
 PacketQueue videoq;
 AVPacket AudioPkt, VideoPkt;
-// int quit = 0;
-// int SaveYUV=0;
 int AVPlaying;
-// char YUVFileName[256];
-
-// int queue_filling_threshold = 0;
 
 SDL_Rect *InitRect;
 SDL_AudioSpec AudioSpecification;
@@ -74,11 +68,13 @@ int dimAudioQ;
 float deltaAudioQ;
 float deltaAudioQError;
 
-void SaveFrame(AVFrame *pFrame, int width, int height);
-// int P2PProcessID = -1;
+int SaveYUV;
+char YUVFileName[256];
+int SaveLoss;
+char LossTracesFilename[256];
 
 int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short audio_channels);
-int ChunkerPlayerCore_VideoEnded();
+int ChunkerPlayerCore_AudioEnded();
 void ChunkerPlayerCore_Stop();
 void ChunkerPlayerCore_Play();
 int ChunkerPlayerCore_IsRunning();
@@ -86,8 +82,5 @@ void ChunkerPlayerCore_ResetAVQueues();
 int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt);
 int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size);
 void ChunkerPlayerCore_SetupOverlay(int width, int height);
-
-int VideoCallback(void *valthread);
-void AudioCallback(void *userdata, Uint8 *stream, int len);
 
 #endif // _CHUNKER_PLAYER_CORE_H

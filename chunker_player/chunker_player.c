@@ -31,17 +31,18 @@ int main(int argc, char *argv[])
 
 	FILE *fp;
 		
-	if(argc<4) {
-		printf("chunker_player queue_thresh httpd_port silentMode <YUVFilename>\n");
+	if(argc<5) {
+		printf("chunker_player queue_thresh httpd_port silentMode LossTracesFilenameSuffix <YUVFilename>\n");
 		exit(1);
 	}
 	sscanf(argv[1],"%d",&queue_filling_threshold);
 	sscanf(argv[2],"%d",&HttpPort);
 	sscanf(argv[3],"%d",&SilentMode);
+	sscanf(argv[4],"%s",LossTracesFilename);
 	
-	if(argc==5)
+	if(argc==6)
 	{
-		sscanf(argv[4],"%s",YUVFileName);
+		sscanf(argv[5],"%s",YUVFileName);
 		printf("YUVFile: %s\n",YUVFileName);
 		fp=fopen(YUVFileName, "wb");
 		if(fp)
@@ -51,6 +52,28 @@ int main(int argc, char *argv[])
 		}
 		else
 			printf("ERROR: Unable to create YUVFile\n");
+	}
+	
+	char filename[255];
+	sprintf(filename, "audio_%s", LossTracesFilename);
+	fp=fopen(filename, "wb");
+	if(fp)
+	{
+		fclose(fp);
+		sprintf(filename, "video_%s", LossTracesFilename);
+		fp=fopen(filename, "wb");
+		if(fp)
+			fclose(fp);
+		else
+		{
+			printf("ERROR: Unable to create loss trace files\n");
+			exit(1);
+		}
+	}
+	else
+	{
+		printf("ERROR: Unable to create loss trace files\n");
+		exit(1);
 	}
 	
 	if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
@@ -75,7 +98,7 @@ int main(int argc, char *argv[])
 	SwitchChannel(&(Channels[SelectedChannel]));
 	
 	//this thread fetches chunks from the network by listening to the following path, port
-	daemon = initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, HttpPort);
+	daemon = (struct MHD_Daemon*)initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, HttpPort);
 	if(daemon == NULL)
 	{
 		printf("CANNOT START MICROHTTPD SERVICE, EXITING...\n");
@@ -87,7 +110,7 @@ int main(int argc, char *argv[])
 		if(QueueFillingMode) {
 			SDL_WM_SetCaption("Filling buffer...", NULL);
 
-			if(ChunkerPlayerCore_VideoEnded())
+			if(ChunkerPlayerCore_AudioEnded())
 				ChunkerPlayerCore_ResetAVQueues();
 
 #ifdef DEBUG_QUEUE
@@ -104,6 +127,8 @@ int main(int argc, char *argv[])
 					quit=1;
 				break;
 				case SDL_VIDEORESIZE:
+					if(SilentMode)
+						break;
 					// printf("\tSDL_VIDEORESIZE event received!! \n");
 					if(!FullscreenMode)
 						ChunkerPlayerGUI_HandleResize(event.resize.w, event.resize.h);
@@ -111,6 +136,9 @@ int main(int argc, char *argv[])
 						ChunkerPlayerGUI_HandleResize(FullscreenWidth, FullscreenHeight);
 				break;
 				case SDL_ACTIVEEVENT:
+					if(SilentMode)
+						break;
+						
 					// if the window was iconified or restored
 					if(event.active.state & SDL_APPACTIVE)
 					{
@@ -141,9 +169,15 @@ int main(int argc, char *argv[])
 					}
 					break;
 				case SDL_MOUSEMOTION:
+					if(SilentMode)
+						break;
+						
 					ChunkerPlayerGUI_HandleMouseMotion(event.motion.x, event.motion.y);
 				break;
 				case SDL_MOUSEBUTTONUP:
+					if(SilentMode)
+						break;
+						
 					if( event.button.button != SDL_BUTTON_LEFT )
 						break;
 
