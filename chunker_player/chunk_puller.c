@@ -23,11 +23,13 @@ static char listen_path[256];
 void request_completed(void *cls, struct MHD_Connection *connection,
                        void **con_cls, enum MHD_RequestTerminationCode toe) {
   struct connection_info_struct *con_info = (struct connection_info_struct *)*con_cls;
+
   if(NULL == con_info)
     return;
   if(con_info->block)
     free (con_info->block);
   free(con_info);
+
   *con_cls = NULL;
 }
 
@@ -57,7 +59,6 @@ int answer_to_connection(void *cls, struct MHD_Connection *connection,
     con_info = malloc(sizeof(struct connection_info_struct));
     if(con_info == NULL)
       return MHD_NO;
-
     con_info->block = NULL;
     con_info->block_size = 0; 
     *con_cls = (void *)con_info;
@@ -90,6 +91,7 @@ int answer_to_connection(void *cls, struct MHD_Connection *connection,
 				// i do not mind about return value or problems into the enqueueBlock()
         enqueueBlock(con_info->block, con_info->block_size); //this might take some time
         free(con_info->block); //the enqueueBlock makes a copy of block into a chunk->data
+        con_info->block = NULL;
         return send_response(connection, MHD_HTTP_OK);
       }
     }
@@ -106,7 +108,8 @@ struct MHD_Daemon *initChunkPuller(const char *path, const int port) {
 printf("starting HTTPD on %s port %d\n", listen_path, listen_port);
   return MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG, listen_port,
                           NULL, NULL,
-                          &answer_to_connection, NULL, MHD_OPTION_END);
+                          &answer_to_connection, NULL, MHD_OPTION_NOTIFY_COMPLETED,
+                          request_completed, NULL, MHD_OPTION_END);
 }
 
 void finalizeChunkPuller(struct MHD_Daemon *daemon) {
