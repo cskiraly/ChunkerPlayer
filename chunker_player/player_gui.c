@@ -16,7 +16,7 @@ static char VideoStatsText[255];
 
 SDL_Surface *ChannelTitleSurface = NULL;
 SDL_Surface *AudioStatisticsSurface = NULL, *VideoStatisticsSurface = NULL;
-SDL_Rect ChannelTitleRect, StatisticsRect, StatisticsRect;
+SDL_Rect ChannelTitleRect, AudioStatisticsRect, VideoStatisticsRect;
 SDL_Color ChannelTitleColor = { 255, 0, 0 }, StatisticsColor = { 255, 255, 255 }; ;
 SDL_Color ChannelTitleBgColor = { 0, 0, 0 }, StatisticsBgColor = { 0, 0, 0 };
 TTF_Font *MainFont = NULL;
@@ -356,6 +356,8 @@ void UpdateOverlaySize(float aspect_ratio, int width, int height)
 	OverlayRect.y = y;
 	OverlayRect.w = w;
 	OverlayRect.h = h;
+	// SDL_FillRect( SDL_GetVideoSurface(), NULL, SDL_MapRGB(SDL_GetVideoSurface()->format, 0,0,0) );
+	SDL_UpdateRect(MainScreen, 0, 0, 0, 0);
 	SDL_UnlockMutex(OverlayMutex);
 }
 
@@ -611,49 +613,76 @@ void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text)
 
 void RedrawStats()
 {
+	SDL_Surface *tmpAudioSurface = NULL, *tmpVideoSurface = NULL;
+	SDL_Rect tmpRect;
+
+	// AUDIO
+	tmpAudioSurface = TTF_RenderText_Shaded( StatisticsFont, AudioStatsText, StatisticsColor, StatisticsBgColor );
+	if(tmpAudioSurface == NULL)
+	{
+		printf("WARNING: CANNOT PRINT STATS\n");
+		return;
+	}
+	
 	SDL_LockMutex(OverlayMutex);
+	SDL_UnlockMutex(OverlayMutex);
+	
+	tmpRect.w = tmpAudioSurface->w;
+	tmpRect.h = tmpAudioSurface->h;
+	tmpRect.x = ((FullscreenMode?FullscreenWidth:window_width) - tmpRect.w)>>1;
+	tmpRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+(STATS_FONT_SIZE<<1)+STATS_BOX_HEIGHT;
+	
+	SDL_LockMutex(OverlayMutex);
+	if(
+		(AudioStatisticsSurface != NULL)
+	)
+	{
+		SDL_FillRect( AudioStatisticsSurface, NULL, 0 );
+		SDL_BlitSurface(AudioStatisticsSurface, NULL, MainScreen, &AudioStatisticsRect);
+		SDL_UpdateRects(MainScreen, 1, &AudioStatisticsRect);
+	}
 	
 	SDL_FreeSurface( AudioStatisticsSurface );
-	// ChannelTitleSurface = TTF_RenderText_Solid( MainFont, channel->Title, ChannelTitleColor );
-	AudioStatisticsSurface = TTF_RenderText_Shaded( StatisticsFont, AudioStatsText, StatisticsColor, StatisticsBgColor );
-	if(AudioStatisticsSurface == NULL)
+	SDL_BlitSurface(tmpAudioSurface, NULL, MainScreen, &tmpRect);
+	SDL_UpdateRects(MainScreen, 1, &tmpRect);
+	SDL_UnlockMutex(OverlayMutex);
+	
+	AudioStatisticsSurface = tmpAudioSurface;
+	AudioStatisticsRect = tmpRect;
+	
+	// VIDEO
+	tmpVideoSurface = TTF_RenderText_Shaded( StatisticsFont, VideoStatsText, StatisticsColor, StatisticsBgColor );
+	if(tmpVideoSurface == NULL)
 	{
 		printf("WARNING: CANNOT PRINT STATS\n");
 		return;
 	}
-	SDL_UnlockMutex(OverlayMutex);
-	
-	StatisticsRect.w = AudioStatisticsSurface->w;
-	StatisticsRect.h = AudioStatisticsSurface->h;
-	StatisticsRect.x = ((FullscreenMode?FullscreenWidth:window_width) - StatisticsRect.w)/2;
-	StatisticsRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+40;
 	
 	SDL_LockMutex(OverlayMutex);
-	SDL_BlitSurface(AudioStatisticsSurface, NULL, MainScreen, &StatisticsRect);
-	SDL_UpdateRects(MainScreen, 1, &StatisticsRect);
 	SDL_UnlockMutex(OverlayMutex);
 	
+	tmpRect.w = tmpVideoSurface->w;
+	tmpRect.h = tmpVideoSurface->h;
+	tmpRect.x = ((FullscreenMode?FullscreenWidth:window_width) - tmpRect.w)>>1;
+	tmpRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+(STATS_FONT_SIZE)+STATS_BOX_HEIGHT;
 	
+	SDL_LockMutex(OverlayMutex);
+	if(
+		(VideoStatisticsSurface != NULL)
+	)
+	{
+		SDL_FillRect( VideoStatisticsSurface, NULL, 0 );
+		SDL_BlitSurface(VideoStatisticsSurface, NULL, MainScreen, &VideoStatisticsRect);
+		SDL_UpdateRects(MainScreen, 1, &VideoStatisticsRect);
+	}
 	
 	SDL_FreeSurface( VideoStatisticsSurface );
-	// ChannelTitleSurface = TTF_RenderText_Solid( MainFont, channel->Title, ChannelTitleColor );
-	VideoStatisticsSurface = TTF_RenderText_Shaded( StatisticsFont, VideoStatsText, StatisticsColor, StatisticsBgColor );
-	if( VideoStatisticsSurface == NULL )
-	{
-		printf("WARNING: CANNOT PRINT STATS\n");
-		return;
-	}
+	SDL_BlitSurface(tmpVideoSurface, NULL, MainScreen, &tmpRect);
+	SDL_UpdateRects(MainScreen, 1, &tmpRect);
 	SDL_UnlockMutex(OverlayMutex);
 	
-	StatisticsRect.w = VideoStatisticsSurface->w;
-	StatisticsRect.h = VideoStatisticsSurface->h;
-	StatisticsRect.x = ((FullscreenMode?FullscreenWidth:window_width) - StatisticsRect.w)/2;
-	StatisticsRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+25;
-	
-	SDL_LockMutex(OverlayMutex);
-	SDL_BlitSurface(VideoStatisticsSurface, NULL, MainScreen, &StatisticsRect);
-	SDL_UpdateRects(MainScreen, 1, &StatisticsRect);
-	SDL_UnlockMutex(OverlayMutex);
+	VideoStatisticsSurface = tmpVideoSurface;
+	VideoStatisticsRect = tmpRect;
 }
 
 void ChunkerPlayerGUI_SetupOverlayRect(SChannel* channel)

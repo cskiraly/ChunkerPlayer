@@ -614,7 +614,9 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 			pkt->pos = pkt1->pkt.pos;
 			pkt->convergence_duration = pkt1->pkt.convergence_duration;
 			//*pkt = pkt1->pkt;
-			memcpy(pkt->data, pkt1->pkt.data, pkt1->pkt.size);
+			
+			if((pkt->data != NULL) && (pkt1->pkt.data != NULL))
+				memcpy(pkt->data, pkt1->pkt.data, pkt1->pkt.size);
 
 			//HINT SEE BEFORE q->size -= pkt1->pkt.size;
 			q->first_pkt = RemoveFromQueue(q, pkt1);

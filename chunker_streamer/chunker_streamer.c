@@ -17,6 +17,8 @@
 #define DEBUG_TIME
 #define DEBUG_ANOMALIES
 
+#define MAX(a,b) ((a>b)?(a):(b))
+
 ChunkerMetadata *cmeta = NULL;
 int seq_current_chunk = 1; //chunk numbering starts from 1; HINT do i need more bytes?
 
@@ -96,7 +98,8 @@ int main(int argc, char *argv[]) {
 	//stuff needed to compute the right timestamps
 	short int FirstTimeAudio=1, FirstTimeVideo=1;
 	short int pts_anomalies_counter=0;
-	long long newTime=0, newTime_video=0, newTime_prev=0;
+	long long newTime=0, newTime_audio=0, newTime_prev=0;
+	struct timeval lastAudioSent = {0, 0};
 	double ptsvideo1=0.0;
 	double ptsaudio1=0.0;
 	int64_t last_pkt_dts=0, delta_video=0, delta_audio=0, last_pkt_dts_audio=0, target_pts=0;
@@ -338,23 +341,15 @@ restart:
 	initChunkPusher(); //TRIPLO
 
 	long sleep=0;
+	struct timeval now_tv;
+	struct timeval tmp_tv;
+	long long lateTime = 0;
+	long long maxAudioInterval = 0;
+	long long maxVDecodeTime = 0;
 
 	//main loop to read from the input file
-	while(av_read_frame(pFormatCtx, &packet)>=0) {
-		if(!live_source) {
-			if(sleep==1) { //video packet, lets sleep
-				sleep = (long)newTime_video - (long)newTime_prev;
-				newTime_prev = newTime_video;
-			}
-			if(sleep > 0) {
-#ifdef DEBUG_ANOMALIES
-				fprintf(stderr, "\nREADLOOP: going to sleep for %ld\n", sleep);
-#endif
-				usleep(sleep * 1000);
-				//usleep(40 * 1000);
-			}
-		}
-
+	while(av_read_frame(pFormatCtx, &packet)>=0)
+	{
 		//detect if a strange number of anomalies is occurring
 		if(ptsvideo1 < 0 || ptsvideo1 > packet.dts || ptsaudio1 < 0 || ptsaudio1 > packet.dts) {
 			pts_anomalies_counter++;
@@ -374,10 +369,28 @@ restart:
 		}
 
 		// Is this a packet from the video stream?
-		if(packet.stream_index==videoStream) {
-			sleep=1; //sleep in case of video packet (and if not live)
+		if(packet.stream_index==videoStream)
+		{
+			if(!live_source)
+			{
+				// lateTime < 0 means a positive time account that can be used to decode video frames
+				// if (lateTime + maxVDecodeTime) >= 0 then we may have a negative time account after video transcoding
+				// therefore, it's better to skip the frame
+				if((lateTime+maxVDecodeTime) >= 0)
+				{
+#ifdef DEBUG_ANOMALIES
+					fprintf(stderr, "\n\n\t\t************************* SKIPPING VIDEO FRAME ***********************************\n\n", sleep);
+#endif
+					continue;
+				}
+			}
+			
+			gettimeofday(&tmp_tv, NULL);
+			
 			//decode the video packet into a raw pFrame
-			if(avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet)>0) {
+			if(avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet)>0)
+			{
+				// usleep(5000);
 #ifdef DEBUG_VIDEO_FRAMES
 				fprintf(stderr, "\n-------VIDEO FRAME type %d\n", pFrame->pict_type);
 				fprintf(stderr, "VIDEO: dts %lld pts %lld\n", packet.dts, packet.pts);
@@ -407,6 +420,8 @@ restart:
 					fprintf(stderr, "VIDEO: deltavideo : %d\n", (int)delta_video);
 #endif
 					video_frame_size = avcodec_encode_video(pCodecCtxEnc, video_outbuf, video_outbuf_size, pFrame);
+					if(video_frame_size <= 0)
+						continue;
 #ifdef DEBUG_VIDEO_FRAMES
 					fprintf(stderr, "VIDEO: original codec frame number %d vs. encoded %d vs. packed %d\n", pCodecCtx->frame_number, pCodecCtxEnc->frame_number, frame->number);
 					fprintf(stderr, "VIDEO: duration %d timebase %d %d container timebase %d\n", (int)packet.duration, pCodecCtxEnc->time_base.den, pCodecCtxEnc->time_base.num, pCodecCtx->time_base.den);
@@ -448,7 +463,6 @@ restart:
 					//compute the new video timestamp in milliseconds
 					if(frame->number>0) {
 						newTime = ((double)target_pts-ptsvideo1)*1000.0/((double)delta_video*(double)av_q2d(pFormatCtx->streams[videoStream]->r_frame_rate));
-						newTime_video = newTime; //for computing sleep
 					}
 #ifdef DEBUG_VIDEO_FRAMES
 					fprintf(stderr, "VIDEO: NEWTIMESTAMP %ld\n", newTime);
@@ -485,16 +499,32 @@ restart:
 #endif
 						chunk->seq = 0; //signal that we need an increase
 						//initChunk(chunk, &seq_current_chunk);
+						
+						gettimeofday(&now_tv, NULL);
+						long long usec = (now_tv.tv_sec-tmp_tv.tv_sec)*1000000;
+						usec+=(now_tv.tv_usec-tmp_tv.tv_usec);
+						
+						if(usec > maxVDecodeTime)
+							maxVDecodeTime = usec;
 					}
 					/* pict_type maybe 1 (I), 2 (P), 3 (B), 5 (AUDIO)*/
 				}
 			}
 		}
-		else if(packet.stream_index==audioStream) {
-			sleep=0;
+		else if(packet.stream_index==audioStream)
+		{
+			if(sleep > 0)
+			{
+#ifdef DEBUG_ANOMALIES
+				fprintf(stderr, "\n\tREADLOOP: going to sleep for %ld microseconds\n", sleep);
+#endif
+				usleep(sleep);
+			}
+			
 			audio_data_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
 			//decode the audio packet into a raw audio source buffer
-			if(avcodec_decode_audio3(aCodecCtx, samples, &audio_data_size, &packet)>0) {
+			if(avcodec_decode_audio3(aCodecCtx, samples, &audio_data_size, &packet)>0)
+			{
 #ifdef DEBUG_AUDIO_FRAMES
 				fprintf(stderr, "\n-------AUDIO FRAME\n");
 				fprintf(stderr, "AUDIO: newTimeaudioSTART : %lf\n", (double)(packet.pts)*av_q2d(pFormatCtx->streams[audioStream]->time_base));
@@ -510,6 +540,9 @@ restart:
 					continue;
 	
 				audio_frame_size = avcodec_encode_audio(aCodecCtxEnc, audio_outbuf, audio_data_size, samples);
+				if(audio_frame_size <= 0)
+					continue;
+				
 				frame->number = contFrameAudio;
 
 				if(frame->number==0) {
@@ -565,6 +598,10 @@ restart:
 				//compute the new audio timestamps in milliseconds
 				if(frame->number>0) {
 					newTime = (((double)target_pts-ptsaudio1)*1000.0*((double)av_q2d(pFormatCtx->streams[audioStream]->time_base)));//*(double)delta_audio;
+					
+					// store timestamp in useconds for next frame sleep
+					newTime_audio = newTime*1000;
+					
 				}
 #ifdef DEBUG_AUDIO_FRAMES
 				fprintf(stderr, "AUDIO: NEWTIMESTAMP %d\n", newTime);
@@ -594,7 +631,40 @@ restart:
 				//set priority
 				chunkaudio->priority = 1;
 
-				if(chunkFilled(chunkaudio, cmeta)) { // is chunk filled using current strategy?
+				if(chunkFilled(chunkaudio, cmeta))
+				{
+					if(!live_source)
+					{
+						if(newTime_prev != 0)
+						{
+							long long maxDelay = newTime_audio - newTime_prev;
+
+							gettimeofday(&now_tv, NULL);
+							long long usec = (now_tv.tv_sec-lastAudioSent.tv_sec)*1000000;
+							usec+=(now_tv.tv_usec-lastAudioSent.tv_usec);
+
+							if(usec > maxAudioInterval)
+								maxAudioInterval = usec;
+
+							lateTime -= (maxDelay - usec);
+#ifdef DEBUG_ANOMALIES
+							printf("\tmaxDelay=%ld, maxAudioInterval=%ld\n", ((long)maxDelay), ((long) maxAudioInterval));
+							printf("\tlast audio frame interval=%ld; lateTime=%ld\n", ((long)usec), ((long)lateTime));
+#endif
+
+							if((lateTime+maxAudioInterval) < 0)
+								sleep = (lateTime+maxAudioInterval)*-1;
+							else
+								sleep = 0;
+						}
+						else
+							sleep = 0;
+
+						newTime_prev = newTime_audio;
+						gettimeofday(&lastAudioSent, NULL);
+					}
+					
+					// is chunk filled using current strategy?
 					//SAVE ON FILE
 					//saveChunkOnFile(chunkaudio);
 					//Send the chunk via http to an external transport/player
@@ -675,7 +745,7 @@ restart:
 		FirstTimeVideo=1;
 		pts_anomalies_counter=0;
 		newTime=0;
-		newTime_video=0;
+		newTime_audio=0;
 		newTime_prev=0;
 		ptsvideo1=0.0;
 		ptsaudio1=0.0;
