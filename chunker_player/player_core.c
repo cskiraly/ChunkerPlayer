@@ -33,7 +33,7 @@ void PacketQueueInit(PacketQueue *q, short int Type)
 #endif
 }
 
-void PacketQueueReset(PacketQueue *q, short int Type)
+void PacketQueueReset(PacketQueue *q)
 {
 	AVPacketList *tmp,*tmp1;
 #ifdef DEBUG_QUEUE
@@ -50,6 +50,7 @@ void PacketQueueReset(PacketQueue *q, short int Type)
 #ifdef DEBUG_QUEUE
 		printf("F ");
 #endif
+		q->total_lost_frames++;
 	}
 #ifdef DEBUG_QUEUE
 	printf("\n");
@@ -78,14 +79,14 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 {
 	short int skip = 0;
 	AVPacketList *pkt1, *tmp, *prevtmp;
-/*
-	if(q->nb_packets > QUEUE_MAX_SIZE) {
+
+	if(q->nb_packets > queue_filling_threshold*QUEUE_MAX_GROW_FACTOR) {
 #ifdef DEBUG_QUEUE
-		printf("QUEUE: PUT i have TOO MANY packets %d Type=%d\n", q->nb_packets, q->queueType);
-#endif    
-		return -1;
+		printf("QUEUE: PUT i have TOO MANY packets %d Type=%d, RESETTING\n", q->nb_packets, q->queueType);
+#endif
+		PacketQueueReset(q);
   }
-*/
+
 	//make a copy of the incoming packet
 	if(av_dup_packet(pkt) < 0) {
 #ifdef DEBUG_QUEUE
@@ -1037,8 +1038,8 @@ void ChunkerPlayerCore_Stop()
 		YUVOverlay = NULL;
 	}
 	
-	PacketQueueReset(&audioq, AUDIO);
-	PacketQueueReset(&videoq, VIDEO);
+	PacketQueueReset(&audioq);
+	PacketQueueReset(&videoq);
 	
 	av_free(aCodecCtx);
 	free(AudioPkt.data);
@@ -1057,8 +1058,8 @@ void ChunkerPlayerCore_ResetAVQueues()
 #ifdef DEBUG_QUEUE
 	printf("QUEUE: MAIN SHOULD RESET\n");
 #endif
-	PacketQueueReset(&audioq, AUDIO);
-	PacketQueueReset(&videoq, VIDEO);
+	PacketQueueReset(&audioq);
+	PacketQueueReset(&videoq);
 }
 
 int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
