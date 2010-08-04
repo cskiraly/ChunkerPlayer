@@ -300,8 +300,11 @@ int DecodeEnqueuedAudio(AVPacket *pkt, PacketQueue *q)
 			dataQ = (int16_t *)av_malloc(data_sizeQ); //this will be free later at the time of playback
 			if(dataQ) {
 				memcpy(dataQ, audio_bufQ, data_sizeQ);
-				//discard the old encoded bytes
-				av_free(pkt->data);
+				if(pkt->data != NULL)
+				{
+					//discard the old encoded bytes
+					av_free(pkt->data);
+				}
 				//subtract them from queue size
 				q->size -= pkt->size;
 				pkt->data = (int8_t *)dataQ;
