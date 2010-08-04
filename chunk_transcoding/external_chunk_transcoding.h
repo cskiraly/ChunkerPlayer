@@ -30,5 +30,9 @@ ExternalChunk *grapesChunkToExternalChunk(Chunk *gchunk);
  */
 void *packExternalChunkToAttributes(ExternalChunk *echunk, size_t attr_size);
 
+/**
+ * theese are copied from GRAPES
+ */
+int encodeChunk(const struct chunk *c, uint8_t *buff, int buff_len);
 
 #endif
