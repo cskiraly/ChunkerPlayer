@@ -638,7 +638,6 @@ void RedrawStats()
     else
     {
         // report error
-        //printf("\tAUDIO: cannot render text\n");
     }
     
 	text_surface = TTF_RenderText_Shaded( StatisticsFont, VideoStatsText, StatisticsColor, StatisticsBgColor );
@@ -647,7 +646,7 @@ void RedrawStats()
 		VideoStatisticsRect.w = text_surface->w;
 		VideoStatisticsRect.h = text_surface->h;
 		VideoStatisticsRect.x = ((FullscreenMode?FullscreenWidth:window_width) - VideoStatisticsRect.w)>>1;
-		VideoStatisticsRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+(STATS_FONT_SIZE)+STATS_BOX_HEIGHT; // assegnazione ridondante ?
+		VideoStatisticsRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+(STATS_FONT_SIZE)+STATS_BOX_HEIGHT;
 
         SDL_BlitSurface(text_surface, NULL, MainScreen, &VideoStatisticsRect);
         SDL_FreeSurface(text_surface);
@@ -655,7 +654,6 @@ void RedrawStats()
     else
     {
         // report error
-        //printf("\tVIDEO: cannot render text\n");
     }
     
     SDL_UpdateRect(MainScreen, VideoStatisticsRect.x, VideoStatisticsRect.y, VideoStatisticsRect.w, VideoStatisticsRect.h);
