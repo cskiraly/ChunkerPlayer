@@ -6,13 +6,13 @@
 CFLAGS = -pthread -g -O0 -Wall
 CFLAGS += -DHAVE_OPENGL -Wl,--warn-common -Wl,--as-needed -Wl,-Bsymbolic
 CPPFLAGS += -I../chunk_transcoding -I../
-DYNAMIC_LDLIBS += -lz -lm -lpthread
+DYNAMIC_LDLIBS += -lm -lpthread
 
 #default fmmpeg here
 LOCAL_FFMPEG_CPPFLAGS = -I$(LOCAL_FFMPEG)/include
 #LOCAL_FFMPEG_LDFLAGS = -L$(LOCAL_FFMPEG)/lib
 LOCAL_FFMPEG_LDLIBS = $(LOCAL_FFMPEG)/lib/libavdevice.a $(LOCAL_FFMPEG)/lib/libavformat.a $(LOCAL_FFMPEG)/lib/libavcodec.a $(LOCAL_FFMPEG)/lib/libavutil.a $(LOCAL_FFMPEG)/lib/libswscale.a
 
-LOCAL_COMMON_CPPFLAGS = -I$(LOCAL_X264)/include -I$(LOCAL_BZ2)/include -I$(LOCAL_MP3LAME)/include
+LOCAL_COMMON_CPPFLAGS = -I$(LOCAL_X264)/include -I$(LOCAL_BZ2)/include -I$(LOCAL_Z)/include -I$(LOCAL_MP3LAME)/include
 #LOCAL_COMMON_LDFLAGS = -L$(LOCAL_X264)/lib -L$(LOCAL_BZ2)/lib -L$(LOCAL_MP3LAME)/lib
-LOCAL_COMMON_LDLIBS = $(LOCAL_X264)/lib/libx264.a $(LOCAL_BZ2)/lib/libbz2.a $(LOCAL_MP3LAME)/lib/libmp3lame.a
+LOCAL_COMMON_LDLIBS = $(LOCAL_X264)/lib/libx264.a $(LOCAL_BZ2)/lib/libbz2.a $(LOCAL_Z)/lib/libz.a $(LOCAL_MP3LAME)/lib/libmp3lame.a
