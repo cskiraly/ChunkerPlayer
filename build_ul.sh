@@ -156,7 +156,7 @@ if [ -n "$BUILD_MHD" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MHD" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -r -f libmicrohttpd
 	#get and compile libmicrohttpd lib
-	svn --trust-server-cert --non-interactive checkout https://ng.gnunet.org/svn/libmicrohttpd
+	svn --non-interactive checkout https://ng.gnunet.org/svn/libmicrohttpd
 	cd libmicrohttpd
 	autoreconf -fi
 	./configure --disable-curl --disable-https --enable-messages --disable-client-side --prefix="$TEMP_MHD"
@@ -311,4 +311,4 @@ else
 	fi
 fi
 $MAKE clean
-ULPLAYER=$BASE_UL_DIR ULPLAYER_EXTERNAL_LIBS=$EXTERN_DIR LIBEVENT_DIR=$LOCAL_EVENT ML=1 STATIC=1 MONL= IO=http DEBUG= THREADS= $MAKE
+ULPLAYER=$BASE_UL_DIR ULPLAYER_EXTERNAL_LIBS=$EXTERN_DIR LIBEVENT_DIR=$LOCAL_EVENT ML=1 STATIC=1 MONL=1 IO=httpevent DEBUG= THREADS= $MAKE
