@@ -1,10 +1,6 @@
-#include <stdint.h>
 #include <curl/curl.h>
 
-#include <chunk.h>
-
-#include "chunker_streamer.h"
-
+#include "streamer_commons.h"
 
 void initChunkPusher();
 void finalizeChunkPusher();
