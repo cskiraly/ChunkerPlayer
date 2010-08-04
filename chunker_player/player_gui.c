@@ -15,9 +15,9 @@ static char AudioStatsText[255];
 static char VideoStatsText[255];
 
 SDL_Surface *ChannelTitleSurface = NULL;
-SDL_Surface *AudioStatisticsSurface = NULL, *VideoStatisticsSurface = NULL;
+//SDL_Surface *AudioStatisticsSurface = NULL, *VideoStatisticsSurface = NULL;
 SDL_Rect ChannelTitleRect, AudioStatisticsRect, VideoStatisticsRect, tmpRect;
-SDL_Color ChannelTitleColor = { 255, 0, 0 }, StatisticsColor = { 255, 255, 255 }; ;
+SDL_Color ChannelTitleColor = { 255, 0, 0 }, StatisticsColor = { 255, 255, 255 };
 SDL_Color ChannelTitleBgColor = { 0, 0, 0 }, StatisticsBgColor = { 0, 0, 0 };
 TTF_Font *MainFont = NULL;
 TTF_Font *StatisticsFont = NULL;
@@ -209,10 +209,10 @@ void ChunkerPlayerGUI_Close()
 	if(ChannelTitleSurface != NULL)
 		SDL_FreeSurface( ChannelTitleSurface );
 	
-	if(AudioStatisticsSurface != NULL)
+	/*if(AudioStatisticsSurface != NULL)
 		SDL_FreeSurface( AudioStatisticsSurface );
 	if(VideoStatisticsSurface != NULL)
-		SDL_FreeSurface( VideoStatisticsSurface );
+		SDL_FreeSurface( VideoStatisticsSurface );*/
 	
 	TTF_CloseFont( MainFont );
 	TTF_CloseFont( StatisticsFont );
@@ -613,73 +613,55 @@ void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text)
 
 void RedrawStats()
 {
-	SDL_Surface *tmpAudioSurface = NULL, *tmpVideoSurface = NULL;
+	SDL_Surface *text_surface;
 
-	// AUDIO
-	tmpAudioSurface = TTF_RenderText_Shaded( StatisticsFont, AudioStatsText, StatisticsColor, StatisticsBgColor );
-	if(tmpAudioSurface == NULL)
-	{
-		printf("WARNING: CANNOT PRINT STATS\n");
-		return;
-	}
-	
 	SDL_LockMutex(OverlayMutex);
+	
+	// clear stats text
+	SDL_FillRect( MainScreen, &VideoStatisticsRect, SDL_MapRGB(MainScreen->format, 0, 0, 0) );
+	SDL_FillRect( MainScreen, &AudioStatisticsRect, SDL_MapRGB(MainScreen->format, 0, 0, 0) );
+	SDL_UpdateRect(MainScreen, VideoStatisticsRect.x, VideoStatisticsRect.y, VideoStatisticsRect.w, VideoStatisticsRect.h);
+	SDL_UpdateRect(MainScreen, AudioStatisticsRect.x, AudioStatisticsRect.y, AudioStatisticsRect.w, AudioStatisticsRect.h);
+	
+	
+	text_surface = TTF_RenderText_Shaded( StatisticsFont, AudioStatsText, StatisticsColor, StatisticsBgColor );
+    if (text_surface != NULL)
+    {
+		AudioStatisticsRect.w = text_surface->w;
+		AudioStatisticsRect.h = text_surface->h;
+		AudioStatisticsRect.x = ((FullscreenMode?FullscreenWidth:window_width) - AudioStatisticsRect.w)>>1;
+		AudioStatisticsRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+(STATS_FONT_SIZE<<1)+STATS_BOX_HEIGHT;
+
+        SDL_BlitSurface(text_surface, NULL, MainScreen, &AudioStatisticsRect);
+        SDL_FreeSurface(text_surface);
+    }
+    else
+    {
+        // report error
+        //printf("\tAUDIO: cannot render text\n");
+    }
+    
+	text_surface = TTF_RenderText_Shaded( StatisticsFont, VideoStatsText, StatisticsColor, StatisticsBgColor );
+    if (text_surface != NULL)
+    {
+		VideoStatisticsRect.w = text_surface->w;
+		VideoStatisticsRect.h = text_surface->h;
+		VideoStatisticsRect.x = ((FullscreenMode?FullscreenWidth:window_width) - VideoStatisticsRect.w)>>1;
+		VideoStatisticsRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+(STATS_FONT_SIZE)+STATS_BOX_HEIGHT; // assegnazione ridondante ?
+
+        SDL_BlitSurface(text_surface, NULL, MainScreen, &VideoStatisticsRect);
+        SDL_FreeSurface(text_surface);
+    }
+    else
+    {
+        // report error
+        //printf("\tVIDEO: cannot render text\n");
+    }
+    
+    SDL_UpdateRect(MainScreen, VideoStatisticsRect.x, VideoStatisticsRect.y, VideoStatisticsRect.w, VideoStatisticsRect.h);
+	SDL_UpdateRect(MainScreen, AudioStatisticsRect.x, AudioStatisticsRect.y, AudioStatisticsRect.w, AudioStatisticsRect.h);
+	
 	SDL_UnlockMutex(OverlayMutex);
-	
-	tmpRect.w = tmpAudioSurface->w;
-	tmpRect.h = tmpAudioSurface->h;
-	tmpRect.x = ((FullscreenMode?FullscreenWidth:window_width) - tmpRect.w)>>1;
-	tmpRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+(STATS_FONT_SIZE<<1)+STATS_BOX_HEIGHT;
-	
-	SDL_LockMutex(OverlayMutex);
-	if(
-		(AudioStatisticsSurface != NULL)
-	)
-	{		
-		SDL_FillRect( MainScreen, &AudioStatisticsRect, SDL_MapRGB(MainScreen->format, 0, 0, 0) );
-		SDL_UpdateRects(MainScreen, 1, &AudioStatisticsRect);
-	}
-	
-	SDL_FreeSurface( AudioStatisticsSurface );
-	SDL_BlitSurface(tmpAudioSurface, NULL, MainScreen, &tmpRect);
-	SDL_UpdateRects(MainScreen, 1, &tmpRect);
-	SDL_UnlockMutex(OverlayMutex);
-	
-	AudioStatisticsSurface = tmpAudioSurface;
-	memcpy(&AudioStatisticsRect, &tmpRect, sizeof(SDL_Rect));
-	
-	// VIDEO
-	tmpVideoSurface = TTF_RenderText_Shaded( StatisticsFont, VideoStatsText, StatisticsColor, StatisticsBgColor );
-	if(tmpVideoSurface == NULL)
-	{
-		printf("WARNING: CANNOT PRINT STATS\n");
-		return;
-	}
-	
-	SDL_LockMutex(OverlayMutex);
-	SDL_UnlockMutex(OverlayMutex);
-	
-	tmpRect.w = tmpVideoSurface->w;
-	tmpRect.h = tmpVideoSurface->h;
-	tmpRect.x = ((FullscreenMode?FullscreenWidth:window_width) - tmpRect.w)>>1;
-	tmpRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+(STATS_FONT_SIZE)+STATS_BOX_HEIGHT;
-	
-	SDL_LockMutex(OverlayMutex);
-	if(
-		(VideoStatisticsSurface != NULL)
-	)
-	{
-		SDL_FillRect( MainScreen, &VideoStatisticsRect, SDL_MapRGB(MainScreen->format, 0, 0, 0) );
-		SDL_UpdateRects(MainScreen, 1, &VideoStatisticsRect);
-	}
-	
-	SDL_FreeSurface( VideoStatisticsSurface );
-	SDL_BlitSurface(tmpVideoSurface, NULL, MainScreen, &tmpRect);
-	SDL_UpdateRects(MainScreen, 1, &tmpRect);
-	SDL_UnlockMutex(OverlayMutex);
-	
-	VideoStatisticsSurface = tmpVideoSurface;
-	memcpy(&VideoStatisticsRect, &tmpRect, sizeof(SDL_Rect));
 }
 
 void ChunkerPlayerGUI_SetupOverlayRect(SChannel* channel)
