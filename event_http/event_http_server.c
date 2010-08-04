@@ -64,7 +64,6 @@ int ulEventHttpServerProcessRequest(struct evhttp_request *req, void *context) {
       path = strchr(path + strlen(UL_HTTP_PREFIX),'/'); //skip "http://host:port" part
     }
     debug("HTTP POST request is for path %s", path);
-    fprintf(stderr, "HTTP POST request is for path %s\n	", path);
 
     if(!strcmp(path, UL_DEFAULT_CHUNKBUFFER_PATH)) {
       //give back the data
