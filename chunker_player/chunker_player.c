@@ -21,6 +21,8 @@ int main(int argc, char *argv[])
 	P2PProcessID = -1;
 	NChannels = 0;
 	SelectedChannel = -1;
+	char firstChannelName[255];
+	int firstChannelIndex;
 	
 	memset((void*)Channels, 0, (MAX_CHANNELS_NUM*sizeof(SChannel)));
 
@@ -31,18 +33,19 @@ int main(int argc, char *argv[])
 
 	FILE *fp;
 		
-	if(argc<5) {
-		printf("chunker_player queue_thresh httpd_port silentMode LossTracesFilenameSuffix <YUVFilename>\n");
+	if(argc<6) {
+		printf("chunker_player queue_thresh httpd_port silentMode LossTracesFilenameSuffix ChannelName <YUVFilename>\n");
 		exit(1);
 	}
 	sscanf(argv[1],"%d",&queue_filling_threshold);
 	sscanf(argv[2],"%d",&HttpPort);
 	sscanf(argv[3],"%d",&SilentMode);
 	sscanf(argv[4],"%s",LossTracesFilename);
+	sscanf(argv[5],"%s",firstChannelName);
 	
-	if(argc==6)
+	if(argc==7)
 	{
-		sscanf(argv[5],"%s",YUVFileName);
+		sscanf(argv[6],"%s",YUVFileName);
 		printf("YUVFile: %s\n",YUVFileName);
 		fp=fopen(YUVFileName, "wb");
 		if(fp)
@@ -76,9 +79,19 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	
-	if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
-		fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
-		return -1;
+	if(!SilentMode)
+	{
+		if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
+			fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
+			return -1;
+		}
+	}
+	else
+	{
+		if(SDL_Init(SDL_INIT_TIMER)) {
+			fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
+			return -1;
+		}
 	}
 	
 	if(ParseConf())
@@ -87,13 +100,30 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	
+	firstChannelIndex = -1;
+	int it;
+	for(it = 0; it < NChannels; it++)
+	{
+		if(!strcmp(Channels[it].Title, firstChannelName))
+		{
+			firstChannelIndex = it;
+			break;
+		}
+	}
+	
+	if(firstChannelIndex < 0)
+	{
+		printf("Cannot find the specified channel (%s) into the configuration file (channels.conf), exiting\n");
+		exit(0);
+	}
+	
 	if(ChunkerPlayerGUI_Init())
 	{
 		printf("ERROR: Cannot init player gui, exit...\n");
 		exit(1);
 	}
 	
-	SelectedChannel = 0;
+	SelectedChannel = firstChannelIndex;
 	// KILLALL("offerstreamer-ml-monl-http-debug");
 	SwitchChannel(&(Channels[SelectedChannel]));
 	
@@ -296,7 +326,7 @@ int SwitchChannel(SChannel* channel)
 	char argv0[255], parameters_string[511];
 	sprintf(argv0, "%s", OfferStreamerFilename);
 	
-	sprintf(parameters_string, "%s %s %s %d %s %d", argv0, channel->LaunchString, "-P", (HttpPort+channel->Index), "-F", HttpPort);
+	sprintf(parameters_string, "%s %s %s %s %s %d %s %d", argv0, channel->LaunchString, "-C", channel->Title, "-P", (HttpPort+channel->Index), "-F", HttpPort);
 	
 	printf("EXECUTING %s\n", parameters_string);
 	

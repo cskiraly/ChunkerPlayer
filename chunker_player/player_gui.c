@@ -114,6 +114,9 @@ void SetVideoMode(int width, int height, int fullscreen)
 
 void ChunkerPlayerGUI_HandleResize(int resize_w, int resize_h)
 {
+	if(SilentMode)
+		return;
+		
 	// printf("ChunkerPlayerGUI_HandleResize(%d, %d)\n", resize_w, resize_h);
 	SetVideoMode(resize_w, resize_h, FullscreenMode?1:0);
 	
@@ -142,6 +145,9 @@ void ChunkerPlayerGUI_HandleResize(int resize_w, int resize_h)
 
 void ChunkerPlayerGUI_HandleGetFocus()
 {
+	if(SilentMode)
+		return;
+
 	RedrawButtons();
 	RedrawChannelName();
 	RedrawStats();
@@ -149,6 +155,9 @@ void ChunkerPlayerGUI_HandleGetFocus()
 
 void ChunkerPlayerGUI_HandleMouseMotion(int x, int y)
 {
+	if(SilentMode)
+		return;
+		
 	int i;
 	for(i=0; i<NBUTTONS; i++)
 	{
@@ -173,6 +182,9 @@ void ChunkerPlayerGUI_HandleMouseMotion(int x, int y)
 
 void ChunkerPlayerGUI_HandleLButton(int x, int y)
 {
+	if(SilentMode)
+		return;
+		
 	int i;
 	for(i=0; i<NBUTTONS; i++)
 	{
@@ -209,11 +221,6 @@ void ChunkerPlayerGUI_Close()
 	if(ChannelTitleSurface != NULL)
 		SDL_FreeSurface( ChannelTitleSurface );
 	
-	/*if(AudioStatisticsSurface != NULL)
-		SDL_FreeSurface( AudioStatisticsSurface );
-	if(VideoStatisticsSurface != NULL)
-		SDL_FreeSurface( VideoStatisticsSurface );*/
-	
 	TTF_CloseFont( MainFont );
 	TTF_CloseFont( StatisticsFont );
 	TTF_Quit();
@@ -222,6 +229,9 @@ void ChunkerPlayerGUI_Close()
 
 void RedrawButtons()
 {
+	if(SilentMode)
+		return;
+		
 	int i;
 	for(i=0; i<NBUTTONS; i++)
 	{
@@ -247,6 +257,9 @@ void RedrawButtons()
 
 void RedrawChannelName()
 {
+	if(SilentMode)
+		return;
+		
 	if(ChannelTitleSurface != NULL)
 	{
 		ChannelTitleRect.w = ChannelTitleSurface->w;
@@ -262,6 +275,9 @@ void RedrawChannelName()
 
 void ChunkerPlayerGUI_ToggleFullscreen()
 {
+	if(SilentMode)
+		return;
+		
 	int i;
 	//If the screen is windowed
 	if( !FullscreenMode )
@@ -576,6 +592,9 @@ void SetupGUI()
 
 void ChunkerPlayerGUI_SetChannelTitle(char* title)
 {
+	if(SilentMode)
+		return;
+		
 	SDL_LockMutex(OverlayMutex);
 	
 	SDL_FreeSurface( ChannelTitleSurface );
@@ -593,6 +612,9 @@ void ChunkerPlayerGUI_SetChannelTitle(char* title)
 
 void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text)
 {
+	if(SilentMode)
+		return;
+		
 	if(audio_text == NULL)
 		audio_text = AudioStatsText;
 	
@@ -613,6 +635,9 @@ void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text)
 
 void RedrawStats()
 {
+	if(SilentMode)
+		return;
+		
 	SDL_Surface *text_surface;
 
 	SDL_LockMutex(OverlayMutex);
