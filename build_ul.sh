@@ -322,3 +322,73 @@ else
 fi
 $MAKE clean
 ULPLAYER=$BASE_UL_DIR ULPLAYER_EXTERNAL_LIBS=$EXTERN_DIR LIBEVENT_DIR=$LOCAL_EVENT ML=1 STATIC=1 MONL=$MONL IO=$IO DEBUG= THREADS=$THREADS $MAKE
+
+#check if all is ok
+echo "============== RESULTS ==================="
+
+cd "$BASE_UL_DIR/chunker_streamer"
+if [ -f "chunker_streamer" ]; then
+	echo "chunker_streamer OK"
+	C_STREAMER_EXE=`ls -la chunker_streamer`
+	echo "$C_STREAMER_EXE"
+	#now we want the bare name
+	C_STREAMER_EXE=`ls chunker_streamer`
+else
+	echo "chunker_streamer FAIL"
+fi
+
+cd "$BASE_UL_DIR/chunker_player"
+if [ -f "chunker_player" ]; then
+	echo "chunker_player OK"
+	C_PLAYER_EXE=`ls -la chunker_player`
+	echo "$C_PLAYER_EXE"
+	#now we want the bare name
+	C_PLAYER_EXE=`ls chunker_player`
+else
+	echo "chunker_player FAIL"
+fi
+
+cd "$BASE_UL_DIR/../OfferStreamer"
+echo "Check if the http binary is among these offerstreamers:"
+ls -la offerstreamer* | grep -v ".o$"
+echo "Your UL-enabled offerstreamer should be..."
+O_TARGET_EXE=`ls offerstreamer* | grep -v ".o$" | grep $IO`
+echo "$O_TARGET_EXE"
+if [ -f "$O_TARGET_EXE" ]; then
+	echo "...and i found it."
+else
+	echo "...but sadly it appears build FAILED!."
+fi
+
+#packaging for distribution
+cd "$BASE_UL_DIR/chunker_player"
+if [ -f "$BASE_UL_DIR/../OfferStreamer/$O_TARGET_EXE" -a -f "$C_PLAYER_EXE" ]; then
+	echo "============== PACKAGING NAPAPLAYER ==================="
+	rm -f -r napaplayer
+	rm -f -r napaplayer.tar.gz
+	mkdir napaplayer
+	mkdir napaplayer/icons
+	cp icons/* napaplayer/icons/
+	cp channels.conf napaplayer/
+	cp napalogo*.bmp napaplayer/
+	cp *.ttf napaplayer/
+	cp "$C_PLAYER_EXE" napaplayer/
+	cp "$BASE_UL_DIR/../OfferStreamer/$O_TARGET_EXE" napaplayer/
+	cd napaplayer/
+	ln -s "$O_TARGET_EXE" ./offerstreamer
+	cd ..
+	tar cvfz napaplayer.tar.gz napaplayer
+	if [ -s "napaplayer.tar.gz" ]; then
+		#it has size>0. OK!
+		echo "Here is your napaplayer tarball. Enjoy!"
+		ls -la napaplayer.tar.gz
+	else
+		echo "Sorry something went wrong during packaging napaplayer."
+	fi
+else
+	echo ""
+	echo "Not packaging napaplayer since build failed."
+fi
+
+echo "Finished build UL script"
+
