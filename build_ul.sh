@@ -370,6 +370,7 @@ if [ -f "$BASE_UL_DIR/../OfferStreamer/$O_TARGET_EXE" -a -f "$C_PLAYER_EXE" ]; t
 	mkdir napaplayer/icons
 	cp icons/* napaplayer/icons/
 	cp channels.conf napaplayer/
+	cp README napaplayer/
 	cp napalogo*.bmp napaplayer/
 	cp *.ttf napaplayer/
 	cp "$C_PLAYER_EXE" napaplayer/
