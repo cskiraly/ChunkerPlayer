@@ -11,11 +11,11 @@
 #include "chunker_streamer.h"
 
 
-#define DEBUG_AUDIO_FRAMES
-#define DEBUG_VIDEO_FRAMES
+//#define DEBUG_AUDIO_FRAMES
+//#define DEBUG_VIDEO_FRAMES
 #define DEBUG_CHUNKER
-#define DEBUG_TIME
 #define DEBUG_ANOMALIES
+#define DEBUG_TIMESTAMPING
 
 #define MAX(a,b) ((a>b)?(a):(b))
 
@@ -98,6 +98,7 @@ int main(int argc, char *argv[]) {
 	//stuff needed to compute the right timestamps
 	short int FirstTimeAudio=1, FirstTimeVideo=1;
 	short int pts_anomalies_counter=0;
+	short int newtime_anomalies_counter=0;
 	long long newTime=0, newTime_audio=0, newTime_prev=0;
 	struct timeval lastAudioSent = {0, 0};
 	double ptsvideo1=0.0;
@@ -368,6 +369,15 @@ restart:
 			}
 		}
 
+		if(newtime_anomalies_counter > 50) { //just a random threshold
+			if(live_source) { //restart just in case of live source
+#ifdef DEBUG_ANOMALIES
+				fprintf(stderr, "READLOOP: too many NEGATIVE TIMESTAMPS anomalies. Restarting.\n");
+#endif
+				goto close;
+			}
+		}
+
 		// Is this a packet from the video stream?
 		if(packet.stream_index==videoStream)
 		{
@@ -464,13 +474,14 @@ restart:
 					if(frame->number>0) {
 						newTime = ((double)target_pts-ptsvideo1)*1000.0/((double)delta_video*(double)av_q2d(pFormatCtx->streams[videoStream]->r_frame_rate));
 					}
-#ifdef DEBUG_VIDEO_FRAMES
+#ifdef DEBUG_TIMESTAMPING
 					fprintf(stderr, "VIDEO: NEWTIMESTAMP %ld\n", newTime);
 #endif
 					if(newTime<0) {
 #ifdef DEBUG_VIDEO_FRAMES
 						fprintf(stderr, "VIDEO: SKIPPING FRAME\n");
 #endif
+						newtime_anomalies_counter++;
 						continue; //SKIP THIS FRAME, bad timestamp
 					}
 	
@@ -603,13 +614,14 @@ restart:
 					newTime_audio = newTime*1000;
 					
 				}
-#ifdef DEBUG_AUDIO_FRAMES
+#ifdef DEBUG_TIMESTAMPING
 				fprintf(stderr, "AUDIO: NEWTIMESTAMP %d\n", newTime);
 #endif
 				if(newTime<0) {
 #ifdef DEBUG_AUDIO_FRAMES
 					fprintf(stderr, "AUDIO: SKIPPING FRAME\n");
 #endif
+					newtime_anomalies_counter++;
 					continue; //SKIP THIS FRAME, bad timestamp
 				}
 
@@ -685,6 +697,7 @@ restart:
 		}
 	}
 
+close:
 	if(chunk->seq != 0 && chunk->frames_num>0) {
 		//SAVE ON FILE
 		//saveChunkOnFile(chunk);
@@ -744,6 +757,7 @@ restart:
 		FirstTimeAudio=1;
 		FirstTimeVideo=1;
 		pts_anomalies_counter=0;
+		newtime_anomalies_counter=0;
 		newTime=0;
 		newTime_audio=0;
 		newTime_prev=0;
