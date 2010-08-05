@@ -52,8 +52,9 @@
 //#define DEBUG_AUDIO
 //#define DEBUG_VIDEO
 #define DEBUG_QUEUE
+//#define DEBUG_QUEUE_DEEP
 //#define DEBUG_SOURCE
-//#define DEBUG_STATS
+#define DEBUG_STATS
 //#define DEBUG_AUDIO_BUFFER
 //#define DEBUG_CHUNKER
 

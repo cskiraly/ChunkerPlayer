@@ -13,7 +13,7 @@ void UpdateLossTraces(int type, int first_lost, int n_lost);
 void PacketQueueInit(PacketQueue *q, short int Type)
 {
 #ifdef DEBUG_QUEUE
-	printf("QUEUE: INIT BEGIN: NPackets=%d Type=%d\n", q->nb_packets, q->queueType);
+	printf("QUEUE: INIT BEGIN: NPackets=%d Type=%s\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
 #endif
 	memset(q,0,sizeof(PacketQueue));
 	q->mutex = SDL_CreateMutex();
@@ -29,7 +29,7 @@ void PacketQueueInit(PacketQueue *q, short int Type)
 	FirstTime = 1;
 	FirstTimeAudio = 1;
 #ifdef DEBUG_QUEUE
-	printf("QUEUE: INIT END: NPackets=%d Type=%d\n", q->nb_packets, q->queueType);
+	printf("QUEUE: INIT END: NPackets=%d Type=%s\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
 #endif
 }
 
@@ -37,7 +37,7 @@ void PacketQueueReset(PacketQueue *q)
 {
 	AVPacketList *tmp,*tmp1;
 #ifdef DEBUG_QUEUE
-	printf("QUEUE: RESET BEGIN: NPackets=%d Type=%d LastExtr=%d\n", q->nb_packets, q->queueType, q->last_frame_extracted);
+	printf("QUEUE: RESET BEGIN: NPackets=%d Type=%s LastExtr=%d\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->last_frame_extracted);
 #endif
 	SDL_LockMutex(q->mutex);
 
@@ -70,7 +70,7 @@ void PacketQueueReset(PacketQueue *q)
 	FirstTime = 1;
 	FirstTimeAudio = 1;
 #ifdef DEBUG_QUEUE
-	printf("QUEUE: RESET END: NPackets=%d Type=%d LastExtr=%d\n", q->nb_packets, q->queueType, q->last_frame_extracted);
+	printf("QUEUE: RESET END: NPackets=%d Type=%s LastExtr=%d\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->last_frame_extracted);
 #endif
 	SDL_UnlockMutex(q->mutex);
 }
@@ -82,7 +82,7 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 
 	if(q->nb_packets > queue_filling_threshold*QUEUE_MAX_GROW_FACTOR) {
 #ifdef DEBUG_QUEUE
-		printf("QUEUE: PUT i have TOO MANY packets %d Type=%d, RESETTING\n", q->nb_packets, q->queueType);
+		printf("QUEUE: PUT i have TOO MANY packets %d Type=%s, RESETTING\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
 #endif
 		PacketQueueReset(q);
   }
@@ -90,7 +90,7 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 	//make a copy of the incoming packet
 	if(av_dup_packet(pkt) < 0) {
 #ifdef DEBUG_QUEUE
-		printf("QUEUE: PUT in Queue cannot duplicate in packet	: NPackets=%d Type=%d\n",q->nb_packets, q->queueType);
+		printf("QUEUE: PUT in Queue cannot duplicate in packet	: NPackets=%d Type=%s\n",q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
 #endif
 		return -1;
 	}
@@ -485,7 +485,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 	SDL_LockMutex(q->mutex);
 
 #ifdef DEBUG_QUEUE
-	printf("QUEUE: Get NPackets=%d Type=%d\n", q->nb_packets, q->queueType);
+	printf("QUEUE: Get NPackets=%d Type=%s\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
 #endif
 
 	if((q->queueType==AUDIO && QueueFillingMode) || QueueStopped)
@@ -500,7 +500,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 		if(pkt1) { //yes we have them!
 			if(pkt1->pkt.size-AudioQueueOffset > dimAudioQ) {
 				//one packet if enough to give us the requested number of bytes by the audio_callback
-#ifdef DEBUG_QUEUE
+#ifdef DEBUG_QUEUE_DEEP
 				printf("  AV=1 and Extract from the same packet\n");
 #endif
 				pkt->size = dimAudioQ;
@@ -511,7 +511,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 				pkt->flags = 1;
 				pkt->pos = -1;
 				pkt->convergence_duration = -1;
-#ifdef DEBUG_QUEUE
+#ifdef DEBUG_QUEUE_DEEP
 				printf("   Adjust timestamps Old = %lld New = %lld\n", pkt1->pkt.dts, (int64_t)(pkt1->pkt.dts + deltaAudioQ + deltaAudioQError));
 #endif
 				int64_t Olddts=pkt1->pkt.dts;
@@ -519,7 +519,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 				pkt1->pkt.pts += deltaAudioQ + deltaAudioQError;
 				deltaAudioQError=(float)Olddts + deltaAudioQ + deltaAudioQError - (float)pkt1->pkt.dts;
 				AudioQueueOffset += dimAudioQ;
-#ifdef DEBUG_QUEUE
+#ifdef DEBUG_QUEUE_DEEP
 				printf("   deltaAudioQError = %f\n",deltaAudioQError);
 #endif
 				//update overall state of queue
@@ -540,14 +540,14 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 			}
 			else {
 				//we need bytes from two consecutive packets to satisfy the audio_callback
-#ifdef DEBUG_QUEUE
+#ifdef DEBUG_QUEUE_DEEP
 				printf("  AV = 1 and Extract from 2 packets\n");
 #endif
 				//check for a valid next packet since we will finish the current packet
 				//and also take some bytes from the next one
 				pkt1->next = SeekAndDecodePacketStartingFrom(pkt1->next, q);
 				if(pkt1->next) {
-#ifdef DEBUG_QUEUE
+#ifdef DEBUG_QUEUE_DEEP
 					printf("   we have a next...\n");
 #endif
 					pkt->size = dimAudioQ;
@@ -559,7 +559,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 					pkt->convergence_duration = -1;
 					{
 						SizeToCopy=pkt1->pkt.size-AudioQueueOffset;
-#ifdef DEBUG_QUEUE
+#ifdef DEBUG_QUEUE_DEEP
 						printf("      SizeToCopy=%d\n",SizeToCopy);
 #endif
 						memcpy(pkt->data, pkt1->pkt.data+AudioQueueOffset, SizeToCopy);
@@ -585,7 +585,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 					pkt1->pkt.dts += Offset + deltaAudioQError;
 					pkt1->pkt.pts += Offset + deltaAudioQError;
 					deltaAudioQError = (float)LastDts + (float)Offset + deltaAudioQError - (float)pkt1->pkt.dts;
-#ifdef DEBUG_QUEUE
+#ifdef DEBUG_QUEUE_DEEP
 					printf("   Adjust timestamps Old = %lld New = %lld\n", LastDts, pkt1->pkt.dts);
 #endif
 					AudioQueueOffset = dimAudioQ - SizeToCopy;
@@ -596,7 +596,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 				else {
 					AudioQueueOffset=0;
 				}
-#ifdef DEBUG_QUEUE
+#ifdef DEBUG_QUEUE_DEEP
 				printf("   deltaAudioQError = %f\n",deltaAudioQError);
 #endif
 				//update index of last frame extracted
@@ -607,7 +607,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 	else { //somebody requested a video packet, q is the video queue
 		pkt1 = q->first_pkt;
 		if(pkt1) {
-#ifdef DEBUG_QUEUE
+#ifdef DEBUG_QUEUE_DEEP
 			printf("  AV not 1\n");
 #endif
 			pkt->size = pkt1->pkt.size;
@@ -644,8 +644,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 #endif
 	}
 #ifdef DEBUG_QUEUE
-	printf("QUEUE: Get LastFrameExtracted = %d\n",q->last_frame_extracted);
-	printf("QUEUE: Get Tot lost frames = %d\n",q->total_lost_frames);
+	printf("QUEUE: Get Last %s Frame Extracted = %d\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->last_frame_extracted);
 #endif
 
 	SDL_UnlockMutex(q->mutex);
