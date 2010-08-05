@@ -226,11 +226,11 @@ int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short i
 	wanted_spec.samples = SDL_AUDIO_BUFFER_SIZE;
 	wanted_spec.callback = AudioCallback;
 	wanted_spec.userdata = aCodecCtx;
-	if(!SilentMode)
-		if(SDL_OpenAudio(&wanted_spec,&AudioSpecification)<0) {
-			fprintf(stderr,"SDL_OpenAudio: %s\n",SDL_GetError());
-			return -1;
-		}
+	if(SDL_OpenAudio(&wanted_spec,&AudioSpecification)<0)
+	{
+		fprintf(stderr,"SDL_OpenAudio: %s\n",SDL_GetError());
+		return -1;
+	}
 	dimAudioQ = AudioSpecification.size;
 	deltaAudioQ = (float)((float)AudioSpecification.samples)*1000/AudioSpecification.freq;
 
@@ -976,11 +976,13 @@ void AudioCallback(void *userdata, Uint8 *stream, int len)
 	static uint8_t audio_buf[AVCODEC_MAX_AUDIO_FRAME_SIZE];
 
 	audio_size = AudioDecodeFrame(audio_buf, sizeof(audio_buf));
-	if(audio_size != len) {
-		memset(stream, 0, len);
-	} else {
-		memcpy(stream, (uint8_t *)audio_buf, len);
-	}
+	
+	if(!SilentMode)
+		if(audio_size != len) {
+			memset(stream, 0, len);
+		} else {
+			memcpy(stream, (uint8_t *)audio_buf, len);
+		}
 }
 
 void SaveFrame(AVFrame *pFrame, int width, int height)
