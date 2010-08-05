@@ -33,6 +33,11 @@ if [ "$LOCAL_BZ2_A" = "" ]; then
 	fi
 else
 	LOCAL_BZ2=`dirname $LOCAL_BZ2_A`/..
+	if [ ! -e "$LOCAL_BZ2/lib/libbz2.a" ]; then
+		#wrong location and/or folders structure
+		LOCAL_BZ2=""
+		BUILD_BZ2=1
+	fi
 fi
 
 #try to find libz in your system
@@ -48,6 +53,11 @@ if [ "$LOCAL_Z_A" = "" ]; then
 	fi
 else
 	LOCAL_Z=`dirname $LOCAL_Z_A`/..
+	if [ ! -e "$LOCAL_Z/lib/libz.a" ]; then
+		#wrong location and/or folders structure
+		LOCAL_Z=""
+		BUILD_Z=1
+	fi
 fi
 
 #clean all external libraries if CLEAN_EXTERNAL_BUILD=1
