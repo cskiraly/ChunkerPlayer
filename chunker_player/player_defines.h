@@ -1,6 +1,9 @@
 #ifndef _CHUNKER_PLAYER_DEFINES_H
 #define _CHUNKER_PLAYER_DEFINES_H
 
+
+#include "codec_definitions.h"
+
 #define PLAYER_FAIL_RETURN -1
 #define PLAYER_OK_RETURN 0
 
@@ -49,13 +52,14 @@
 
 #define RESTORE_SCREEN_ON_ZAPPING
 
-//#define DEBUG_AUDIO
-//#define DEBUG_VIDEO
+#define DEBUG_AUDIO
+#define DEBUG_VIDEO
 #define DEBUG_QUEUE
 //#define DEBUG_QUEUE_DEEP
 //#define DEBUG_SOURCE
 #define DEBUG_STATS
 //#define DEBUG_AUDIO_BUFFER
 //#define DEBUG_CHUNKER
+
 
 #endif // _CHUNKER_PLAYER_DEFINES_H

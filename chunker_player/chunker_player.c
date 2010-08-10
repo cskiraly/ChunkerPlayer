@@ -5,7 +5,6 @@
 #include "player_defines.h"
 #include <confuse.h>
 #include "http_default_urls.h"
-#include "codec_definitions.h"
 #include "player_defines.h"
 #include "chunker_player.h"
 #include "player_gui.h"
