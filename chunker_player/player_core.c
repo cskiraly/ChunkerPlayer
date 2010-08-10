@@ -167,7 +167,7 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 #endif
 	}
 */
-	// minus one means no lost frames estimation
+	// minus one means no lost frames estimation, useless during QueuePut operations
 	UpdateQueueStats(q, -1);
 
 	SDL_UnlockMutex(q->mutex);
@@ -381,16 +381,16 @@ void UpdateQueueStats(PacketQueue *q, int packet_index)
 	if(q->last_pkt == NULL)
 		return;
 	
-	if(q->last_pkt->pkt.stream_index > q->first_pkt->pkt.stream_index)
+	if(q->last_pkt->pkt.stream_index >= q->first_pkt->pkt.stream_index)
 	{
-		q->density = (double)q->nb_packets / (double)(q->last_pkt->pkt.stream_index - q->first_pkt->pkt.stream_index) * 100.0;
+		q->density = (double)q->nb_packets / (double)(q->last_pkt->pkt.stream_index - q->first_pkt->pkt.stream_index + 1) * 100.0; //plus 1 because if they are adjacent (difference 1) there really should be 2 packets in the queue
 	}
 	
 #ifdef DEBUG_STATS
 	if(q->queueType == AUDIO)
-		printf("STATS: AUDIO QUEUE DENSITY percentage %f\n", q->density);
+		printf("STATS: AUDIO QUEUE DENSITY percentage %f, last %d, first %d, pkts %d\n", q->density, q->last_pkt->pkt.stream_index, q->first_pkt->pkt.stream_index, q->nb_packets);
 	if(q->queueType == VIDEO)
-		printf("STATS: VIDEO QUEUE DENSITY percentage %f\n", q->density);
+		printf("STATS: VIDEO QUEUE DENSITY percentage %f, last %d, first %d, pkts %d\n", q->density, q->last_pkt->pkt.stream_index, q->first_pkt->pkt.stream_index, q->nb_packets);
 #endif
 	
 	if(!last_print)
@@ -437,12 +437,12 @@ void UpdateQueueStats(PacketQueue *q, int packet_index)
 		char stats[255];
 		if(q->queueType == AUDIO)
 		{
-			sprintf(stats, "[AUDIO] queue density: %d --- lost_frames/sec: %d --- total_lost_frames: %d", (int)q->density, q->instant_lost_frames, q->total_lost_frames);
+			sprintf(stats, "[AUDIO] queue density: %d\%% --- lost_frames/sec: %d --- total_lost_frames: %d", (int)q->density, q->instant_lost_frames, q->total_lost_frames);
 			ChunkerPlayerGUI_SetStatsText(stats, NULL);
 		}
 		else if(q->queueType == VIDEO)
 		{
-			sprintf(stats, "[VIDEO] queue density: %d --- lost_frames/sec: %d --- total_lost_frames: %d", (int)q->density, q->instant_lost_frames, q->total_lost_frames);
+			sprintf(stats, "[VIDEO] queue density: %d%% --- lost_frames/sec: %d --- total_lost_frames: %d", (int)q->density, q->instant_lost_frames, q->total_lost_frames);
 			ChunkerPlayerGUI_SetStatsText(NULL, stats);
 		}
 		
@@ -774,8 +774,8 @@ int VideoCallback(void *valthread)
 	pCodecCtx->codec_id  = CODEC_ID_H264;
 	pCodecCtx->me_range = 16;
 	pCodecCtx->max_qdiff = 4;
-	pCodecCtx->qmin = 10;
-	pCodecCtx->qmax = 51;
+	pCodecCtx->qmin = 1;
+	pCodecCtx->qmax = 30;
 	pCodecCtx->qcompress = 0.6;
 #else
 	pCodecCtx->codec_id  = CODEC_ID_MPEG4;
