@@ -183,8 +183,8 @@ restart:
 #ifdef H264_VIDEO_ENCODER
 	pCodecCtxEnc->me_range=16;
 	pCodecCtxEnc->max_qdiff=4;
-	pCodecCtxEnc->qmin=10;
-	pCodecCtxEnc->qmax=51;
+	pCodecCtxEnc->qmin=1;
+	pCodecCtxEnc->qmax=30;
 	pCodecCtxEnc->qcompress=0.6;
 	pCodecCtxEnc->codec_type = CODEC_TYPE_VIDEO;
 	pCodecCtxEnc->codec_id   = CODEC_ID_H264;//13;//pCodecCtx->codec_id;
@@ -194,27 +194,30 @@ restart:
 	pCodecCtxEnc->height = pCodecCtx->height;
 	// frames per second 
 	pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
-	pCodecCtxEnc->gop_size = 10; // emit one intra frame every ten frames 
+	pCodecCtxEnc->gop_size = 100; // emit one intra frame every ten frames 
 	//pCodecCtxEnc->max_b_frames=1;
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
 
-	pCodecCtxEnc->bit_rate_tolerance = video_bitrate;
-	pCodecCtxEnc->rc_min_rate = 0;
-	pCodecCtxEnc->rc_max_rate = 0;
-	pCodecCtxEnc->rc_buffer_size = 0;
-	pCodecCtxEnc->flags |= CODEC_FLAG_PSNR;
-	pCodecCtxEnc->partitions = X264_PART_I4X4 | X264_PART_I8X8 | X264_PART_P8X8 | X264_PART_P4X4 | X264_PART_B8X8;
-	pCodecCtxEnc->crf = 0.0f;
+	pCodecCtxEnc->bit_rate_tolerance = video_bitrate*50;
+//	pCodecCtxEnc->rc_min_rate = 0;
+//	pCodecCtxEnc->rc_max_rate = 0;
+//	pCodecCtxEnc->rc_buffer_size = 0;
+//	pCodecCtxEnc->flags |= CODEC_FLAG_PSNR;
+//	pCodecCtxEnc->partitions = X264_PART_I4X4 | X264_PART_I8X8 | X264_PART_P8X8 | X264_PART_P4X4 | X264_PART_B8X8;
+//	pCodecCtxEnc->crf = 0.0f;
 
 #else
 	pCodecCtxEnc->codec_type = CODEC_TYPE_VIDEO;
 	pCodecCtxEnc->codec_id   = CODEC_ID_MPEG4;
 	pCodecCtxEnc->bit_rate = video_bitrate;
+	//times 20 follows the defaults, was not needed in previous versions of libavcodec
+	pCodecCtxEnc->bit_rate_tolerance = video_bitrate*20;
+//	pCodecCtxEnc->crf = 20.0f;
 	pCodecCtxEnc->width = pCodecCtx->width;
 	pCodecCtxEnc->height = pCodecCtx->height;
 	// frames per second 
 	pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
-	pCodecCtxEnc->gop_size = 10; // emit one intra frame every ten frames 
+	pCodecCtxEnc->gop_size = 100; // emit one intra frame every ten frames 
 	//pCodecCtxEnc->max_b_frames=1;
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
 #endif
