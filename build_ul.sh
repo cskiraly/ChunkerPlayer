@@ -5,6 +5,11 @@ EXTERN_DIR="external_libs"
 MAKE="make -j 4"
 cd "$BASE_UL_DIR"
 
+#set some defaults
+IO=${IO:-"httpevent"}
+MONL=${MONL:-1}
+ML=${ML:-1}
+
 #by default build an check
 BUILD_ALL=1
 
