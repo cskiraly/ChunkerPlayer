@@ -2,7 +2,7 @@
 SCRIPT=$(readlink -f $0)
 BASE_UL_DIR=`dirname $SCRIPT`
 EXTERN_DIR="external_libs"
-MAKE="make -j 4"
+MAKE="make -j `grep processor /proc/cpuinfo | wc -l`"
 cd "$BASE_UL_DIR"
 
 #set some defaults
