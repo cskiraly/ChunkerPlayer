@@ -6,7 +6,8 @@
 CFLAGS = -pthread -g -O0 -Wall
 CFLAGS += -DHAVE_OPENGL -Wl,--warn-common -Wl,--as-needed -Wl,-Bsymbolic
 CPPFLAGS += -I../chunk_transcoding -I../
-DYNAMIC_LDLIBS += -lm -lpthread
+LDFLAGS += -pthread
+DYNAMIC_LDLIBS += -lm
 
 #default fmmpeg here
 LOCAL_FFMPEG_CPPFLAGS = -I$(LOCAL_FFMPEG)/include
