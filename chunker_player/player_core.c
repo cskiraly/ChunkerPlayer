@@ -1069,7 +1069,6 @@ void ChunkerPlayerCore_ResetAVQueues()
 int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 {
 	Chunk *gchunk = NULL;
-	ExternalChunk *echunk = NULL;
 	int decoded_size = -1;
 	uint8_t *tempdata, *buffer;
 	int j;
@@ -1108,32 +1107,21 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 		return PLAYER_FAIL_RETURN;
 	}
 
-	echunk = grapesChunkToExternalChunk(gchunk);
-	if(echunk == NULL) {
-		printf("Memory error in echunk!\n");
-		free(gchunk->attributes);
-		free(gchunk->data);
-		free(gchunk);
-		return PLAYER_FAIL_RETURN;
-	}
-	free(gchunk->attributes);
-	free(gchunk);
-
 	frame = (Frame *)malloc(sizeof(Frame));
 	if(!frame) {
 		printf("Memory error in Frame!\n");
-		if(gchunk->attributes)
-			free(gchunk->attributes);
-		if(echunk->data)
-			free(echunk->data);
-		if(echunk)
-			free(echunk);
+		if(gchunk) {
+			if(gchunk->attributes) {
+				free(gchunk->attributes);
+			}
+			free(gchunk);
+		}
 		av_free(audio_bufQ);
 		return PLAYER_FAIL_RETURN;
 	}
 
-	tempdata = echunk->data; //let it point to first frame of payload
-	j=echunk->payload_len;
+	tempdata = gchunk->data; //let it point to first frame of payload
+	j=gchunk->size;
 	while(j>0 && !quit) {
 		frame->number = bit32_encoded_pull(tempdata);
 		tempdata += CHUNK_TRANSCODING_INT_SIZE;
@@ -1197,10 +1185,13 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 		}
 	}
 	//chunk ingestion terminated!
-	if(echunk->data)
-		free(echunk->data);
-	if(echunk)
-		free(echunk);
+
+	if(gchunk) {
+		if(gchunk->attributes) {
+			free(gchunk->attributes);
+		}
+		free(gchunk);
+	}
 	if(frame)
 		free(frame);
 	if(audio_bufQ)
