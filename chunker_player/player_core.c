@@ -1098,7 +1098,7 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 #ifdef DEBUG_CHUNKER
 	printf("CHUNKER: enqueueBlock: decoded_size %d target size %d\n", decoded_size, GRAPES_ENCODED_CHUNK_HEADER_SIZE + ExternalChunk_header_size + gchunk->size);
 #endif
-  if(decoded_size < 0 || decoded_size != GRAPES_ENCODED_CHUNK_HEADER_SIZE + ExternalChunk_header_size + gchunk->size) {
+  if(decoded_size < 0) {
 		//HINT here i should differentiate between various return values of the decode
 		//in order to free what has been allocated there
 		printf("chunk probably corrupted!\n");

@@ -70,7 +70,7 @@ int enqueueBlock(const uint8_t *block, const int block_size) {
 
   decoded_size = decodeChunk(gchunk, block, block_size);
 
-  if(decoded_size < 0 || decoded_size != GRAPES_ENCODED_CHUNK_HEADER_SIZE + ExternalChunk_header_size + gchunk->size) {
+  if(decoded_size < 0) {
 	    fprintf(stderr, "chunk %d probably corrupted!\n", gchunk->id);
 		return -1;
 	}
