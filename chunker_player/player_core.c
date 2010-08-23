@@ -107,7 +107,7 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 
 	// INSERTION SORT ALGORITHM
 	// before inserting pkt, check if pkt.stream_index is <= current_extracted_frame.
-//	if(pkt->stream_index > q->last_frame_extracted) {
+	if(pkt->stream_index > q->last_frame_extracted) {
 		// either checking starting from the first_pkt or needed other struct like AVPacketList with next and prev....
 		//if (!q->last_pkt)
 		if(!q->first_pkt) {
@@ -157,8 +157,8 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 #endif
 			}
 		}
-//	}
-/*
+	}
+
 	else {
 		av_free_packet(&pkt1->pkt);
 		av_free(pkt1);
@@ -166,7 +166,7 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 				printf("QUEUE: PUT: NOT inserting because index %d > last extracted %d\n", pkt->stream_index, q->last_frame_extracted);
 #endif
 	}
-*/
+
 	// minus one means no lost frames estimation, useless during QueuePut operations
 	UpdateQueueStats(q, -1);
 
