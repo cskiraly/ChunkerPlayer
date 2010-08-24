@@ -13,10 +13,9 @@ extern ChunkerMetadata *cmeta;
 
 
 int pushChunkHttp(ExternalChunk *echunk, char *url) {
+
 	Chunk gchunk;
 	void *grapes_chunk_attributes_block = NULL;
-	int ts1e3 = 0.0;
-	int tus3e1 = 0.0;
 	int ret = STREAMER_FAIL_RETURN;
 	//we need to pack 5 int32s + 2 timeval structs + 1 double
 	static size_t ExternalChunk_header_size = 5*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 1*CHUNK_TRANSCODING_INT_SIZE*2;
@@ -26,15 +25,13 @@ int pushChunkHttp(ExternalChunk *echunk, char *url) {
 
 	/* first pack the chunk info that we get from the streamer into an "attributes" block of a regular GRAPES chunk */
 	if(	(grapes_chunk_attributes_block = packExternalChunkToAttributes(echunk, ExternalChunk_header_size)) != NULL ) {
+		struct timeval now;
+
 		/* then fill-up a proper GRAPES chunk */
 		gchunk.size = echunk->payload_len;
-		/* convert external_chunk start_time in milliseconds and put it in grapes chunk */
-		ts1e3 = (int)(echunk->start_time.tv_sec*1e3);
-		//tus3e1 = (int)(echunk->start_time.tv_usec/1e3); ALREADY IN MILLI SECONDS
-		gchunk.timestamp = ts1e3+(int)(echunk->start_time.tv_usec);
-#ifdef DEBUG_PUSHER
-			fprintf(stderr, "PUSHER: start sec %d usec %d timestamp %ld\n", ts1e3, (int)(echunk->start_time.tv_usec), gchunk.timestamp);
-#endif
+		/* then fill the timestamp */
+		gettimeofday(&now, NULL);
+		gchunk.timestamp = now.tv_sec * 1000000ULL + now.tv_usec;
 
 		//decide how to create the chunk ID
 		if(cmeta->cid == 0) {
