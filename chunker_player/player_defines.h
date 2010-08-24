@@ -15,7 +15,8 @@
 #define AUDIO	1
 #define VIDEO	2
 #define QUEUE_MAX_GROW_FACTOR 2
-#define LOSS_HISTORY_MAX_SIZE 100
+#define LOSS_HISTORY_MAX_SIZE 400
+#define CHANNEL_SCORE_HISTORY_SIZE 1000
 
 #define FULLSCREEN_ICON_FILE "icons/fullscreen32.png"
 #define NOFULLSCREEN_ICON_FILE "icons/nofullscreen32.png"
@@ -52,14 +53,15 @@
 
 #define RESTORE_SCREEN_ON_ZAPPING
 
-#define DEBUG_AUDIO
-#define DEBUG_VIDEO
-#define DEBUG_QUEUE
+//#define DEBUG_AUDIO
+//#define DEBUG_VIDEO
+//#define DEBUG_QUEUE
 //#define DEBUG_QUEUE_DEEP
 //#define DEBUG_SOURCE
 #define DEBUG_STATS
+#define DEBUG_STATS_DEEP
 //#define DEBUG_AUDIO_BUFFER
-//#define DEBUG_CHUNKER
+#define DEBUG_CHUNKER
 
 
 #endif // _CHUNKER_PLAYER_DEFINES_H

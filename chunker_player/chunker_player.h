@@ -15,6 +15,13 @@ typedef struct SChannel
 	int SampleRate;
 	short int AudioChannels;
 	int Index;
+	//quality related info
+	double instant_score; //updated continuously
+	double average_score; //updated on a long term time window (i.e. 2 minutes)
+	double score_history[CHANNEL_SCORE_HISTORY_SIZE];
+	int history_index;
+	char quality[255];
+	int startTime;
 } SChannel;
 
 SDL_mutex *OverlayMutex;

@@ -9,6 +9,8 @@ int VideoCallback(void *valthread);
 void AudioCallback(void *userdata, Uint8 *stream, int len);
 void UpdateQueueStats(PacketQueue *q, int packet_index);
 void UpdateLossTraces(int type, int first_lost, int n_lost);
+int UpdateQualityEvaluation(double instant_lost_frames, double instant_skips, int do_update);
+void PacketQueueCleanStats(PacketQueue *q);
 
 void PacketQueueInit(PacketQueue *q, short int Type)
 {
@@ -21,6 +23,10 @@ void PacketQueueInit(PacketQueue *q, short int Type)
 	q->queueType=Type;
 	q->last_frame_extracted = -1;
 	q->total_lost_frames = 0;
+	q->instant_lost_frames = 0;
+	q->total_skips = 0;
+	q->last_skips = 0;
+	q->instant_skips = 0;
 	q->first_pkt= NULL;
 	//q->last_pkt = NULL;
 	q->nb_packets = 0;
@@ -28,6 +34,8 @@ void PacketQueueInit(PacketQueue *q, short int Type)
 	q->density= 0.0;
 	FirstTime = 1;
 	FirstTimeAudio = 1;
+	//init up statistcs
+	PacketQueueCleanStats(q);
 #ifdef DEBUG_QUEUE
 	printf("QUEUE: INIT END: NPackets=%d Type=%s\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
 #endif
@@ -58,7 +66,6 @@ void PacketQueueReset(PacketQueue *q)
 
 	QueueFillingMode=1;
 	q->last_frame_extracted = -1;
-	
 	// on queue reset do not reset loss count
 	// (loss count reset is done on queue init, ie channel switch)
 	// q->total_lost_frames = 0;
@@ -69,10 +76,28 @@ void PacketQueueReset(PacketQueue *q)
 	q->size = 0;
 	FirstTime = 1;
 	FirstTimeAudio = 1;
+	//clean up statistcs
+	PacketQueueCleanStats(q);
 #ifdef DEBUG_QUEUE
 	printf("QUEUE: RESET END: NPackets=%d Type=%s LastExtr=%d\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->last_frame_extracted);
 #endif
 	SDL_UnlockMutex(q->mutex);
+}
+
+void PacketQueueCleanStats(PacketQueue *q) {
+	int i=0;
+	for(i=0; i<LOSS_HISTORY_MAX_SIZE; i++) {
+		q->skip_history[i] = -1;
+		q->loss_history[i] = -1;
+	}
+	q->loss_history_index = 0;
+	q->skip_history_index = 0;
+	q->instant_skips = 0.0;
+	q->instant_lost_frames = 0.0;
+	q->instant_window_size = 50; //averaging window size, self-correcting based on window_seconds
+	q->instant_window_size_target = 0;
+	q->instant_window_seconds = 1; //we want to compute number of events in a 1sec wide window
+	q->last_window_size_update = 0;
 }
 
 int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
@@ -371,83 +396,315 @@ AVPacketList *SeekAndDecodePacketStartingFrom(AVPacketList *p, PacketQueue *q)
 
 void UpdateQueueStats(PacketQueue *q, int packet_index)
 {
-	static int N = 50;
+	//remember that all static variables are shared betwee audio and video queues!!
 	static int last_print = 0;
-	
+
+	//used as flag also (0 means dont update quality estimation average)
+	int update_quality_avg = 0;
+	int i;
+
 	if(q == NULL)
 		return;
 	if(q->first_pkt == NULL)
 		return;
 	if(q->last_pkt == NULL)
 		return;
-	
+
+	int now = time(NULL);
+	if(!last_print)
+		last_print = now;
+	if(!q->last_window_size_update)
+		q->last_window_size_update = now;
+
+	//calculate the queue density both in case of QueuePut and QueueGet
 	if(q->last_pkt->pkt.stream_index >= q->first_pkt->pkt.stream_index)
 	{
 		q->density = (double)q->nb_packets / (double)(q->last_pkt->pkt.stream_index - q->first_pkt->pkt.stream_index + 1) * 100.0; //plus 1 because if they are adjacent (difference 1) there really should be 2 packets in the queue
 	}
-	
 #ifdef DEBUG_STATS
 	if(q->queueType == AUDIO)
 		printf("STATS: AUDIO QUEUE DENSITY percentage %f, last %d, first %d, pkts %d\n", q->density, q->last_pkt->pkt.stream_index, q->first_pkt->pkt.stream_index, q->nb_packets);
 	if(q->queueType == VIDEO)
 		printf("STATS: VIDEO QUEUE DENSITY percentage %f, last %d, first %d, pkts %d\n", q->density, q->last_pkt->pkt.stream_index, q->first_pkt->pkt.stream_index, q->nb_packets);
 #endif
-	
-	if(!last_print)
-		last_print = time(NULL);
-		
-	int now = time(NULL);
-	int lost_frames = 0;
-	
+
+	//adjust the sliding window_size according to the elapsed time
+	update_quality_avg = 0;
+	//dynamically self-adjust the instant_window_size based on the time passing
+	//to match it at our best, since we have no separate thread to count time
+	if((now - q->last_window_size_update) >= q->instant_window_seconds) {
+		int i = 0;
+		//if window is enlarged, erase old samples
+		for(i=q->instant_window_size; i<q->instant_window_size_target; i++) {
+			q->skip_history[i] = -1;
+			q->loss_history[i] = -1;
+		}
+#ifdef DEBUG_STATS
+		printf("STATS: %s WINDOW_SIZE instant set from %d to %d\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->instant_window_size, q->instant_window_size_target);
+#endif
+		q->instant_window_size = q->instant_window_size_target;
+		if(q->instant_window_size == 0) { //in case of anomaly reset to default
+			q->instant_window_size = 50;
+			printf("STATS: %s WINDOW_SIZE instant anomaly reset to default %d\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->instant_window_size);
+		}
+		if(q->instant_window_size > LOSS_HISTORY_MAX_SIZE) {
+			printf("ERROR: %s instant_window size updated to %d, which is more than the max of %d. Exiting.\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->instant_window_size, LOSS_HISTORY_MAX_SIZE);
+			exit(1);
+		}
+		q->instant_window_size_target = 0;
+#ifdef DEBUG_STATS
+		printf("STATS: %s WINDOW_SIZE instant moving time from %d to %d\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->last_window_size_update, now);
+#endif
+		//update time passing
+		q->last_window_size_update = now;
+		//signal to give the update values to the UpdateQuality evaluation
+		//since we dont update long-term averaging every time, just do it at every window_seconds
+		update_quality_avg = 1;
+	}
+
+	//calculate lost frames and skipped frames during playing only if we are called from a QueueGet
+	//averaging them in a short-sized time window
 	if(packet_index != -1)
 	{
+		int real_window_size = 0;
+		int lost_frames = 0;
 		double percentage = 0.0;	
+
+		//self adjust window size
+		q->instant_window_size_target++;
+
 		//compute lost frame statistics
 		if(q->last_frame_extracted > 0 && packet_index > q->last_frame_extracted)
 		{
 			lost_frames = packet_index - q->last_frame_extracted - 1;
-			q->total_lost_frames += lost_frames ;
+			q->total_lost_frames += lost_frames;
 			percentage = (double)q->total_lost_frames / (double)q->last_frame_extracted * 100.0;
-			
-			q->instant_lost_frames += lost_frames;
-			
+
 			//save a trace of lost frames to file
 			//we have lost "lost_frames" frames starting from the last extracted (excluded of course)
 			UpdateLossTraces(q->queueType, q->last_frame_extracted+1, lost_frames);
-			
-			/**q->loss_history[q->history_index] = lost_frames;
-			q->history_index = (q->history_index+1)%N;
-			
-			int i;
-			q->instant_lost_frames = 0;
-			for(i=0; i<N; i++)
-				q->instant_lost_frames += q->loss_history[i];*/
-			
+
+			//compute the frame loss rate inside the short-sized sliding window
+			q->loss_history[q->loss_history_index] = lost_frames;
+			q->loss_history_index = (q->loss_history_index+1)%q->instant_window_size;
+			q->instant_lost_frames = 0.0;
+			real_window_size = 0;
+#ifdef DEBUG_STATS_DEEP
+			printf("STATS: QUALITY: %s UPDATE LOSS:", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
+#endif
+			for(i=0; i<q->instant_window_size; i++) {
+				//-1 means not initialized value or erased value due to window shrinking
+				if(q->loss_history[i] != -1) {
+					real_window_size++;
+					q->instant_lost_frames += (double)q->loss_history[i];
+#ifdef DEBUG_STATS_DEEP
+					printf(" %d", q->loss_history[i]);
+#endif
+				}
+#ifdef DEBUG_STATS_DEEP
+				else
+					printf(" *");
+#endif
+			}
+#ifdef DEBUG_STATS_DEEP
+			printf("\n");
+#endif
+			q->instant_lost_frames /= (double)real_window_size; //average in the window
+			q->instant_lost_frames /= (double)q->instant_window_seconds; //express them in events/sec
 #ifdef DEBUG_STATS
 			if(q->queueType == AUDIO)
-				printf("STATS: AUDIO FRAMES LOST: instant %d, total %d, total percentage %f\n", q->instant_lost_frames, q->total_lost_frames, percentage);
+				printf("STATS: AUDIO FRAMES LOST: instant %f, total %d, total percentage %f\n", q->instant_lost_frames, q->total_lost_frames, percentage);
 			else if(q->queueType == VIDEO)
-				printf("STATS: VIDEO FRAMES LOST: instant %d, total %d, total percentage %f\n", q->instant_lost_frames, q->total_lost_frames, percentage);
+				printf("STATS: VIDEO FRAMES LOST: instant %f, total %d, total percentage %f\n", q->instant_lost_frames, q->total_lost_frames, percentage);
+
+			printf("STATS: QUALITY: %s UPDATE LOSS instant window %d, real window %d\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->instant_window_size, real_window_size);
 #endif
 		}
+
+		//compute the skip events inside the short-sized sliding window
+		int skips = q->total_skips - q->last_skips;
+		q->last_skips = q->total_skips;
+		q->skip_history[q->skip_history_index] = skips;
+		q->skip_history_index = (q->skip_history_index+1)%q->instant_window_size;
+		q->instant_skips = 0.0;
+		real_window_size = 0;
+#ifdef DEBUG_STATS_DEEP
+		printf("STATS: QUALITY: %s UPDATE SKIP:", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
+#endif
+		for(i=0; i<q->instant_window_size; i++) {
+			//-1 means not initialized value or erased value due to window shrinking
+			if(q->skip_history[i] != -1) {
+				real_window_size++;
+				q->instant_skips += (double)q->skip_history[i];
+#ifdef DEBUG_STATS_DEEP
+				printf(" %d", q->skip_history[i]);
+#endif
+			}
+#ifdef DEBUG_STATS_DEEP
+			else
+				printf(" *");
+#endif
+		}
+#ifdef DEBUG_STATS_DEEP
+		printf("\n");
+#endif
+		q->instant_skips /= (double)real_window_size; //average in the window
+		q->instant_skips /= (double)q->instant_window_seconds; //express them in events/sec
+#ifdef DEBUG_STATS
+		if(q->queueType == AUDIO)
+			printf("STATS: AUDIO SKIPS: instant %f, total %d\n", q->instant_skips, q->total_skips);
+		else if(q->queueType == VIDEO)
+			printf("STATS: VIDEO SKIPS: instant %f, total %d\n", q->instant_skips, q->total_skips);
+
+		printf("STATS: QUALITY: %s UPDATE SKIP instant window %d, real window %d\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->instant_window_size, real_window_size);
+#endif
 	}
-	
+
+	//continuous estimate of the channel quality
+	//but print it only if it has changed since last time
+	if(UpdateQualityEvaluation(q->instant_lost_frames, q->instant_skips, update_quality_avg)) {
+		//display channel quality
+		char stats[255];
+		sprintf(stats, "%s - %s", Channels[SelectedChannel].Title, Channels[SelectedChannel].quality);
+		ChunkerPlayerGUI_SetChannelTitle(stats);
+	}
+
+	//now, every 1 second print the statistics on the player window GUI
 	if((now-last_print) >= 1)
 	{
+		double instant_events_per_sec = 0.0;
 		char stats[255];
 		if(q->queueType == AUDIO)
 		{
-			sprintf(stats, "[AUDIO] queue density: %d\%% --- lost_frames/sec: %d --- total_lost_frames: %d", (int)q->density, q->instant_lost_frames, q->total_lost_frames);
+			sprintf(stats, "[AUDIO] %d\%% qdensity - %d lost_frames/sec - %d lost_frames - %d skips/sec - %d skips", (int)q->density, (int)q->instant_lost_frames, q->total_lost_frames, (int)q->instant_skips, q->total_skips);
 			ChunkerPlayerGUI_SetStatsText(stats, NULL);
 		}
 		else if(q->queueType == VIDEO)
 		{
-			sprintf(stats, "[VIDEO] queue density: %d%% --- lost_frames/sec: %d --- total_lost_frames: %d", (int)q->density, q->instant_lost_frames, q->total_lost_frames);
+			sprintf(stats, "[VIDEO] %d\%% qdensity - %d lost_frames/sec - %d lost_frames - %d skips/sec - %d skips", (int)q->density, (int)q->instant_lost_frames, q->total_lost_frames, (int)q->instant_skips, q->total_skips);
 			ChunkerPlayerGUI_SetStatsText(NULL, stats);
 		}
-		
+		//update time passing
 		last_print = now;
-		q->instant_lost_frames = 0;
+	}
+}
+
+//returns 1 if quality value has changed since last time
+int UpdateQualityEvaluation(double instant_lost_frames, double instant_skips, int do_update)
+{
+	//as of now, we enter new samples in the long-term averaging once every sec,
+	//thus 120 samples worth of window size equals 2 minutes averaging
+	static int avg_window_size = 10; //averaging window size, self-correcting based on window_seconds
+	static int avg_window_size_target = 0;
+	static int avg_window_seconds = 10; //we want to compute number of events in a 2min wide window
+
+	static int last_window_size_update = 0;
+
+	char base_quality[255];
+	char quality[255];
+	int i;
+	int now = time(NULL);
+	if(!last_window_size_update)
+		last_window_size_update = now;
+	int runningTime = now - Channels[SelectedChannel].startTime;
+
+	if(runningTime <= 0) {
+		runningTime = 1;
+#ifdef DEBUG_STATS
+		printf("STATS: QUALITY warning channel runningTime %d. Set to one!\n", runningTime);
+#endif
+	}
+
+	//update continuously the quality score
+	Channels[SelectedChannel].instant_score = instant_skips + instant_lost_frames;
+
+	if(do_update) {
+#ifdef DEBUG_STATS
+		printf("STATS: QUALITY: UPDATE SCORE lost frames %f, skips %f\n", instant_lost_frames, instant_skips);
+#endif
+		//every once in a while also enter samples in the long-term averaging window
+		Channels[SelectedChannel].score_history[Channels[SelectedChannel].history_index] = Channels[SelectedChannel].instant_score;
+		Channels[SelectedChannel].history_index = (Channels[SelectedChannel].history_index+1)%avg_window_size;
+
+		Channels[SelectedChannel].average_score = 0.0;
+		int real_window_size = 0;
+		for(i=0; i<avg_window_size; i++) {
+			//-1 means not initialized value or erased value due to window shrinking
+			if(Channels[SelectedChannel].score_history[i] != -1) {
+				real_window_size++;
+				Channels[SelectedChannel].average_score += Channels[SelectedChannel].score_history[i];
+			}
+		}
+		Channels[SelectedChannel].average_score /= (double)real_window_size; //average in the window
+		Channels[SelectedChannel].average_score /= (double)avg_window_seconds; //express it in events/sec
+#ifdef DEBUG_STATS
+		printf("STATS: QUALITY: UPDATE SCORE avg window %d, real window %d\n", avg_window_size, real_window_size);
+#endif
+		//whenever we enter a sample, enlarge the self-adjusting window target (it will be checked later on)
+		avg_window_size_target++;
+	}
+#ifdef DEBUG_STATS
+	printf("STATS: QUALITY: instant skips %f, instant loss %f\n", instant_skips, instant_lost_frames);
+	printf("STATS: QUALITY: instant score %f, avg score %f\n", Channels[SelectedChannel].instant_score, Channels[SelectedChannel].average_score);
+#endif
+
+	if(Channels[SelectedChannel].average_score > 0.02) {
+		sprintf(base_quality, "POOR");
+		if(Channels[SelectedChannel].instant_score < Channels[SelectedChannel].average_score) {
+			sprintf(quality, "%s, GETTING BETTER", base_quality);
+		}
+		else if(Channels[SelectedChannel].instant_score == Channels[SelectedChannel].average_score) {
+			sprintf(quality, "%s, STABLE", base_quality);
+		}
+		else {
+			sprintf(quality, "%s, GETTING WORSE", base_quality);
+		}
+	}
+	else {
+		sprintf(base_quality, "GOOD");
+		if(Channels[SelectedChannel].instant_score < Channels[SelectedChannel].average_score) {
+			sprintf(quality, "%s, GETTING BETTER", base_quality);
+		}
+		else if(Channels[SelectedChannel].instant_score == Channels[SelectedChannel].average_score) {
+			sprintf(quality, "%s, STABLE", base_quality);
+		}
+		else {
+			sprintf(quality, "%s, GETTING WORSE", base_quality);
+		}
+	}
+
+#ifdef DEBUG_STATS
+	printf("STATS: QUALITY %s\n", quality);
+#endif
+
+	//dynamically self-adjust the instant_window_size based on the time passing
+	//to match it at our best, since we have no separate thread to count time
+	if((now - last_window_size_update) >= avg_window_seconds) {
+		int i = 0;
+		//if window is enlarged, erase old samples
+		for(i=avg_window_size; i<avg_window_size_target; i++) {
+			Channels[SelectedChannel].score_history[i] = -1;
+		}
+		avg_window_size = avg_window_size_target;
+#ifdef DEBUG_STATS
+		printf("STATS: WINDOW_SIZE avg set to %d\n", avg_window_size);
+#endif
+		if(avg_window_size > CHANNEL_SCORE_HISTORY_SIZE) {
+			printf("ERROR: avg_window size updated to %d, which is more than the max of %d. Exiting.\n", avg_window_size, CHANNEL_SCORE_HISTORY_SIZE);
+			exit(1);
+		}
+		avg_window_size_target = 0;
+		//update time passing
+		last_window_size_update = now;
+	}
+
+	if( strcmp(Channels[SelectedChannel].quality, quality) ) {
+		//quality estimate has changed
+		sprintf(Channels[SelectedChannel].quality, "%s", quality);
+		return 1;
+	}
+	else {
+		return 0;
 	}
 }
 
@@ -710,6 +967,7 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 	}
 		
 	while(SkipAudio==1 && audioq.size>0) {
+		audioq.total_skips++;
 		SkipAudio = 0;
 #ifdef DEBUG_AUDIO
  		printf("AUDIO: skipaudio: queue size=%d\n",audioq.size);
@@ -864,6 +1122,7 @@ int VideoCallback(void *valthread)
 #endif
 
 		while(SkipVideo==1 && videoq.size>0) {
+			videoq.total_skips++;
 			SkipVideo = 0;
 #ifdef DEBUG_VIDEO 
  			printf("VIDEO: Skip Video\n");
@@ -1081,6 +1340,9 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 	static int sizeFrameHeader = 5*sizeof(int32_t);
 	static int ExternalChunk_header_size = 5*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 1*CHUNK_TRANSCODING_INT_SIZE*2;
 
+	static int chunks_out_of_order = 0;
+	static int last_chunk_id = -1;
+
 	audio_bufQ = (uint16_t *)av_malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
 	if(!audio_bufQ) {
 		printf("Memory error in audio_bufQ!\n");
@@ -1095,8 +1357,17 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 	}
 
 	decoded_size = decodeChunk(gchunk, block, block_size);
+
+	if(last_chunk_id == -1)
+		last_chunk_id = gchunk->id;
+
+	if(gchunk->id > (last_chunk_id+1)) {
+		chunks_out_of_order += gchunk->id - last_chunk_id - 1;
+	}
+	last_chunk_id = gchunk->id;
+
 #ifdef DEBUG_CHUNKER
-	printf("CHUNKER: enqueueBlock: decoded_size %d target size %d\n", decoded_size, GRAPES_ENCODED_CHUNK_HEADER_SIZE + ExternalChunk_header_size + gchunk->size);
+	printf("CHUNKER: enqueueBlock: id %d decoded_size %d target size %d - skipped %d\n", gchunk->id, decoded_size, GRAPES_ENCODED_CHUNK_HEADER_SIZE + ExternalChunk_header_size + gchunk->size, chunks_out_of_order);
 #endif
   if(decoded_size < 0) {
 		//HINT here i should differentiate between various return values of the decode
@@ -1185,7 +1456,6 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 		}
 	}
 	//chunk ingestion terminated!
-
 	if(gchunk) {
 		if(gchunk->attributes) {
 			free(gchunk->attributes);

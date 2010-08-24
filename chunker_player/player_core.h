@@ -35,11 +35,26 @@ typedef struct PacketQueue {
 	SDL_mutex *mutex;
 	short int queueType;
 	int last_frame_extracted; //HINT THIS SHOULD BE MORE THAN 4 BYTES
+	//total frames lost, as seen from the queue, since last queue init
 	int total_lost_frames;
 	int loss_history[LOSS_HISTORY_MAX_SIZE];
-	int instant_lost_frames;
-	int history_index;
+	int loss_history_index;
+	//how many frames we are loosing at the moment, calculated over a short sliding time window
+	//i.e. half a second, expressed in lost_frames/sec
+	double instant_lost_frames;
 	double density;
+	//total number of skip events, as seen from the queue, since last queue init
+	int total_skips;
+	int last_skips; //the valued before updating it, for computing delta
+	int skip_history[LOSS_HISTORY_MAX_SIZE];
+	int skip_history_index;
+	//how many skips we are observing, calculated over a short sliding time window
+	//i.e. half a second, expressed in skips/sec
+	double instant_skips;
+	int instant_window_size; //averaging window size, self-correcting based on window_seconds
+	int instant_window_size_target;
+	int instant_window_seconds; //we want to compute number of events in a 1sec wide window
+	int last_window_size_update;
 } PacketQueue;
 
 AVCodecContext  *aCodecCtx;

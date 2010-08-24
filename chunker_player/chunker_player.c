@@ -77,7 +77,16 @@ int main(int argc, char *argv[])
 		printf("ERROR: Unable to create loss trace files\n");
 		exit(1);
 	}
-	
+
+	//this thread fetches chunks from the network by listening to the following path, port
+	daemon = (struct MHD_Daemon*)initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, HttpPort);
+	if(daemon == NULL)
+	{
+		printf("CANNOT START MICROHTTPD SERVICE, EXITING...\n");
+//		KILLALL("offerstreamer");
+		exit(2);
+	}
+
 	if(!SilentMode)
 	{
 		if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
@@ -123,16 +132,8 @@ int main(int argc, char *argv[])
 	}
 	
 	SelectedChannel = firstChannelIndex;
-	// KILLALL("offerstreamer-ml-monl-http-debug");
+
 	SwitchChannel(&(Channels[SelectedChannel]));
-	
-	//this thread fetches chunks from the network by listening to the following path, port
-	daemon = (struct MHD_Daemon*)initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, HttpPort);
-	if(daemon == NULL)
-	{
-		printf("CANNOT START MICROHTTPD SERVICE, EXITING...\n");
-		exit(2);
-	}
 
 	// Wait for user input
 	while(!quit) {
@@ -302,7 +303,7 @@ int ParseConf()
 
 int SwitchChannel(SChannel* channel)
 {
-
+	int i=0;
 #ifdef RESTORE_SCREEN_ON_ZAPPING
 	int was_fullscreen = FullscreenMode;
 	int old_width = window_width, old_height = window_height;
@@ -345,6 +346,15 @@ int SwitchChannel(SChannel* channel)
 	}
 	parameters_vector[par_count] = NULL;
 
+	//reset quality info
+	channel->startTime = time(NULL);
+	channel->instant_score = 0.0;
+	channel->average_score = 0.0;
+	channel->history_index = 0;
+	for(i=0; i<CHANNEL_SCORE_HISTORY_SIZE; i++)
+		channel->score_history[i] = -1;
+	sprintf(channel->quality, "EVALUATING...");
+
 #ifdef __LINUX__
 
 	int d;
@@ -375,7 +385,6 @@ int SwitchChannel(SChannel* channel)
 	dup2(stdoutS, STDOUT_FILENO);
 	dup2(stderrS, STDERR_FILENO);
 	
-	int i;
 	for(i=0; i<par_count; i++)
 		free(parameters_vector[i]);
 		
