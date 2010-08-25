@@ -262,11 +262,14 @@ void RedrawChannelName()
 		
 	if(ChannelTitleSurface != NULL)
 	{
+		SDL_LockMutex(OverlayMutex);
+		SDL_FillRect( MainScreen, &ChannelTitleRect, SDL_MapRGB(MainScreen->format, 0, 0, 0) );
+		SDL_UpdateRect(MainScreen, ChannelTitleRect.x, ChannelTitleRect.y, ChannelTitleRect.w, ChannelTitleRect.h);
+		
 		ChannelTitleRect.w = ChannelTitleSurface->w;
 		ChannelTitleRect.h = ChannelTitleSurface->h;
 		ChannelTitleRect.x = ((FullscreenMode?FullscreenWidth:window_width) - ChannelTitleRect.w)/2;
 		ChannelTitleRect.y = Buttons[FULLSCREEN_BUTTON_INDEX].ButtonIconBox.y+5;
-		SDL_LockMutex(OverlayMutex);
 		SDL_BlitSurface(ChannelTitleSurface, NULL, MainScreen, &ChannelTitleRect);
 		SDL_UpdateRects(MainScreen, 1, &ChannelTitleRect);
 		SDL_UnlockMutex(OverlayMutex);

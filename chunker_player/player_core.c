@@ -278,7 +278,7 @@ int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short i
 	// Init audio and video buffers
 	av_init_packet(&AudioPkt);
 	av_init_packet(&VideoPkt);
-	printf("AVCODEC_MAX_AUDIO_FRAME_SIZE=%d\n", AVCODEC_MAX_AUDIO_FRAME_SIZE);
+	//printf("AVCODEC_MAX_AUDIO_FRAME_SIZE=%d\n", AVCODEC_MAX_AUDIO_FRAME_SIZE);
 	AudioPkt.data=(uint8_t *)malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
 	if(!AudioPkt.data) return 1;
 	VideoPkt.data=(uint8_t *)malloc(width*height*3/2);
