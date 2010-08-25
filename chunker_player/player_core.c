@@ -98,6 +98,8 @@ void PacketQueueCleanStats(PacketQueue *q) {
 	q->instant_window_size_target = 0;
 	q->instant_window_seconds = 1; //we want to compute number of events in a 1sec wide window
 	q->last_window_size_update = 0;
+	q->last_stats_display = 0;
+	sprintf(q->stats_message, "%s", "\n");
 }
 
 int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
@@ -396,9 +398,6 @@ AVPacketList *SeekAndDecodePacketStartingFrom(AVPacketList *p, PacketQueue *q)
 
 void UpdateQueueStats(PacketQueue *q, int packet_index)
 {
-	//remember that all static variables are shared betwee audio and video queues!!
-	static int last_print = 0;
-
 	//used as flag also (0 means dont update quality estimation average)
 	int update_quality_avg = 0;
 	int i;
@@ -411,8 +410,8 @@ void UpdateQueueStats(PacketQueue *q, int packet_index)
 		return;
 
 	int now = time(NULL);
-	if(!last_print)
-		last_print = now;
+	if(!q->last_stats_display)
+		q->last_stats_display = now;
 	if(!q->last_window_size_update)
 		q->last_window_size_update = now;
 
@@ -509,7 +508,6 @@ void UpdateQueueStats(PacketQueue *q, int packet_index)
 #ifdef DEBUG_STATS_DEEP
 			printf("\n");
 #endif
-			q->instant_lost_frames /= (double)real_window_size; //average in the window
 			q->instant_lost_frames /= (double)q->instant_window_seconds; //express them in events/sec
 #ifdef DEBUG_STATS
 			if(q->queueType == AUDIO)
@@ -548,7 +546,6 @@ void UpdateQueueStats(PacketQueue *q, int packet_index)
 #ifdef DEBUG_STATS_DEEP
 		printf("\n");
 #endif
-		q->instant_skips /= (double)real_window_size; //average in the window
 		q->instant_skips /= (double)q->instant_window_seconds; //express them in events/sec
 #ifdef DEBUG_STATS
 		if(q->queueType == AUDIO)
@@ -569,23 +566,28 @@ void UpdateQueueStats(PacketQueue *q, int packet_index)
 		ChunkerPlayerGUI_SetChannelTitle(stats);
 	}
 
-	//now, every 1 second print the statistics on the player window GUI
-	if((now-last_print) >= 1)
+	//if statistics estimate printout has changed since last time, display it
 	{
-		double instant_events_per_sec = 0.0;
 		char stats[255];
 		if(q->queueType == AUDIO)
 		{
 			sprintf(stats, "[AUDIO] %d\%% qdensity - %d lost_frames/sec - %d lost_frames - %d skips/sec - %d skips", (int)q->density, (int)q->instant_lost_frames, q->total_lost_frames, (int)q->instant_skips, q->total_skips);
-			ChunkerPlayerGUI_SetStatsText(stats, NULL);
 		}
 		else if(q->queueType == VIDEO)
 		{
 			sprintf(stats, "[VIDEO] %d\%% qdensity - %d lost_frames/sec - %d lost_frames - %d skips/sec - %d skips", (int)q->density, (int)q->instant_lost_frames, q->total_lost_frames, (int)q->instant_skips, q->total_skips);
-			ChunkerPlayerGUI_SetStatsText(NULL, stats);
 		}
-		//update time passing
-		last_print = now;
+		if((strcmp(q->stats_message, stats) ) && ((now-q->last_stats_display) >= 1))
+		{
+			//statistics estimate have changed
+			sprintf(q->stats_message, "%s", stats);
+			if(q->queueType == AUDIO)
+				ChunkerPlayerGUI_SetStatsText(stats, NULL);
+			else if(q->queueType == VIDEO)
+				ChunkerPlayerGUI_SetStatsText(NULL, stats);
+
+			q->last_stats_display = now;
+		}
 	}
 }
 
@@ -1367,7 +1369,7 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 	last_chunk_id = gchunk->id;
 
 #ifdef DEBUG_CHUNKER
-	printf("CHUNKER: enqueueBlock: id %d decoded_size %d target size %d - skipped %d\n", gchunk->id, decoded_size, GRAPES_ENCODED_CHUNK_HEADER_SIZE + ExternalChunk_header_size + gchunk->size, chunks_out_of_order);
+	printf("CHUNKER: enqueueBlock: id %d decoded_size %d target size %d - out_of_order %d\n", gchunk->id, decoded_size, GRAPES_ENCODED_CHUNK_HEADER_SIZE + ExternalChunk_header_size + gchunk->size, chunks_out_of_order);
 #endif
   if(decoded_size < 0) {
 		//HINT here i should differentiate between various return values of the decode

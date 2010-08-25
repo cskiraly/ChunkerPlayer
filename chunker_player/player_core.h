@@ -55,6 +55,8 @@ typedef struct PacketQueue {
 	int instant_window_size_target;
 	int instant_window_seconds; //we want to compute number of events in a 1sec wide window
 	int last_window_size_update;
+	char stats_message[255];
+	int last_stats_display;
 } PacketQueue;
 
 AVCodecContext  *aCodecCtx;
