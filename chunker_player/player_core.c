@@ -1460,6 +1460,8 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 		if(gchunk->attributes) {
 			free(gchunk->attributes);
 		}
+		if(gchunk->data)
+			free(gchunk->data);
 		free(gchunk);
 	}
 	if(frame)
