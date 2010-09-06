@@ -135,7 +135,7 @@ if [ -n "$BUILD_MP3LAME" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MP3LAME" ]; then
 	rm -r -f mp3lame
 	#get and compile latest mp3lame library
 	rm -f lame-3.98.4.tar.gz
-	wget http://sourceforge.net/projects/lame/files/lame/3.98.4/lame-3.98.4.tar.gz/download; tar xzf lame-3.98.4.tar.gz; mv lame-3.98.4 mp3lame;
+	wget http://sourceforge.net/projects/lame/files/lame/3.98.4/lame-3.98.4.tar.gz/download -O lame-3.98.4.tar.gz; tar xzf lame-3.98.4.tar.gz; mv lame-3.98.4 mp3lame;
 	cd mp3lame
 	#make and install in local folder
 	./configure --disable-gtktest --disable-frontend --prefix="$TEMP_MP3LAME"
