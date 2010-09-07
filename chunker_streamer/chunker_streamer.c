@@ -13,9 +13,9 @@
 
 //#define DEBUG_AUDIO_FRAMES
 //#define DEBUG_VIDEO_FRAMES
-#define DEBUG_CHUNKER
+//#define DEBUG_CHUNKER
 #define DEBUG_ANOMALIES
-#define DEBUG_TIMESTAMPING
+//#define DEBUG_TIMESTAMPING
 
 #define MAX(a,b) ((a>b)?(a):(b))
 
