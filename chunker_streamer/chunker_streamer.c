@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
 	short int FirstTimeAudio=1, FirstTimeVideo=1;
 	short int pts_anomalies_counter=0;
 	short int newtime_anomalies_counter=0;
-	long long newTime=0, newTime_audio=0, newTime_prev=0;
+	long long newTime=0, newTime_audio=0, newTime_video=0, newTime_prev=0;
 	struct timeval lastAudioSent = {0, 0};
 	double ptsvideo1=0.0;
 	double ptsaudio1=0.0;
@@ -205,7 +205,6 @@ restart:
 //	pCodecCtxEnc->flags |= CODEC_FLAG_PSNR;
 //	pCodecCtxEnc->partitions = X264_PART_I4X4 | X264_PART_I8X8 | X264_PART_P8X8 | X264_PART_P4X4 | X264_PART_B8X8;
 //	pCodecCtxEnc->crf = 0.0f;
-
 #else
 	pCodecCtxEnc->codec_type = CODEC_TYPE_VIDEO;
 	pCodecCtxEnc->codec_id   = CODEC_ID_MPEG4;
@@ -221,6 +220,7 @@ restart:
 	//pCodecCtxEnc->max_b_frames=1;
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
 #endif
+
 	fprintf(stderr, "INIT: VIDEO timebase OUT:%d %d IN: %d %d\n", pCodecCtxEnc->time_base.num, pCodecCtxEnc->time_base.den, pCodecCtx->time_base.num, pCodecCtx->time_base.den);
 
 	// Find the decoder for the video stream
@@ -231,6 +231,7 @@ restart:
 	fprintf(stderr, "INIT: Setting VIDEO codecID to mpeg4: %d %d\n",pCodecCtx->codec_id, CODEC_ID_MPEG4);
 	pCodecEnc = avcodec_find_encoder(CODEC_ID_MPEG4);
 #endif
+
 	if(pCodec==NULL) {
 		fprintf(stderr, "INIT: Unsupported IN VIDEO pcodec!\n");
 		return -1; // Codec not found
@@ -248,17 +249,16 @@ restart:
 		return -1; // Could not open codec
 	}
 
-
-	//setup audio output encoder
-	aCodecCtxEnc = avcodec_alloc_context();
-	aCodecCtxEnc->bit_rate = audio_bitrate; //256000
-	aCodecCtxEnc->sample_fmt = SAMPLE_FMT_S16;
-	aCodecCtxEnc->sample_rate = aCodecCtx->sample_rate;
-	aCodecCtxEnc->channels = aCodecCtx->channels;
-	fprintf(stderr, "INIT: AUDIO bitrate OUT:%d sample_rate:%d channels:%d\n", aCodecCtxEnc->bit_rate, aCodecCtxEnc->sample_rate, aCodecCtxEnc->channels);
-
-	// Find the decoder for the audio stream
 	if(audioStream!=-1) {
+		//setup audio output encoder
+		aCodecCtxEnc = avcodec_alloc_context();
+		aCodecCtxEnc->bit_rate = audio_bitrate; //256000
+		aCodecCtxEnc->sample_fmt = SAMPLE_FMT_S16;
+		aCodecCtxEnc->sample_rate = aCodecCtx->sample_rate;
+		aCodecCtxEnc->channels = aCodecCtx->channels;
+		fprintf(stderr, "INIT: AUDIO bitrate OUT:%d sample_rate:%d channels:%d\n", aCodecCtxEnc->bit_rate, aCodecCtxEnc->sample_rate, aCodecCtxEnc->channels);
+
+		// Find the decoder for the audio stream
 		aCodec = avcodec_find_decoder(aCodecCtx->codec_id);
 #ifdef MP3_AUDIO_ENCODER
 		aCodecEnc = avcodec_find_encoder(CODEC_ID_MP3);
@@ -282,6 +282,9 @@ restart:
 			fprintf(stderr, "INIT: could not open OUT AUDIO codec\n");
 			return -1; // Could not open codec
 		}
+	}
+	else {
+		fprintf(stderr,"INIT: NO AUDIO TRACK IN INPUT FILE\n");
 	}
 
 	// Allocate audio in and out buffers
@@ -386,6 +389,7 @@ restart:
 		{
 			if(!live_source)
 			{
+			if(audioStream != -1) { //take this "time bank" method into account only if we have audio track
 				// lateTime < 0 means a positive time account that can be used to decode video frames
 				// if (lateTime + maxVDecodeTime) >= 0 then we may have a negative time account after video transcoding
 				// therefore, it's better to skip the frame
@@ -396,6 +400,7 @@ restart:
 #endif
 					continue;
 				}
+			}
 			}
 			
 			gettimeofday(&tmp_tv, NULL);
@@ -476,6 +481,8 @@ restart:
 					//compute the new video timestamp in milliseconds
 					if(frame->number>0) {
 						newTime = ((double)target_pts-ptsvideo1)*1000.0/((double)delta_video*(double)av_q2d(pFormatCtx->streams[videoStream]->r_frame_rate));
+						// store timestamp in useconds for next frame sleep
+						newTime_video = newTime*1000;
 					}
 #ifdef DEBUG_TIMESTAMPING
 					fprintf(stderr, "VIDEO: NEWTIMESTAMP %ld\n", newTime);
@@ -491,6 +498,7 @@ restart:
 					frame->timestamp.tv_sec = (long long)newTime/1000;
 					frame->timestamp.tv_usec = newTime%1000;
 					frame->size = video_frame_size;
+					/* pict_type maybe 1 (I), 2 (P), 3 (B), 5 (AUDIO)*/
 					frame->type = pFrame->pict_type;
 #ifdef DEBUG_VIDEO_FRAMES
 					fprintf(stderr, "VIDEO: encapsulated frame size:%d type:%d\n", frame->size, frame->type);
@@ -513,15 +521,51 @@ restart:
 #endif
 						chunk->seq = 0; //signal that we need an increase
 						//initChunk(chunk, &seq_current_chunk);
-						
-						gettimeofday(&now_tv, NULL);
-						long long usec = (now_tv.tv_sec-tmp_tv.tv_sec)*1000000;
-						usec+=(now_tv.tv_usec-tmp_tv.tv_usec);
-						
-						if(usec > maxVDecodeTime)
-							maxVDecodeTime = usec;
 					}
-					/* pict_type maybe 1 (I), 2 (P), 3 (B), 5 (AUDIO)*/
+
+					//compute how long it took to encode video frame
+					gettimeofday(&now_tv, NULL);
+					long long usec = (now_tv.tv_sec-tmp_tv.tv_sec)*1000000;
+					usec+=(now_tv.tv_usec-tmp_tv.tv_usec);
+					if(usec > maxVDecodeTime)
+						maxVDecodeTime = usec;
+
+					//we DONT have an audio track, so we compute timings and determine
+					//how much time we have to sleep at next VIDEO frame taking
+					//also into account how much time was needed to encode the current
+					//video frame
+					//all this in case the video source is not live, i.e. not self-timing
+					//and only in case there is no audio track
+					if(audioStream == -1) {
+						if(!live_source) {
+							if(newTime_prev != 0) {
+								//how much delay between video frames ideally
+								long long maxDelay = newTime_video - newTime_prev;
+								sleep = (maxDelay - usec);
+#ifdef DEBUG_ANOMALIES
+								printf("\tmaxDelay=%ld\n", ((long)maxDelay));
+								printf("\tlast video frame interval=%ld; sleep time=%ld\n", ((long)usec), ((long)sleep));
+#endif
+							}
+							else
+								sleep = 0;
+
+							//update and store counters
+							newTime_prev = newTime_video;
+
+							//i can also sleep now instead of at the beginning of
+							//the next frame because in this case we only have video
+							//frames, hence it would immediately be the next thing to do
+							if(sleep > 0) {
+#ifdef DEBUG_ANOMALIES
+								fprintf(stderr, "\n\tREADLOOP: going to sleep for %ld microseconds\n", sleep);
+#endif
+								usleep(sleep);
+							}
+
+						}
+					}
+
 				}
 			}
 		}
@@ -612,10 +656,8 @@ restart:
 				//compute the new audio timestamps in milliseconds
 				if(frame->number>0) {
 					newTime = (((double)target_pts-ptsaudio1)*1000.0*((double)av_q2d(pFormatCtx->streams[audioStream]->time_base)));//*(double)delta_audio;
-					
 					// store timestamp in useconds for next frame sleep
 					newTime_audio = newTime*1000;
-					
 				}
 #ifdef DEBUG_TIMESTAMPING
 				fprintf(stderr, "AUDIO: NEWTIMESTAMP %d\n", newTime);
@@ -646,39 +688,7 @@ restart:
 				//set priority
 				chunkaudio->priority = 1;
 
-				if(chunkFilled(chunkaudio, cmeta))
-				{
-					if(!live_source)
-					{
-						if(newTime_prev != 0)
-						{
-							long long maxDelay = newTime_audio - newTime_prev;
-
-							gettimeofday(&now_tv, NULL);
-							long long usec = (now_tv.tv_sec-lastAudioSent.tv_sec)*1000000;
-							usec+=(now_tv.tv_usec-lastAudioSent.tv_usec);
-
-							if(usec > maxAudioInterval)
-								maxAudioInterval = usec;
-
-							lateTime -= (maxDelay - usec);
-#ifdef DEBUG_ANOMALIES
-							printf("\tmaxDelay=%ld, maxAudioInterval=%ld\n", ((long)maxDelay), ((long) maxAudioInterval));
-							printf("\tlast audio frame interval=%ld; lateTime=%ld\n", ((long)usec), ((long)lateTime));
-#endif
-
-							if((lateTime+maxAudioInterval) < 0)
-								sleep = (lateTime+maxAudioInterval)*-1;
-							else
-								sleep = 0;
-						}
-						else
-							sleep = 0;
-
-						newTime_prev = newTime_audio;
-						gettimeofday(&lastAudioSent, NULL);
-					}
-					
+				if(chunkFilled(chunkaudio, cmeta)) {
 					// is chunk filled using current strategy?
 					//SAVE ON FILE
 					//saveChunkOnFile(chunkaudio);
@@ -690,6 +700,43 @@ restart:
 					chunkaudio->seq = 0; //signal that we need an increase
 					//initChunk(chunkaudio, &seq_current_chunk);
 				}
+
+				//we have an audio track, so we compute timings and determine
+				//how much time we have to sleep at next audio frame taking
+				//also into account how much time was needed to encode the
+				//video frames
+				//all this in case the video source is not live, i.e. not self-timing
+				if(!live_source)
+				{
+					if(newTime_prev != 0)
+					{
+						long long maxDelay = newTime_audio - newTime_prev;
+
+						gettimeofday(&now_tv, NULL);
+						long long usec = (now_tv.tv_sec-lastAudioSent.tv_sec)*1000000;
+						usec+=(now_tv.tv_usec-lastAudioSent.tv_usec);
+
+						if(usec > maxAudioInterval)
+							maxAudioInterval = usec;
+
+						lateTime -= (maxDelay - usec);
+#ifdef DEBUG_ANOMALIES
+						printf("\tmaxDelay=%ld, maxAudioInterval=%ld\n", ((long)maxDelay), ((long) maxAudioInterval));
+						printf("\tlast audio frame interval=%ld; lateTime=%ld\n", ((long)usec), ((long)lateTime));
+#endif
+
+						if((lateTime+maxAudioInterval) < 0)
+							sleep = (lateTime+maxAudioInterval)*-1;
+						else
+							sleep = 0;
+					}
+					else
+						sleep = 0;
+
+					newTime_prev = newTime_audio;
+					gettimeofday(&lastAudioSent, NULL);
+				}
+
 			}
 		}
 		else {
