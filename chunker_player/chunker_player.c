@@ -315,10 +315,12 @@ int SwitchChannel(SChannel* channel)
 	if(P2PProcessID > 0)
 		KILL_PROCESS(P2PProcessID);
 	
+	ratio = channel->Ratio;
 	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
 	ChunkerPlayerGUI_ForceResize(channel->Width, channel->Height);
 	
 	ChunkerPlayerCore_SetupOverlay(channel->Width, channel->Height);
+	//ChunkerPlayerGUI_SetupOverlayRect(channel);
 	
 	ChunkerPlayerCore_InitCodecs(channel->Width, channel->Height, channel->SampleRate, channel->AudioChannels);
 		
