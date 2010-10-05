@@ -7,10 +7,6 @@
 
 #include <stdio.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <arpa/inet.h>
 #include <microhttpd.h>
 #include "external_chunk_transcoding.h"
 #include "frame.h"

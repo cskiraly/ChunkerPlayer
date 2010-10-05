@@ -42,6 +42,7 @@ void ChunkerPlayerGUI_SetChannelTitle(char* title);
 void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text);
 void ChunkerPlayerGUI_ToggleFullscreen();
 void GetScreenSizeFromOverlay(int overlayWidth, int overlayHeight, int* screenWidth, int* screenHeight);
+void ChunkerPlayerGUI_AspectRatioResize(float aspect_ratio, int width, int height, int* out_width, int* out_height);
 
 SButton Buttons[NBUTTONS];
 

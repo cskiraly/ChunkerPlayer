@@ -7,10 +7,6 @@
 #include <memory.h>
 #include <sys/types.h>
 #include <sys/time.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
 #include <microhttpd.h>
 
 struct connection_info_struct {

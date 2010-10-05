@@ -1,3 +1,4 @@
+#define CURL_STATICLIB
 #include <curl/curl.h>
 
 #include "streamer_commons.h"

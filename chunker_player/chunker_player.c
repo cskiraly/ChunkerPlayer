@@ -32,19 +32,20 @@ int main(int argc, char *argv[])
 
 	FILE *fp;
 		
-	if(argc<6) {
-		printf("chunker_player queue_thresh httpd_port silentMode LossTracesFilenameSuffix ChannelName <YUVFilename>\n");
+	if(argc<7) {
+		printf("\nUSAGE:\n\tchunker_player queue_thresh player_ip player_port silentMode LossTracesFilenameSuffix ChannelName <YUVFilename>\n\n");
 		exit(1);
 	}
 	sscanf(argv[1],"%d",&queue_filling_threshold);
-	sscanf(argv[2],"%d",&HttpPort);
-	sscanf(argv[3],"%d",&SilentMode);
-	sscanf(argv[4],"%s",LossTracesFilename);
-	sscanf(argv[5],"%s",firstChannelName);
+	sscanf(argv[2],"%s",PlayerIP);
+	sscanf(argv[3],"%d",&HttpPort);
+	sscanf(argv[4],"%d",&SilentMode);
+	sscanf(argv[5],"%s",LossTracesFilename);
+	sscanf(argv[6],"%s",firstChannelName);
 	
-	if(argc==7)
+	if(argc==8)
 	{
-		sscanf(argv[6],"%s",YUVFileName);
+		sscanf(argv[7],"%s",YUVFileName);
 		printf("YUVFile: %s\n",YUVFileName);
 		fp=fopen(YUVFileName, "wb");
 		if(fp)
@@ -234,6 +235,54 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+int cb_validate_conffile(cfg_t *cfg)
+{
+	char PeerExecName[255];
+	char LaunchString[255];
+	int AudioChannels;
+	int SampleRate;
+	int Width;
+	int Height;
+	float Ratio;
+	cfg_t *cfg_greet;
+	
+	sprintf(PeerExecName, "%s", cfg_getstr(cfg, "PeerExecName"));
+	if(!(strlen(PeerExecName) > 0))
+	{
+		cfg_error(cfg, "invalid PeerExecName");
+		return -1;
+	}
+	
+	printf("\tPeerExecName ok\n");
+	
+	if(cfg_size(cfg, "Channel") == 0)
+	{
+		cfg_error(cfg, "no \"Channel\" section found");
+		return -1;
+	}
+	
+	printf("\t%d Channel setions found\n", cfg_size(cfg, "Channel"));
+	
+	int j;
+	for(j = 0; j < cfg_size(cfg, "Channel"); j++)
+	{
+		cfg_greet = cfg_getnsec(cfg, "Channel", j);
+		sprintf(LaunchString, "%s", cfg_getstr(cfg_greet, "LaunchString"));
+		if(!(strlen(LaunchString) > 0))
+		{
+			cfg_error(cfg, "invalid LaunchString for Channel[%d]", j);
+			return -1;
+		}
+		printf("\tChannel[%d].LaunchString = %s\n", j, LaunchString);
+		printf("\tChannel[%d].AudioChannels = %d\n", j, cfg_getint(cfg_greet, "AudioChannels"));
+		printf("\tChannel[%d].SampleRate = %d\n", j, cfg_getint(cfg_greet, "SampleRate"));
+		printf("\tChannel[%d].Width = %d\n", j, cfg_getint(cfg_greet, "Width"));
+		printf("\tChannel[%d].Height = %d\n", j, cfg_getint(cfg_greet, "Height"));
+		printf("\tChannel[%d].Ratio = %s\n", j, cfg_getstr(cfg_greet, "Ratio"));
+	}
+    return 0;
+}
+
 int ParseConf()
 {
 	int j;
@@ -247,7 +296,10 @@ int ParseConf()
 		CFG_INT("SampleRate", 48000, CFGF_NONE),
 		CFG_INT("Width", 176, CFGF_NONE),
 		CFG_INT("Height", 144, CFGF_NONE),
-		CFG_FLOAT("Ratio", 1.22, CFGF_NONE),
+		
+		// for some reason libconfuse parsing for floating point does not work in windows
+		//~ CFG_FLOAT("Ratio", 1.22, CFGF_NONE),
+		CFG_STR("Ratio", "1.22", CFGF_NONE),
 		CFG_END()
 	};
 	cfg_opt_t opts[] =
@@ -261,6 +313,7 @@ int ParseConf()
 	if(cfg_parse(cfg, DEFAULT_CONF_FILENAME) == CFG_PARSE_ERROR)
 	{
 		printf("Error while parsing configuration file, exiting...\n");
+		cb_validate_conffile(cfg);
 		return 1;
 	}
 	
@@ -272,6 +325,7 @@ int ParseConf()
 	
 	sprintf(OfferStreamerFilename, "%s", cfg_getstr(cfg, "PeerExecName"));
 	
+#ifdef __LINUX__
 	FILE * tmp_file;
 	if(tmp_file = fopen(OfferStreamerFilename, "r"))
     {
@@ -282,6 +336,7 @@ int ParseConf()
 		printf("Could not find peer application (named '%s') into the current folder, please copy or link it into the player folder, then retry\n\n", OfferStreamerFilename);
 		exit(1);
 	}
+#endif
 	
 	for(j = 0; j < cfg_size(cfg, "Channel"); j++)
 	{
@@ -292,7 +347,8 @@ int ParseConf()
 		Channels[j].Height = cfg_getint(cfg_channel, "Height");
 		Channels[j].AudioChannels = cfg_getint(cfg_channel, "AudioChannels");
 		Channels[j].SampleRate = cfg_getint(cfg_channel, "SampleRate");
-		Channels[j].Ratio = cfg_getfloat(cfg_channel, "Ratio");
+		Channels[j].Ratio = strtof(cfg_getstr(cfg_channel, "Ratio"), 0);
+		
 		Channels[j].Index = j+1;
 		NChannels++;
 	}
@@ -319,18 +375,24 @@ int SwitchChannel(SChannel* channel)
 	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
 	ChunkerPlayerGUI_ForceResize(channel->Width, channel->Height);
 	
-	ChunkerPlayerCore_SetupOverlay(channel->Width, channel->Height);
+	int w=0, h=0;
+	ChunkerPlayerGUI_AspectRatioResize((float)channel->Ratio, channel->Width, channel->Height, &w, &h);
+	ChunkerPlayerCore_SetupOverlay(w, h);
 	//ChunkerPlayerGUI_SetupOverlayRect(channel);
 	
-	ChunkerPlayerCore_InitCodecs(channel->Width, channel->Height, channel->SampleRate, channel->AudioChannels);
+	if(ChunkerPlayerCore_InitCodecs(channel->Width, channel->Height, channel->SampleRate, channel->AudioChannels) < 0)
+	{
+		printf("ERROR, COULD NOT INITIALIZE CODECS\n");
+		exit(2);
+	}
 		
 	char* parameters_vector[255];
 	char argv0[255], parameters_string[511];
 	sprintf(argv0, "%s", OfferStreamerFilename);
 	
-	sprintf(parameters_string, "%s %s %s %s %s %d %s %d", argv0, channel->LaunchString, "-C", channel->Title, "-P", (HttpPort+channel->Index), "-F", HttpPort);
+	sprintf(parameters_string, "%s %s %s %s %s %d %s %s:%d", argv0, channel->LaunchString, "-C", channel->Title, "-P", (HttpPort+channel->Index), "-F", PlayerIP, HttpPort);
 	
-	printf("EXECUTING %s\n", parameters_string);
+	printf("OFFERSTREAMER LAUNCH STRING: %s\n", parameters_string);
 	
 	int par_count=0;
 	
@@ -406,7 +468,9 @@ int SwitchChannel(SChannel* channel)
 	return 0;
 #endif
 
-	return 1;
+	ChunkerPlayerCore_Play();
+	//~ return 1;
+	return 0;
 }
 
 void ZapDown()

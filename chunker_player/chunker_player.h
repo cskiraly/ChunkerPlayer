@@ -57,6 +57,7 @@ char OfferStreamerFilename[255];
 int FullscreenMode; // fullscreen vs windowized flag
 int window_width, window_height;
 int HttpPort;
+char PlayerIP[32];
 
 void ZapDown();
 void ZapUp();
