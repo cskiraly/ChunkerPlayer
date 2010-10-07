@@ -32,23 +32,22 @@ int SilentMode;
 int queue_filling_threshold;
 int quit;
 short int QueueFillingMode;
-int P2PProcessID;
+
+void* P2PProcessHandle;
 
 #ifdef __WIN32__
-#define KILL_PROCESS(pid) {char command_name[255]; sprintf(command_name, "taskkill /pid %d /F", pid); system(command_name);}
+//~ #define KILL_PROCESS(pid) {char command_name[255]; sprintf(command_name, "taskkill /pid %d /F", pid); system(command_name);}
+#define KILL_PROCESS(handle) {TerminateProcess(((PROCESS_INFORMATION*)handle)->hProcess, 0);}
 #define KILLALL(pname) {char command_name[255]; sprintf(command_name, "taskkill /im %s /F", pname); system(command_name);}
 #endif
 #ifdef __LINUX__
-#define KILL_PROCESS(pid) {char command_name[255]; sprintf(command_name, "kill %d", pid); system(command_name);}
+#define KILL_PROCESS(handle) {if(*((pid_t*)handle)>0){char command_name[255]; sprintf(command_name, "kill %d", *((pid_t*)handle)); system(command_name);}}
 #define KILLALL(pname) {char command_name[255]; sprintf(command_name, "killall %s -9", pname); system(command_name);}
 #endif
 #ifdef __MACOS__
-#define KILL_PROCESS(pid) {char command_name[255]; sprintf(command_name, "kill %d", pid); system(command_name);}
+#define KILL_PROCESS(handle) {if(*((pid_t*)handle)>0){char command_name[255]; sprintf(command_name, "kill %d", *((pid_t*)handle)); system(command_name);}}
 #define KILLALL(pname) {char command_name[255]; sprintf(command_name, "killall %s -9", pname); system(command_name);}
 #endif
-
-
-
 
 SChannel Channels[MAX_CHANNELS_NUM];
 int NChannels;

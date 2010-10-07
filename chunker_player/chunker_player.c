@@ -9,6 +9,10 @@
 #include "chunker_player.h"
 #include "player_gui.h"
 
+#ifdef WIN32
+#include <windows.h> 
+#endif
+
 int main(int argc, char *argv[])
 {
 	// some initializations
@@ -17,7 +21,15 @@ int main(int argc, char *argv[])
 	SaveYUV = 0;
 	quit = 0;
 	QueueFillingMode=1;
-	P2PProcessID = -1;
+
+#ifndef __WIN32__
+	static pid_t fork_pid = -1;
+	P2PProcessHandle=&fork_pid;
+#else
+	static PROCESS_INFORMATION ProcessInfo;
+	ZeroMemory( &ProcessInfo, sizeof(ProcessInfo) );
+	P2PProcessHandle=&ProcessInfo;
+#endif
 	NChannels = 0;
 	SelectedChannel = -1;
 	char firstChannelName[255];
@@ -219,9 +231,8 @@ int main(int argc, char *argv[])
 		}
 		usleep(120000);
 	}
-	
-	if(P2PProcessID > 0)
-		KILL_PROCESS(P2PProcessID);
+
+	KILL_PROCESS(P2PProcessHandle);
 
 	//TERMINATE
 	ChunkerPlayerCore_Stop();
@@ -325,7 +336,6 @@ int ParseConf()
 	
 	sprintf(OfferStreamerFilename, "%s", cfg_getstr(cfg, "PeerExecName"));
 	
-#ifdef __LINUX__
 	FILE * tmp_file;
 	if(tmp_file = fopen(OfferStreamerFilename, "r"))
     {
@@ -336,7 +346,6 @@ int ParseConf()
 		printf("Could not find peer application (named '%s') into the current folder, please copy or link it into the player folder, then retry\n\n", OfferStreamerFilename);
 		exit(1);
 	}
-#endif
 	
 	for(j = 0; j < cfg_size(cfg, "Channel"); j++)
 	{
@@ -368,8 +377,7 @@ int SwitchChannel(SChannel* channel)
 	if(ChunkerPlayerCore_IsRunning())
 		ChunkerPlayerCore_Stop();
 
-	if(P2PProcessID > 0)
-		KILL_PROCESS(P2PProcessID);
+	KILL_PROCESS(P2PProcessHandle);
 	
 	ratio = channel->Ratio;
 	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
@@ -385,20 +393,30 @@ int SwitchChannel(SChannel* channel)
 		printf("ERROR, COULD NOT INITIALIZE CODECS\n");
 		exit(2);
 	}
+	
+	//reset quality info
+	channel->startTime = time(NULL);
+	channel->instant_score = 0.0;
+	channel->average_score = 0.0;
+	channel->history_index = 0;
+	for(i=0; i<CHANNEL_SCORE_HISTORY_SIZE; i++)
+		channel->score_history[i] = -1;
+	sprintf(channel->quality, "EVALUATING...");
 		
-	char* parameters_vector[255];
 	char argv0[255], parameters_string[511];
 	sprintf(argv0, "%s", OfferStreamerFilename);
 	
-	sprintf(parameters_string, "%s %s %s %s %s %d %s %s:%d", argv0, channel->LaunchString, "-C", channel->Title, "-P", (HttpPort+channel->Index), "-F", PlayerIP, HttpPort);
+	sprintf(parameters_string, "%s %s %s %s %d %s %s:%d", channel->LaunchString, "-C", channel->Title, "-P", (HttpPort+channel->Index), "-F", PlayerIP, HttpPort);
 	
-	printf("OFFERSTREAMER LAUNCH STRING: %s\n", parameters_string);
-	
-	int par_count=0;
+	printf("OFFERSTREAMER LAUNCH STRING: %s %s\n", argv0, parameters_string);
+
+#ifdef __LINUX__
+	char* parameters_vector[255];
+	parameters_vector[0] = argv0;
 	
 	// split parameters and count them
+	int par_count=1;
 	char* pch = strtok (parameters_string, " ");
-	
 	while (pch != NULL)
 	{
 		if(par_count > 255) break;
@@ -409,17 +427,6 @@ int SwitchChannel(SChannel* channel)
 		par_count++;
 	}
 	parameters_vector[par_count] = NULL;
-
-	//reset quality info
-	channel->startTime = time(NULL);
-	channel->instant_score = 0.0;
-	channel->average_score = 0.0;
-	channel->history_index = 0;
-	for(i=0; i<CHANNEL_SCORE_HISTORY_SIZE; i++)
-		channel->score_history[i] = -1;
-	sprintf(channel->quality, "EVALUATING...");
-
-#ifdef __LINUX__
 
 	int d;
 	int stdoutS, stderrS;
@@ -443,13 +450,13 @@ int SwitchChannel(SChannel* channel)
 		exit(2);
 	}
 	else
-		P2PProcessID = pid;
+		*((pid_t*)P2PProcessHandle) = pid;
 	
 	// restore backup descriptors in the parent process
 	dup2(stdoutS, STDOUT_FILENO);
 	dup2(stderrS, STDERR_FILENO);
 	
-	for(i=0; i<par_count; i++)
+	for(i=1; i<par_count; i++)
 		free(parameters_vector[i]);
 		
 	fclose(stream);
@@ -466,11 +473,44 @@ int SwitchChannel(SChannel* channel)
 	ChunkerPlayerCore_Play();
 	
 	return 0;
+
+#else
+#ifdef __WIN32__
+	STARTUPINFO sti;
+	SECURITY_ATTRIBUTES sats = { 0 }; 
+	DWORD writ, excode, read, available; 
+	int ret = 0; 
+
+	//set SECURITY_ATTRIBUTES struct fields 
+	sats.nLength = sizeof(sats); 
+	sats.bInheritHandle = TRUE; 
+	sats.lpSecurityDescriptor = NULL;
+	
+	ZeroMemory( &sti, sizeof(sti) );
+    sti.cb = sizeof(sti);
+    ZeroMemory( P2PProcessHandle, sizeof(PROCESS_INFORMATION) );
+    
+	if(!CreateProcess(argv0, 
+	  parameters_string,
+	  &sats, 
+	  &sats, 
+	  TRUE, 
+	  0, 
+	  NULL, 
+	  NULL, 
+	  &sti, 
+	  P2PProcessHandle))
+	{ 
+		printf("Unable to generate process \n"); 
+		return -1; 
+	}
+	
+	ChunkerPlayerCore_Play();
+	return 0;
+#endif
 #endif
 
-	ChunkerPlayerCore_Play();
-	//~ return 1;
-	return 0;
+	return 1;
 }
 
 void ZapDown()

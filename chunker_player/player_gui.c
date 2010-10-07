@@ -117,6 +117,8 @@ void ChunkerPlayerGUI_HandleResize(int resize_w, int resize_h)
 	if(SilentMode)
 		return;
 		
+	SDL_LockMutex(OverlayMutex);
+		
 	// printf("ChunkerPlayerGUI_HandleResize(%d, %d)\n", resize_w, resize_h);
 	SetVideoMode(resize_w, resize_h, FullscreenMode?1:0);
 	
@@ -141,6 +143,8 @@ void ChunkerPlayerGUI_HandleResize(int resize_w, int resize_h)
 	RedrawButtons();
 	RedrawChannelName();
 	RedrawStats();
+	
+	SDL_UnlockMutex(OverlayMutex);
 }
 
 void ChunkerPlayerGUI_HandleGetFocus()

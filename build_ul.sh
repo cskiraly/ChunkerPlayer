@@ -163,14 +163,13 @@ if [ -n "$MINGW" ]; then
 		
 		#build from sources
 		wget http://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.13.tar.gz
-		tar zxvf libiconv-1.13.tar.gz; mv libiconv-1.13 libiconv; cd libiconv
+		tar zxvf libiconv-1.13.tar.gz; mv libiconv-1.13 libiconv; rm -f libiconv-1.13.tar.gz; cd libiconv
 		./configure --enable-static ${HOSTARCH:+--host=$HOSTARCH} --prefix=$LOCAL_LIBICONV
 		make
 		make install
-		rm -f libiconv-1.13.tar.gz
 	fi
 	LIBSDLIMAGE_FLAGS="$LIBSDLIMAGE_FLAGS -I$LOCAL_LIBICONV/include"
-	LIBSDLIMAGE_LDFLAGS="$LIBSDLIMAGE_LDFLAGS -L$LOCAL_LIBICONV/lib"
+	#~ LIBSDLIMAGE_LDFLAGS="$LIBSDLIMAGE_LDFLAGS -L$LOCAL_LIBICONV/lib"
 
 	LOCAL_LIBINTL="$BASE_UL_DIR/$EXTERN_DIR/libintl/temp_libintl_install_mingw"
 	if [ -f "$LOCAL_LIBINTL/lib/libintl.dll.a" ] || [ -f "$LOCAL_LIBINTL/lib/libintl.a" ]; then
@@ -181,11 +180,11 @@ if [ -n "$MINGW" ]; then
 		rm -fR libintl
 		wget http://garr.dl.sourceforge.net/project/gnuwin32/libintl/0.14.4/libintl-0.14.4-lib.zip; unzip -o libintl-0.14.4-lib.zip -d libintl
 		wget http://switch.dl.sourceforge.net/project/gnuwin32/libintl/0.14.4/libintl-0.14.4-bin.zip; unzip -o libintl-0.14.4-bin.zip -d libintl
+		rm -f libintl-0.14.4-bin.zip; rm -f libintl-0.14.4-lib.zip
 		cd libintl
 		mkdir -p $LOCAL_LIBINTL;
 		mv bin $LOCAL_LIBINTL/; mv lib $LOCAL_LIBINTL/; mv include $LOCAL_LIBINTL/
 		mv man $LOCAL_LIBINTL/; mv share $LOCAL_LIBINTL/
-		rm -f libintl-0.14.4-bin.zip; rm -f libintl-0.14.4-lib.zip
 		
 		# build from gettext sources
 		#~ rm -fR gettext
@@ -569,6 +568,7 @@ else
 		LOCAL_EVENT=`dirname $LOCAL_EVENT_A`/..
 	fi
 fi
+
 $MAKE IO=$IO clean
 LOCAL_CURL=$LOCAL_CURL ULPLAYER=$BASE_UL_DIR ULPLAYER_EXTERNAL_LIBS=$EXTERN_DIR LIBEVENT_DIR=$LOCAL_EVENT ML=$ML STATIC=$STATIC MONL=$MONL IO=$IO DEBUG=$DEBUG THREADS=$THREADS $MAKE
 
@@ -627,16 +627,22 @@ if [ -f "$BASE_UL_DIR/../OfferStreamer/$O_TARGET_EXE" -a -f "$C_PLAYER_EXE" ]; t
 	cp napalogo*.bmp napaplayer/
 	cp *.ttf napaplayer/
 	cp "$C_PLAYER_EXE" napaplayer/
-	cp "$BASE_UL_DIR/../OfferStreamer/$O_TARGET_EXE" napaplayer/offerstreamer
 	if [ -n "$MINGW" ]; then
-		cp "$LOCAL_LIBICONV/bin/libiconv-2.dll" napaplayer/
+		cp "$BASE_UL_DIR/../OfferStreamer/$O_TARGET_EXE" napaplayer/
+	else
+		cp "$BASE_UL_DIR/../OfferStreamer/$O_TARGET_EXE" napaplayer/offerstreamer
+	fi
+	if [ -n "$MINGW" ]; then
+		cp "$LOCAL_LIBICONV/bin/libiconv-2.dll" napaplayer/libiconv2.dll
 		if [ -f "$LOCAL_LIBINTL/bin/libintl-8.dll" ]; then
 			cp "$LOCAL_LIBINTL/bin/libintl-8.dll" napaplayer/
 		else
 			cp "$LOCAL_LIBINTL/bin/libintl3.dll" napaplayer/libintl-8.dll
 		fi
 		cp "$LOCAL_PLIBC/bin/libplibc-1.dll" napaplayer/
+		cp "$LOCAL_PTHREAD/bin/pthreadGC2.dll" napaplayer/
 		cp "$LOCAL_ABS_SDL/bin/SDL.dll" napaplayer/
+		cp player.bat napaplayer/
 		rm -f -r napaplayer.zip
 		zip -r napaplayer napaplayer
 		if [ -s "napaplayer.zip" ]; then
