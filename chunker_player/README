@@ -24,7 +24,6 @@ Parameters have to be issued on the command line in the correct order.
 Example run:
 ./chunker_player 30 45454 0 losses.txt UL_BBC_Torino
 
-
 Explanation of parameters.
 1st parameter: queue_thresh: size of the playout buffer in number of frames, i.e. 40.
 

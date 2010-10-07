@@ -44,20 +44,19 @@ int main(int argc, char *argv[])
 
 	FILE *fp;
 		
-	if(argc<7) {
-		printf("\nUSAGE:\n\tchunker_player queue_thresh player_ip player_port silentMode LossTracesFilenameSuffix ChannelName <YUVFilename>\n\n");
+	if(argc<6) {
+		printf("\nUSAGE:\n\tchunker_player queue_thresh player_port silentMode LossTracesFilenameSuffix ChannelName <YUVFilename>\n\n");
 		exit(1);
 	}
 	sscanf(argv[1],"%d",&queue_filling_threshold);
-	sscanf(argv[2],"%s",PlayerIP);
-	sscanf(argv[3],"%d",&HttpPort);
-	sscanf(argv[4],"%d",&SilentMode);
-	sscanf(argv[5],"%s",LossTracesFilename);
-	sscanf(argv[6],"%s",firstChannelName);
+	sscanf(argv[2],"%d",&HttpPort);
+	sscanf(argv[3],"%d",&SilentMode);
+	sscanf(argv[4],"%s",LossTracesFilename);
+	sscanf(argv[5],"%s",firstChannelName);
 	
-	if(argc==8)
+	if(argc==7)
 	{
-		sscanf(argv[7],"%s",YUVFileName);
+		sscanf(argv[6],"%s",YUVFileName);
 		printf("YUVFile: %s\n",YUVFileName);
 		fp=fopen(YUVFileName, "wb");
 		if(fp)
@@ -410,7 +409,7 @@ int SwitchChannel(SChannel* channel)
 	char argv0[255], parameters_string[511];
 	sprintf(argv0, "%s", OfferStreamerFilename);
 	
-	sprintf(parameters_string, "%s %s %s %s %d %s %s:%d", channel->LaunchString, "-C", channel->Title, "-P", (HttpPort+channel->Index), "-F", PlayerIP, HttpPort);
+	sprintf(parameters_string, "%s %s %s %s %d %s %s:%d", channel->LaunchString, "-C", channel->Title, "-P", (HttpPort+channel->Index), "-F", "127.0.0.1", HttpPort);
 	
 	printf("OFFERSTREAMER LAUNCH STRING: %s %s\n", argv0, parameters_string);
 
