@@ -628,7 +628,7 @@ if [ -f "$BASE_UL_DIR/../OfferStreamer/$O_TARGET_EXE" -a -f "$C_PLAYER_EXE" ]; t
 	cp *.ttf napaplayer/
 	cp "$C_PLAYER_EXE" napaplayer/
 	if [ -n "$MINGW" ]; then
-		cp "$BASE_UL_DIR/../OfferStreamer/$O_TARGET_EXE" napaplayer/
+		cp "$BASE_UL_DIR/../OfferStreamer/$O_TARGET_EXE" napaplayer/offerstreamer.exe
 	else
 		cp "$BASE_UL_DIR/../OfferStreamer/$O_TARGET_EXE" napaplayer/offerstreamer
 	fi

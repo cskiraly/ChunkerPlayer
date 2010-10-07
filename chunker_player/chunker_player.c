@@ -334,7 +334,11 @@ int ParseConf()
 		return 1;
 	}
 	
+#ifdef __WIN32__
+	sprintf(OfferStreamerFilename, "%s.exe", cfg_getstr(cfg, "PeerExecName"));
+#else
 	sprintf(OfferStreamerFilename, "%s", cfg_getstr(cfg, "PeerExecName"));
+#endif
 	
 	FILE * tmp_file;
 	if(tmp_file = fopen(OfferStreamerFilename, "r"))
