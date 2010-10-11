@@ -349,7 +349,7 @@ if [ -n "$BUILD_MHD" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MHD" ]; then
 		make clean
 	else
 		#get and compile libmicrohttpd lib
-		svn --non-interactive checkout https://ng.gnunet.org/svn/libmicrohttpd
+		svn --non-interactive --trust-server-cert checkout https://ng.gnunet.org/svn/libmicrohttpd
 		cd libmicrohttpd
 	fi
 	

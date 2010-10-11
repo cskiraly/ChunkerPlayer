@@ -246,16 +246,16 @@ int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short i
 	printf("using audio Codecid: %d ",aCodecCtx->codec_id);
 	printf("samplerate: %d ",aCodecCtx->sample_rate);
 	printf("channels: %d\n",aCodecCtx->channels);
-	wanted_spec.freq = aCodecCtx->sample_rate;
+	CurrentAudioFreq = wanted_spec.freq = aCodecCtx->sample_rate;
 	wanted_spec.format = AUDIO_S16SYS;
 	wanted_spec.channels = aCodecCtx->channels;
 	wanted_spec.silence = 0;
-	wanted_spec.samples = SDL_AUDIO_BUFFER_SIZE;
+	CurrentAudioSamples = wanted_spec.samples = SDL_AUDIO_BUFFER_SIZE;
 	wanted_spec.callback = AudioCallback;
 	wanted_spec.userdata = aCodecCtx;
 	if(SDL_OpenAudio(&wanted_spec,&AudioSpecification)<0)
 	{
-		fprintf(stderr,"SDL_OpenAudio: %s\n",SDL_GetError());
+		fprintf(stderr,"SDL_OpenAudio: %s\n", SDL_GetError());
 		return -1;
 	}
 	dimAudioQ = AudioSpecification.size;
@@ -1294,7 +1294,7 @@ void ChunkerPlayerCore_Stop()
 	
 	// Stop audio&video playback
 	SDL_WaitThread(video_thread, NULL);
-	SDL_PauseAudio(1);
+	SDL_PauseAudio(1);	
 	SDL_CloseAudio();
 	
 	if(YUVOverlay != NULL)
@@ -1311,6 +1311,15 @@ void ChunkerPlayerCore_Stop()
 	free(VideoPkt.data);
 	free(outbuf_audio);
 	free(InitRect);
+	
+	/*
+	* Sleep two buffers' worth of audio before closing, in order
+	*  to allow the playback to finish. This isn't always enough;
+	*   perhaps SDL needs a way to explicitly wait for device drain?
+	*/
+	int delay = 2 * 1000 * CurrentAudioSamples / CurrentAudioFreq;
+	printf("SDL_Delay(%d)\n", delay);
+	SDL_Delay(delay);
 }
 
 int ChunkerPlayerCore_AudioEnded()

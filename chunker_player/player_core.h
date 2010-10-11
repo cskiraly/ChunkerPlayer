@@ -67,6 +67,8 @@ PacketQueue audioq;
 PacketQueue videoq;
 AVPacket AudioPkt, VideoPkt;
 int AVPlaying;
+int CurrentAudioFreq;
+int CurrentAudioSamples;
 
 SDL_Rect *InitRect;
 SDL_AudioSpec AudioSpecification;
