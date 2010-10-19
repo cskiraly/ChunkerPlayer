@@ -1,12 +1,12 @@
 #!/bin/bash
-SCRIPT=$(readlink -f $0)
-BASE_UL_DIR=`dirname $SCRIPT`
+SCRIPT=$0
+BASE_UL_DIR=`pwd`
 EXTERN_DIR="external_libs"
-MAKE="make -j `grep processor /proc/cpuinfo | wc -l`"
+MAKE="make -j 4"
 cd "$BASE_UL_DIR"
 
 which svn >/dev/null || { echo "CANNOT build UL Applications: svn missing. Please install subversion, then retry!"; exit 1; }
-which libtoolize >/dev/null || { echo "CANNOT build UL Applications: libtool missing. Please install libtool, then retry!"; exit 1; }
+#which libtoolize >/dev/null || { echo "CANNOT build UL Applications: libtool missing. Please install libtool, then retry!"; exit 1; }
 which yasm >/dev/null || { echo "CANNOT build UL Applications: yasm missing. Please install yasm, then retry!"; exit 1; }
 which git >/dev/null || { echo "CANNOT build UL Applications: git missing. Please install git, then retry!"; exit 1; }
 
@@ -414,7 +414,11 @@ if [ -n "$BUILD_SDLIMAGE" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_i
 	fi
 	
 	#make and install in local SDL folder
-	LIBPNG_CFLAGS="-I$LOCAL_LIBPNG/include" LIBPNG_LIBS="-L$LOCAL_LIBPNG/lib" CFLAGS="$CFLAGS $LIBSDLIMAGE_FLAGS -static" CPPFLAGS="$CPPFLAGS $LIBSDLIMAGE_FLAGS -static" LDFLAGS="$LDFLAGS $LIBSDLIMAGE_LDFLAGS -static" ./configure ${HOSTARCH:+--host=$HOSTARCH} --prefix="$TEMP_SDL" --with-sdl-prefix="$TEMP_SDL" --disable-png-shared
+        ./autogen.sh
+	echo "./configure LIBPNG_CFLAGS=\"-I$LOCAL_LIBPNG/include\" LIBPNG_LIBS=\"-L$LOCAL_LIBPNG/lib\" CFLAGS=\"$CFLAGS $LIBSDLIMAGE_FLAGS -static\" CPPFLAGS=\"$CPPFLAGS $LIBSDLIMAGE_FLAGS -static\" LDFLAGS=\"$LDFLAGS $LIBSDLIMAGE_LDFLAGS -static\" ${HOSTARCH:+--host=$HOSTARCH} --prefix=\"$TEMP_SDL\" --with-sdl-prefix=\"$TEMP_SDL\" --disable-png-shared"
+	echo "./configure CFLAGS=\"$CFLAGS -I$LOCAL_LIBPNG/include\" CPPFLAGS=\"$CPPFLAGS -I$LOCAL_LIBPNG/include\" LDFLAGS=\"$LDFLAGS -L$LOCAL_LIBPNG/lib\" ${HOSTARCH:+--host=$HOSTARCH} --prefix=\"$TEMP_SDL\" --with-sdl-prefix=\"$TEMP_SDL\" --disable-png-shared"
+	./configure CFLAGS="$CFLAGS -I$LOCAL_LIBPNG/include" CPPFLAGS="$CPPFLAGS -I$LOCAL_LIBPNG/include" LDFLAGS="$LDFLAGS -L$LOCAL_LIBPNG/lib" ${HOSTARCH:+--host=$HOSTARCH} --prefix="$TEMP_SDL" --with-sdl-prefix="$TEMP_SDL" --disable-png-shared
+
 	$MAKE; $MAKE install
 fi
 
@@ -481,6 +485,44 @@ if [ -n "$BUILD_CURL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_CURL" ]; then
 	$MAKE; $MAKE install
 fi
 
+if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent" ]; then
+	LOCAL_EVENT="$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent"
+	echo "found LIBEVENT in $LOCAL_EVENT"
+else
+	LOCAL_EVENT_A=`locate -l 1 libevent.a`
+	if [ "$LOCAL_EVENT_A" = "" ]; then
+		if [ -f "/usr/lib/libevent.a" ]; then
+			echo "You have file libevent.a in default system"
+			echo "setting path for it to default /usr/lib/libevent.a"
+			LOCAL_EVENT="/usr"
+		else
+			echo "you seem not to have file libevent.a. EXITING."
+			exit
+		fi
+	else
+		LOCAL_EVENT=`dirname $LOCAL_EVENT_A`/..
+	fi
+fi
+
+if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse" ]; then
+	LOCAL_CONFUSE="$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse"
+	echo "found LIBCONFUSE in $LOCAL_CONFUSE"
+else
+	LOCAL_CONFUSE_A=`locate -l 1 libconfuse.a`
+	if [ "$LOCAL_CONFUSE_A" = "" ]; then
+		if [ -f "/usr/lib/libconfuse.a" ]; then
+			echo "You have file libconfuse.a in default system"
+			echo "setting path for it to default /usr/lib/libconfuse.a"
+			LOCAL_CONFUSE="/usr"
+		else
+			echo "you seem not to have file libconfuse.a. EXITING."
+			exit
+		fi
+	else
+		LOCAL_CONFUSE=`dirname $LOCAL_CONFUSE_A`/..
+	fi
+fi
+
 #set needed paths to external libraries
 echo "-----"
 LOCAL_X264=$TEMP_X264
@@ -504,28 +546,13 @@ echo "path for CURL dependancy set to $LOCAL_CURL"
 
 echo "path for BZ2 dependancy is set to $LOCAL_BZ2"
 echo "path for ZLIB dependancy is set to $LOCAL_Z"
+
+echo "path for LIBEVENT dependancy is set to $LOCAL_EVENT"
+echo "path for LIBCONFUSE dependancy is set to $LOCAL_CONFUSE"
 echo "-----"
 
 #compile the UL external applications
 #chunker_streamer and chunker_player
-if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse" ]; then
-	LOCAL_CONFUSE="$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse"
-	echo "found LIBCONFUSE in $LOCAL_CONFUSE"
-else
-	LOCAL_CONFUSE_A=`locate -l 1 libconfuse.a`
-	if [ "$LOCAL_CONFUSE_A" = "" ]; then
-		if [ -f "/usr/lib/libconfuse.a" ]; then
-			echo "You have file libconfuse.a in default system"
-			echo "setting path for it to default /usr/lib/libconfuse.a"
-			LOCAL_CONFUSE="/usr"
-		else
-			echo "you seem not to have file libconfuse.a. EXITING."
-			exit
-		fi
-	else
-		LOCAL_CONFUSE=`dirname $LOCAL_CONFUSE_A`/..
-	fi
-fi
 
 #CHUNKER_STREAMER
 
@@ -535,7 +562,7 @@ if [ ! -n "$MINGW" ]; then
 	cd "$BASE_UL_DIR"
 	cd chunker_streamer
 	$MAKE clean
-	LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_Z=$LOCAL_Z LOCAL_CONFUSE=$LOCAL_CONFUSE LOCAL_CURL=$LOCAL_CURL $MAKE
+	LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_Z=$LOCAL_Z LOCAL_CONFUSE=$LOCAL_CONFUSE LOCAL_CURL=$LOCAL_CURL MAC_OS=$MAC_OS $MAKE
 	echo "----------------FINISHED COMPILING CHUNKER STREAMER"
 fi
 
@@ -544,33 +571,15 @@ echo "----------------COMPILING CHUNKER PLAYER"
 cd "$BASE_UL_DIR"
 cd chunker_player
 $MAKE clean
-LOCAL_PTHREAD=$LOCAL_PTHREAD LOCAL_LIBPNG=$LOCAL_LIBPNG LOCAL_LIBICONV=$LOCAL_LIBICONV LOCAL_LIBINTL=$LOCAL_LIBINTL LOCAL_PLIBC=$LOCAL_PLIBC LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_Z=$LOCAL_Z LOCAL_CONFUSE=$LOCAL_CONFUSE LOCAL_MHD=$LOCAL_MHD LOCAL_ABS_SDL=$LOCAL_ABS_SDL LOCAL_SDLIMAGE=$LOCAL_SDLIMAGE LOCAL_FREETYPE=$LOCAL_FREETYPE LOCAL_SDLTTF=$LOCAL_SDLTTF $MAKE
+LOCAL_PTHREAD=$LOCAL_PTHREAD LOCAL_LIBPNG=$LOCAL_LIBPNG LOCAL_LIBICONV=$LOCAL_LIBICONV LOCAL_LIBINTL=$LOCAL_LIBINTL LOCAL_PLIBC=$LOCAL_PLIBC LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_Z=$LOCAL_Z LOCAL_CONFUSE=$LOCAL_CONFUSE LOCAL_MHD=$LOCAL_MHD LOCAL_ABS_SDL=$LOCAL_ABS_SDL LOCAL_SDLIMAGE=$LOCAL_SDLIMAGE LOCAL_FREETYPE=$LOCAL_FREETYPE LOCAL_SDLTTF=$LOCAL_SDLTTF MAC_OS=$MAC_OS  $MAKE
 echo "----------------FINISHED COMPILING CHUNKER PLAYER"
 
 #compile a version of offerstreamer with UL enabled
 #static needs fix??
 cd "$BASE_UL_DIR/../OfferStreamer"
-if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent" ]; then
-	LOCAL_EVENT="$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent"
-	echo "found LIBEVENT in $LOCAL_EVENT"
-else
-	LOCAL_EVENT_A=`locate -l 1 libevent.a`
-	if [ "$LOCAL_EVENT_A" = "" ]; then
-		if [ -f "/usr/lib/libevent.a" ]; then
-			echo "You have file libevent.a in default system"
-			echo "setting path for it to default /usr/lib/libevent.a"
-			LOCAL_EVENT="/usr"
-		else
-			echo "you seem not to have file libevent.a. EXITING."
-			exit
-		fi
-	else
-		LOCAL_EVENT=`dirname $LOCAL_EVENT_A`/..
-	fi
-fi
 
 $MAKE IO=$IO clean
-LOCAL_CURL=$LOCAL_CURL ULPLAYER=$BASE_UL_DIR ULPLAYER_EXTERNAL_LIBS=$EXTERN_DIR LIBEVENT_DIR=$LOCAL_EVENT ML=$ML STATIC=$STATIC MONL=$MONL IO=$IO DEBUG=$DEBUG THREADS=$THREADS $MAKE
+LOCAL_CURL=$LOCAL_CURL ULPLAYER=$BASE_UL_DIR ULPLAYER_EXTERNAL_LIBS=$EXTERN_DIR LIBEVENT_DIR=$LOCAL_EVENT ML=$ML STATIC=$STATIC MONL=$MONL IO=$IO DEBUG=$DEBUG THREADS=$THREADS MAC_OS=$MAC_OS SVNVERSION=$SVNVERSION $MAKE
 
 #check if all is ok
 echo "============== RESULTS ==================="

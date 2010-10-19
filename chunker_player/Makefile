@@ -8,9 +8,18 @@ endif
 
 #SDL config here
 LOCAL_SDL_CPPFLAGS = -I$(LOCAL_ABS_SDL)/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT
-LOCAL_SDL_LDFLAGS = -Wl,-rpath,$(LOCAL_ABS_SDL)/lib
+#LOCAL_SDL_LDFLAGS = -L$(LOCAL_ABS_SDL)/lib -Wl,-framework,Cocoa
+ifdef MAC_OS
+LOCAL_SDL_LDFLAGS = -L/Users/birke/napawine-software2/trunk/napawine-software3/trunk/Applications/StreamerPlayerChunker/external_libs/sdl/temp_sdl_install_linux/lib /Users/birke/napawine-software2/trunk/napawine-software3/trunk/Applications/StreamerPlayerChunker/external_libs/sdl/temp_sdl_install_linux/lib/libSDLmain.a /Users/birke/napawine-software2/trunk/napawine-software3/trunk/Applications/StreamerPlayerChunker/external_libs/sdl/temp_sdl_install_linux/lib/libSDL.a -Wl,-framework,OpenGL -Wl,-framework,Cocoa -Wl,-framework,ApplicationServices -Wl,-framework,Carbon -Wl,-framework,AudioToolbox -Wl,-framework,AudioUnit -Wl,-framework,IOKit
+else
+LOCAL_SDL_LDFLAGS = -L$(LOCAL_ABS_SDL)/lib -Wl,-framework,Cocoa 
+endif
 ifndef WINDOWS
-LOCAL_SDL_LDLIBS = $(LOCAL_ABS_SDL)/lib/libSDL.a -ldl
+ifdef MAC_OS
+#LOCAL_SDL_LDLIBS = -lSDL  -lSDLmain
+else
+LOCAL_SDL_LDLIBS = $(LOCAL_ABS_SDL)/lib/libSDL.a  -ldl $(LOCAL_ABS_SDL)/lib/libSDLmain.a
+endif
 endif
 
 LOCAL_SDLIMAGE_CPPFLAGS = -I$(LOCAL_SDLIMAGE)/include/SDL
@@ -21,7 +30,8 @@ LOCAL_SDLIMAGE_LDLIBS = $(LOCAL_SDLIMAGE)/lib/libSDL_image.a $(LOCAL_LIBPNG)/lib
 endif
 
 LOCAL_FREETYPE_CPPFLAGS = -I$(LOCAL_FREETYPE)/include/ -I$(LOCAL_FREETYPE)/include/freetype2
-LOCAL_FREETYPE_LDFLAGS = -Wl,--rpath -Wl,$(LOCAL_FREETYPE)/lib
+LOCAL_FREETYPE_LDFLAGS = -Wl,-rpath -Wl,$(LOCAL_FREETYPE)/lib
+#LOCAL_FREETYPE_LDFLAGS = -Wl,$(LOCAL_FREETYPE)/lib
 LOCAL_FREETYPE_LDLIBS = $(LOCAL_FREETYPE)/lib/libfreetype.a
 
 LOCAL_SDLTTF_CPPFLAGS = -I$(LOCAL_SDLTTF)/include/SDL
