@@ -12,7 +12,8 @@ LOCAL_SDL_CPPFLAGS = -I$(LOCAL_ABS_SDL)/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT
 ifdef MAC_OS
 LOCAL_SDL_LDFLAGS = -L/Users/birke/napawine-software2/trunk/napawine-software3/trunk/Applications/StreamerPlayerChunker/external_libs/sdl/temp_sdl_install_linux/lib /Users/birke/napawine-software2/trunk/napawine-software3/trunk/Applications/StreamerPlayerChunker/external_libs/sdl/temp_sdl_install_linux/lib/libSDLmain.a /Users/birke/napawine-software2/trunk/napawine-software3/trunk/Applications/StreamerPlayerChunker/external_libs/sdl/temp_sdl_install_linux/lib/libSDL.a -Wl,-framework,OpenGL -Wl,-framework,Cocoa -Wl,-framework,ApplicationServices -Wl,-framework,Carbon -Wl,-framework,AudioToolbox -Wl,-framework,AudioUnit -Wl,-framework,IOKit
 else
-LOCAL_SDL_LDFLAGS = -L$(LOCAL_ABS_SDL)/lib -Wl,-framework,Cocoa 
+#LOCAL_SDL_LDFLAGS = -L$(LOCAL_ABS_SDL)/lib -Wl,-framework,Cocoa 
+LOCAL_SDL_LDFLAGS = -L$(LOCAL_ABS_SDL)/lib  
 endif
 ifndef WINDOWS
 ifdef MAC_OS

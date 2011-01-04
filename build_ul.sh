@@ -50,23 +50,20 @@ if [ -n "$MINGW" ]; then
 	LOCAL_BZ2=$TEMP_BZ2
 else
 	#try to find libbz2 in your system
-	LOCAL_BZ2_A=`locate -l 1 libbz2.a`
-	if [ "$LOCAL_BZ2_A" = "" ]; then
-		if [ -f "/usr/lib/libbz2.a" ]; then
-			echo "You have file libbz2.a in default system"
-			echo "setting path for it to default /usr/lib/libbz2.a"
-			LOCAL_BZ2="/usr"
-		else
-			echo "you seem not to have file libbz2.a. Will be built locally."
-			BUILD_BZ2=1
-		fi
-	else
-		LOCAL_BZ2=`dirname $LOCAL_BZ2_A`/..
+	LOCAL_BZ2_A=/usr/lib/libbz2.a
+	if [ ! -e $LOCAL_BZ2_A ]; then
+		LOCAL_BZ2_A=`locate -l 1 libbz2.a`
+		[ X$LOCAL_BZ2_A != X ] && LOCAL_BZ2=`dirname $LOCAL_BZ2_A`/..
 		if [ ! -e "$LOCAL_BZ2/lib/libbz2.a" ]; then
 			#wrong location and/or folders structure
+			echo "you seem not to have file libbz2.a or the location is non-standard.Will be built locally."
 			LOCAL_BZ2=""
 			BUILD_BZ2=1
 		fi
+	else
+		echo "You have file libbz2.a in default system"
+		echo "setting path for it to default /usr/lib/libbz2.a"
+		LOCAL_BZ2="/usr"
 	fi
 fi
 
@@ -237,7 +234,7 @@ if [ -f "$LOCAL_LIBPNG/lib/libpng.a" ]; then
 else
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	rm -fR libpng
-	wget http://kent.dl.sourceforge.net/project/libpng/01-libpng-master/1.4.4/libpng-1.4.4.tar.gz
+	wget http://downloads.sourceforge.net/project/libpng/libpng14/older-releases/1.4.4/libpng-1.4.4.tar.gz
 	tar zxvf libpng-1.4.4.tar.gz; rm -f libpng-1.4.4.tar.gz
 	mv libpng-1.4.4 libpng; cd libpng;
 	CFLAGS=-I$LOCAL_Z/include CPPFLAGS=-I$LOCAL_Z/include LDFLAGS=-L$LOCAL_Z/lib sh configure  ${HOSTARCH:+--host=$HOSTARCH} --prefix=$LOCAL_LIBPNG
@@ -571,7 +568,7 @@ echo "----------------COMPILING CHUNKER PLAYER"
 cd "$BASE_UL_DIR"
 cd chunker_player
 $MAKE clean
-LOCAL_PTHREAD=$LOCAL_PTHREAD LOCAL_LIBPNG=$LOCAL_LIBPNG LOCAL_LIBICONV=$LOCAL_LIBICONV LOCAL_LIBINTL=$LOCAL_LIBINTL LOCAL_PLIBC=$LOCAL_PLIBC LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_Z=$LOCAL_Z LOCAL_CONFUSE=$LOCAL_CONFUSE LOCAL_MHD=$LOCAL_MHD LOCAL_ABS_SDL=$LOCAL_ABS_SDL LOCAL_SDLIMAGE=$LOCAL_SDLIMAGE LOCAL_FREETYPE=$LOCAL_FREETYPE LOCAL_SDLTTF=$LOCAL_SDLTTF MAC_OS=$MAC_OS  $MAKE
+LOCAL_PTHREAD=$LOCAL_PTHREAD LOCAL_LIBPNG=$LOCAL_LIBPNG LOCAL_LIBICONV=$LOCAL_LIBICONV LOCAL_LIBINTL=$LOCAL_LIBINTL LOCAL_PLIBC=$LOCAL_PLIBC LOCAL_X264=$LOCAL_X264 LOCAL_MP3LAME=$LOCAL_MP3LAME LOCAL_FFMPEG=$LOCAL_FFMPEG LOCAL_BZ2=$LOCAL_BZ2 LOCAL_Z=$LOCAL_Z LOCAL_CONFUSE=$LOCAL_CONFUSE LOCAL_MHD=$LOCAL_MHD LOCAL_ABS_SDL=$LOCAL_ABS_SDL LOCAL_SDLIMAGE=$LOCAL_SDLIMAGE LOCAL_FREETYPE=$LOCAL_FREETYPE LOCAL_SDLTTF=$LOCAL_SDLTTF MAC_OS=$MAC_OS  $MAKE || { echo "Failed to build CHUNKER PLAYER" ; exit 1; }
 echo "----------------FINISHED COMPILING CHUNKER PLAYER"
 
 #compile a version of offerstreamer with UL enabled
@@ -579,7 +576,7 @@ echo "----------------FINISHED COMPILING CHUNKER PLAYER"
 cd "$BASE_UL_DIR/../OfferStreamer"
 
 $MAKE IO=$IO clean
-LOCAL_CURL=$LOCAL_CURL ULPLAYER=$BASE_UL_DIR ULPLAYER_EXTERNAL_LIBS=$EXTERN_DIR LIBEVENT_DIR=$LOCAL_EVENT ML=$ML STATIC=$STATIC MONL=$MONL IO=$IO DEBUG=$DEBUG THREADS=$THREADS MAC_OS=$MAC_OS SVNVERSION=$SVNVERSION $MAKE
+LOCAL_CURL=$LOCAL_CURL ULPLAYER=$BASE_UL_DIR ULPLAYER_EXTERNAL_LIBS=$EXTERN_DIR LIBEVENT_DIR=$LOCAL_EVENT ML=$ML STATIC=$STATIC MONL=$MONL IO=$IO DEBUG=$DEBUG THREADS=$THREADS MAC_OS=$MAC_OS SVNVERSION=$SVNVERSION $MAKE || { echo "Failed to build OfferStreamer" ; exit 1; }
 
 #check if all is ok
 echo "============== RESULTS ==================="
