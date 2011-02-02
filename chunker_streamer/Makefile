@@ -1,7 +1,19 @@
 include ../common.mak
 
+ifndef MAC_OS
+LIBRT=-lrt
+endif
+
+ifeq ($(IO), httpevent)
+CPPFLAGS += -DHTTPIO
+endif
+
+ifeq ($(IO), tcp)
+CPPFLAGS += -DTCPIO
+endif
+
 CPPFLAGS += -I$(LOCAL_CONFUSE)/include -I$(LOCAL_CURL)/include
-LDLIBS += $(LOCAL_CURL)/lib/libcurl.a -lrt
+LDLIBS += $(LOCAL_CURL)/lib/libcurl.a $(LIBRT)
 LDLIBS += $(LOCAL_CONFUSE)/lib/libconfuse.a
 
 CPPFLAGS += $(LOCAL_FFMPEG_CPPFLAGS) $(LOCAL_COMMON_CPPFLAGS)

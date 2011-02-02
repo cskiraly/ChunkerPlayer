@@ -20,6 +20,8 @@ typedef struct chunker_metadata {
 	int cid;
 	int base_chunkid_sequence_offset;
 	char outside_world_url[1000];
+	int framesPerChunk[2]; // 0 = AUDIO; 1 = VIDEO
+	int targetChunkSize;
 } ChunkerMetadata;
 
 

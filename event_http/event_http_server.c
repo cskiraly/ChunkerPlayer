@@ -15,18 +15,19 @@
 #include <http_default_urls.h>
 #include "chunk_external_interface.h"
 
-int ulEventHttpServerSetup(const char *address, unsigned short port, data_processor_function data_processor) {
+static char input_http_path[255];
+
+int ulEventHttpServerSetup(const char *address, unsigned short port, const char* path, data_processor_function data_processor) {
   struct evhttp* evh = NULL;
-  debug("Setting up event-based http server listening at %s:%d", address, port);
+  debug("Setting up event-based http server listening at %s:%d on path: %s", address, port, path);
 
   evh = evhttp_new(eventbase);
 
   if(evh != NULL) {
-    info("Event-based http server at %s:%d has been setup", address, port);
-    fprintf(stderr, "Event-based http server at %s:%d has been setup\n", address, port);
+    info("Event-based http server at %s:%d on path: %s has been setup", address, port, path);
   }
   else {
-    error("Setup of event-based http server at %s:%d FAILED", address, port);
+    error("Setup of event-based http server at %s:%d on path: %s FAILED", address, port, path);
     return UL_RETURN_FAIL;
   }
 
@@ -42,6 +43,10 @@ int ulEventHttpServerSetup(const char *address, unsigned short port, data_proces
   //function and also pass to it a pointer to an external data_processor function, which is
   //able to handle the received data specifically
   evhttp_set_gencb(evh, ulEventHttpServerProcessRequest, data_processor);
+
+  sprintf(input_http_path, "/%s", path);
+  debug("Setting up static path to: %s", input_http_path);
+
   return UL_RETURN_OK;
 }
 
@@ -63,9 +68,9 @@ int ulEventHttpServerProcessRequest(struct evhttp_request *req, void *context) {
     if(!strncmp(path, UL_HTTP_PREFIX , strlen(UL_HTTP_PREFIX))) {  //if it begins by "http://"
       path = strchr(path + strlen(UL_HTTP_PREFIX),'/'); //skip "http://host:port" part
     }
-    debug("HTTP POST request is for path %s", path);
+    debug("HTTP POST request is for path %s, and should be for %s\n", path, input_http_path);
 
-    if(!strcmp(path, UL_DEFAULT_CHUNKBUFFER_PATH)) {
+    if(!strcmp(path, input_http_path)) {
       //give back the data
       //should i copy it in order to "free" the req pointer??
       //no, because the data processr makes a copy

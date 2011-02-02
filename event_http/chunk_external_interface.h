@@ -98,10 +98,11 @@ int ulPushChunkToChunkBuffer_cb(const uint8_t *encoded_chunk, int encoded_chunk_
  *
  * @param[in] address The IP address the server shall run at
  * @param[in] port The port the http server shall listen at
+ * @param[in] path The http server will process only requests sent to this path.
  * @param[in] data_processor The external function to call and pass the received data block to
  * @return -1 in case of error, when server does not get initialized, 0 if OK
  */
-int ulEventHttpServerSetup(const char *address, unsigned short port, data_processor_function data_processor);
+int ulEventHttpServerSetup(const char *address, unsigned short port, const char *path, data_processor_function data_processor);
 
 /**
  * Processes the received http request.

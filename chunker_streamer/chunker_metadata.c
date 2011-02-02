@@ -22,7 +22,9 @@ struct chunker_metadata *chunkerInit() {
 	cfg_opt_t opts[] =
 	{
 		CFG_STR("strategyType", "frames", CFGF_NONE), //"frames" or "size"
-		CFG_INT("strategyValue", 10, CFGF_NONE),
+		CFG_INT("audioFramesPerChunk", 1, CFGF_NONE),
+		CFG_INT("videoFramesPerChunk", 1, CFGF_NONE),
+		CFG_INT("targetChunkSize", 1024, CFGF_NONE),
 		CFG_STR("chunkID", "sequence", CFGF_NONE), //"sequence" or "starttime" or "monotonic"
 		CFG_STR("outsideWorldUrl", "http://localhost:5557/externalplayer", CFGF_NONE),
 		CFG_END()
@@ -42,17 +44,18 @@ struct chunker_metadata *chunkerInit() {
 		exit(-1);
 	}
 
-	cmeta->val_strategy = cfg_getint(cfg, "strategyValue");
-
 	if(!(strcmp(cfg_getstr(cfg, "strategyType"), "frames"))) {
 		// a fixed number of frames inside every chunk
 		cmeta->strategy = 0;
-		fprintf(stdout, "CONFIG: Will pack %d FRAMES in each chunk\n", cmeta->val_strategy);
+		cmeta->framesPerChunk[0] = cfg_getint(cfg, "audioFramesPerChunk");
+		cmeta->framesPerChunk[1] = cfg_getint(cfg, "videoFramesPerChunk");
+		fprintf(stdout, "CONFIG: Will pack %d AUDIO FRAMES or %d VIDEO FRAMES in each chunk\n", cmeta->framesPerChunk[0], cmeta->framesPerChunk[1]);
 	}
 	else if(!(strcmp(cfg_getstr(cfg, "strategyType"), "size"))) {
 		// each chunk of approx same size of bytes
 		cmeta->strategy = 1;
-		fprintf(stdout, "CONFIG: Will pack %d BYTES in each chunk\n", cmeta->val_strategy);
+		cmeta->targetChunkSize = cfg_getint(cfg, "targetChunkSize");
+		fprintf(stdout, "CONFIG: Will pack %d BYTES in each chunk\n", cmeta->targetChunkSize);
 	}
 	else {
 		fprintf(stdout, "CONFIG: Unknown strategyType in config file chunker.conf. Exiting.\n");

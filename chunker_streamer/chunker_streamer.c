@@ -9,37 +9,64 @@
 
 
 #include "chunker_streamer.h"
+#include <signal.h>
+#include <math.h>
+#include <getopt.h>
+#include <libswscale/swscale.h>
 
+#define STREAMER_MAX(a,b) ((a>b)?(a):(b))
+#define STREAMER_MIN(a,b) ((a<b)?(a):(b))
 
 //#define DEBUG_AUDIO_FRAMES
 //#define DEBUG_VIDEO_FRAMES
 //#define DEBUG_CHUNKER
 #define DEBUG_ANOMALIES
-//#define DEBUG_TIMESTAMPING
-
-#define MAX(a,b) ((a>b)?(a):(b))
+//~ #define DEBUG_TIMESTAMPING
+#define GET_PSNR(x) ((x==0) ? 0 : (-10.0*log(x)/log(10)))
 
 ChunkerMetadata *cmeta = NULL;
 int seq_current_chunk = 1; //chunk numbering starts from 1; HINT do i need more bytes?
 
+#define AUDIO_CHUNK 0
+#define VIDEO_CHUNK 1
 
-int chunkFilled(ExternalChunk *echunk, ChunkerMetadata *cmeta) {
-	// different strategies to implement
-	if(cmeta->strategy == 0) { // number of frames per chunk constant
+void SaveFrame(AVFrame *pFrame, int width, int height);
+void SaveEncodedFrame(Frame* frame, uint8_t *video_outbuf);
+int video_record_count = 0;
+int savedVideoFrames = 0;
+long int firstSavedVideoFrame = 0;
+ChunkerStreamerTestMode = 0;
+
+// Constant number of frames per chunk
+int chunkFilledFramesStrategy(ExternalChunk *echunk, int chunkType)
+{
 #ifdef DEBUG_CHUNKER
-		fprintf(stderr, "CHUNKER: check if frames num %d == %d in chunk %d\n", echunk->frames_num, cmeta->val_strategy, echunk->seq);
+	fprintf(stderr, "CHUNKER: check if frames num %d == %d in chunk %d\n", echunk->frames_num, cmeta->framesPerChunk[chunkType], echunk->seq);
 #endif
-		if(echunk->frames_num == cmeta->val_strategy)
-			return 1;
-  }
-	
-	if(cmeta->strategy == 1) // constant size. Note that for now each chunk will have a size just greater or equal than the required value - It can be considered as constant size. If that is not good we need to change the code. Also, to prevent too low values of strategy_val. This choice is more robust
-		if(echunk->payload_len >= cmeta->val_strategy)
-			return 1;
+	if(echunk->frames_num == cmeta->framesPerChunk[chunkType])
+		return 1;
+
+	return 0;
+}
+
+// Constant size. Note that for now each chunk will have a size just greater or equal than the required value
+// It can be considered as constant size.
+int chunkFilledSizeStrategy(ExternalChunk *echunk, int chunkType)
+{
+#ifdef DEBUG_CHUNKER
+	fprintf(stderr, "CHUNKER: check if chunk size %d >= %d in chunk %d\n", echunk->payload_len, cmeta->targetChunkSize, echunk->seq);
+#endif
+	if(echunk->payload_len >= cmeta->targetChunkSize)
+		return 1;
 	
 	return 0;
 }
 
+// Performace optimization.
+// The chunkFilled function has been splitted into two functions (one for each strategy).
+// Instead of continuously check the strategy flag (which is constant),
+// we change the callback just once according to the current strategy (look at the switch statement in the main in which this function pointer is set)
+int (*chunkFilled)(ExternalChunk *echunk, int chunkType);
 
 void initChunk(ExternalChunk *chunk, int *seq_num) {
 	chunk->seq = (*seq_num)++;
@@ -58,8 +85,35 @@ void initChunk(ExternalChunk *chunk, int *seq_num) {
 	chunk->_refcnt = 0;
 }
 
+int quit = 0;
+
+void sigproc()
+{
+	printf("you have pressed ctrl-c, terminating...\n");
+	quit = 1;
+}
+
+static void print_usage(int argc, char *argv[])
+{
+  fprintf (stderr,
+    "\nUsage:%s [options]\n"
+    "\n"
+    "Mandatory options:\n"
+    "\t[-i input file]\n"
+    "\t[-a audio bitrate]\n"
+    "\t[-v video bitrate]\n\n"
+    "Other options:\n"
+    "\t[-s WxH]: force video size.\n"
+    "\t[-l]: this is a live stream.\n"
+    "\t[-o]: adjust av frames timestamps.\n"
+    "\t[-t]: QoE test mode\n\n"
+    "=======================================================\n", argv[0]
+    );
+  }
 
 int main(int argc, char *argv[]) {
+	signal(SIGINT, sigproc);
+	
 	int i=0;
 
 	//output variables
@@ -76,12 +130,12 @@ int main(int argc, char *argv[]) {
 	int len1;
 	int frameFinished;
 	//frame sequential counters
-	int contFrameAudio=1, contFrameVideo=1;
+	int contFrameAudio=1, contFrameVideo=0;
 	int numBytes;
 
 	//command line parameters
-	int audio_bitrate;
-	int video_bitrate;
+	int audio_bitrate = -1;
+	int video_bitrate = -1;
 	int live_source = 0; //tells to sleep before reading next frame in not live (i.e. file)
 	int offset_av = 0; //tells to compensate for offset between audio and video in the file
 	
@@ -89,6 +143,7 @@ int main(int argc, char *argv[]) {
 	int16_t *samples = NULL;
 	//a raw uncompressed video picture
 	AVFrame *pFrame = NULL;
+	AVFrame *scaledFrame = NULL;
 
 	AVFormatContext *pFormatCtx;
 	AVCodecContext  *pCodecCtx,*pCodecCtxEnc,*aCodecCtxEnc,*aCodecCtx;
@@ -109,21 +164,83 @@ int main(int argc, char *argv[]) {
 	Frame *frame = NULL;
 	ExternalChunk *chunk = NULL;
 	ExternalChunk *chunkaudio = NULL;
-
-
-	//scan the command line
-	if(argc < 4) {
-		fprintf(stderr, "execute ./chunker_streamer moviefile audiobitrate videobitrate <live source flag (0 or 1)> <offset av flag (0 or 1)>\n");
+	
+	char av_input[1024];
+	int dest_width = -1;
+	int dest_height = -1;
+	
+	static struct option long_options[] =
+	{
+		/* These options set a flag. */
+		{"long_option", required_argument, 0, 0},
+		{0, 0, 0, 0}
+	};
+	/* `getopt_long' stores the option index here. */
+	int option_index = 0, c;
+	int mandatories = 0;
+	while ((c = getopt_long (argc, argv, "i:a:v:s:lot", long_options, &option_index)) != -1)
+	{
+		switch (c) {
+			case 0: //for long options
+				break;
+			case 'i':
+				sprintf(av_input, "%s", optarg);
+				mandatories++;
+				break;
+			case 'a':
+				sscanf(optarg, "%d", &audio_bitrate);
+				mandatories++;
+				break;
+			case 'v':
+				sscanf(optarg, "%d", &video_bitrate);
+				mandatories++;
+				break;
+			case 's':
+				sscanf(optarg, "%dx%d", &dest_width, &dest_height);
+				break;
+			case 'l':
+				live_source = 1;
+				break;
+			case 'o':
+				offset_av = 1;
+				break;
+			case 't':
+				ChunkerStreamerTestMode = 1;
+				break;
+			default:
+				print_usage(argc, argv);
+				return -1;
+		}
+	}
+	
+	if(mandatories < 3) 
+	{
+		print_usage(argc, argv);
 		return -1;
 	}
-	sscanf(argv[2],"%d", &audio_bitrate);
-	sscanf(argv[3],"%d", &video_bitrate);
-	if(argc>=5) sscanf(argv[4],"%d", &live_source);
-	if(argc==6) sscanf(argv[5],"%d", &offset_av);
+
+#ifdef YUV_RECORD_ENABLED
+	if(ChunkerStreamerTestMode)
+	{
+		DELETE_DIR("yuv_data");
+		CREATE_DIR("yuv_data");
+		//FILE* pFile=fopen("yuv_data/streamer_out.yuv", "w");
+		//fclose(pFile);
+	}
+#endif
 
 restart:
 	// read the configuration file
 	cmeta = chunkerInit();
+	switch(cmeta->strategy)
+	{
+		case 1:
+			chunkFilled = chunkFilledSizeStrategy;
+			break;
+		default:
+			chunkFilled = chunkFilledFramesStrategy;
+	}
+		
 	if(live_source)
 		fprintf(stderr, "INIT: Using LIVE SOURCE TimeStamps\n");
 	if(offset_av)
@@ -133,7 +250,7 @@ restart:
 	av_register_all();
 
 	// Open input file
-	if(av_open_input_file(&pFormatCtx, argv[1], NULL, 0, NULL) != 0) {
+	if(av_open_input_file(&pFormatCtx, av_input, NULL, 0, NULL) != 0) {
 		fprintf(stdout, "INIT: Couldn't open video file. Exiting.\n");
 		exit(-1);
 	}
@@ -145,7 +262,7 @@ restart:
 	}
 
 	// Dump information about file onto standard error
-	dump_format(pFormatCtx, 0, argv[1], 0);
+	dump_format(pFormatCtx, 0, av_input, 0);
 
 	// Find the video and audio stream numbers
 	for(i=0; i<pFormatCtx->nb_streams; i++) {
@@ -190,8 +307,8 @@ restart:
 	pCodecCtxEnc->codec_id   = CODEC_ID_H264;//13;//pCodecCtx->codec_id;
 	pCodecCtxEnc->bit_rate = video_bitrate;///400000;
 	// resolution must be a multiple of two 
-	pCodecCtxEnc->width = pCodecCtx->width;
-	pCodecCtxEnc->height = pCodecCtx->height;
+	pCodecCtxEnc->width = (dest_width > 0) ? dest_width : pCodecCtx->width;
+	pCodecCtxEnc->height = (dest_height > 0) ? dest_height : pCodecCtx->height;
 	// frames per second 
 	pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
 	pCodecCtxEnc->gop_size = 100; // emit one intra frame every ten frames 
@@ -202,23 +319,38 @@ restart:
 //	pCodecCtxEnc->rc_min_rate = 0;
 //	pCodecCtxEnc->rc_max_rate = 0;
 //	pCodecCtxEnc->rc_buffer_size = 0;
-//	pCodecCtxEnc->flags |= CODEC_FLAG_PSNR;
+	pCodecCtxEnc->flags |= CODEC_FLAG_PSNR;
 //	pCodecCtxEnc->partitions = X264_PART_I4X4 | X264_PART_I8X8 | X264_PART_P8X8 | X264_PART_P4X4 | X264_PART_B8X8;
 //	pCodecCtxEnc->crf = 0.0f;
+	
+#ifdef STREAMER_X264_USE_SSIM
+	pCodecCtxEnc->flags2 |= CODEC_FLAG2_SSIM;
+#endif
+
+	pCodecCtxEnc->weighted_p_pred=2; //maps wpredp=2; weighted prediction analysis method
+	// pCodecCtxEnc->rc_min_rate = 0;
+	// pCodecCtxEnc->rc_max_rate = video_bitrate*2;
+	// pCodecCtxEnc->rc_buffer_size = 0;
 #else
 	pCodecCtxEnc->codec_type = CODEC_TYPE_VIDEO;
 	pCodecCtxEnc->codec_id   = CODEC_ID_MPEG4;
 	pCodecCtxEnc->bit_rate = video_bitrate;
+	//~ pCodecCtxEnc->qmin = 30;
+	//~ pCodecCtxEnc->qmax = 30;
 	//times 20 follows the defaults, was not needed in previous versions of libavcodec
 	pCodecCtxEnc->bit_rate_tolerance = video_bitrate*20;
 //	pCodecCtxEnc->crf = 20.0f;
-	pCodecCtxEnc->width = pCodecCtx->width;
-	pCodecCtxEnc->height = pCodecCtx->height;
+	pCodecCtxEnc->width = (dest_width > 0) ? dest_width : pCodecCtx->width;
+	pCodecCtxEnc->height = (dest_height > 0) ? dest_height : pCodecCtx->height;
 	// frames per second 
-	pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
-	pCodecCtxEnc->gop_size = 100; // emit one intra frame every ten frames 
+	//~ pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
+	//printf("pCodecCtx->time_base=%d/%d\n", pCodecCtx->time_base.num, pCodecCtx->time_base.den);
+	pCodecCtxEnc->time_base= (AVRational){1,25};
+	pCodecCtxEnc->gop_size = 12; // emit one intra frame every twelve frames 
 	//pCodecCtxEnc->max_b_frames=1;
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
+	pCodecCtxEnc->flags = CODEC_FLAG_PSNR;
+	//~ pCodecCtxEnc->flags |= CODEC_FLAG_QSCALE;
 #endif
 
 	fprintf(stderr, "INIT: VIDEO timebase OUT:%d %d IN: %d %d\n", pCodecCtxEnc->time_base.num, pCodecCtxEnc->time_base.den, pCodecCtx->time_base.num, pCodecCtx->time_base.den);
@@ -302,13 +434,17 @@ restart:
 
 	// Allocate video in frame and out buffer
 	pFrame=avcodec_alloc_frame();
-	if(pFrame==NULL) {
+	scaledFrame=avcodec_alloc_frame();
+	if(pFrame==NULL || scaledFrame == NULL) {
 		fprintf(stderr, "INIT: Memory error alloc video frame!!!\n");
 		return -1;
 	}
 	video_outbuf_size = STREAMER_MAX_VIDEO_BUFFER_SIZE;
 	video_outbuf = av_malloc(video_outbuf_size);
-	if(!video_outbuf) {
+	int scaledFrame_buf_size = avpicture_get_size( PIX_FMT_YUV420P, pCodecCtxEnc->width, pCodecCtxEnc->height);
+	uint8_t* scaledFrame_buffer = (uint8_t *) av_malloc( scaledFrame_buf_size * sizeof( uint8_t ) );
+	avpicture_fill( (AVPicture*) scaledFrame, scaledFrame_buffer, PIX_FMT_YUV420P, pCodecCtxEnc->width, pCodecCtxEnc->height);
+	if(!video_outbuf || !scaledFrame_buffer) {
 		fprintf(stderr, "INIT: Memory error alloc video_outbuf!!!\n");
 		return -1;
 	}
@@ -353,9 +489,29 @@ restart:
 	long long lateTime = 0;
 	long long maxAudioInterval = 0;
 	long long maxVDecodeTime = 0;
+	unsigned char lastIFrameDistance = 0;
+
+#ifdef TCPIO
+	static char peer_ip[16];
+	static int peer_port;
+	int res = sscanf(cmeta->outside_world_url, "tcp://%15[0-9.]:%d", peer_ip, &peer_port);
+	if (res < 2) {
+		fprintf(stderr,"error parsing output url: %s\n", cmeta->outside_world_url);
+		return -2;
+	}
+	
+	initTCPPush(peer_ip, peer_port);
+#endif
+	
+	char videotrace_filename[255];
+	char psnr_filename[255];
+	sprintf(videotrace_filename, "yuv_data/videotrace.log");
+	sprintf(psnr_filename, "yuv_data/psnrtrace.log");
+	FILE* videotrace = fopen(videotrace_filename, "w");
+	FILE* psnrtrace = fopen(psnr_filename, "w");
 
 	//main loop to read from the input file
-	while(av_read_frame(pFormatCtx, &packet)>=0)
+	while((av_read_frame(pFormatCtx, &packet)>=0) && !quit)
 	{
 		//detect if a strange number of anomalies is occurring
 		if(ptsvideo1 < 0 || ptsvideo1 > packet.dts || ptsaudio1 < 0 || ptsaudio1 > packet.dts) {
@@ -375,6 +531,15 @@ restart:
 			}
 		}
 
+		//newTime_video and _audio are in usec
+		//if video and audio stamps differ more than 5sec
+		if( newTime_video - newTime_audio > 5000000 || newTime_video - newTime_audio < -5000000 ) {
+			newtime_anomalies_counter++;
+#ifdef DEBUG_ANOMALIES
+			fprintf(stderr, "READLOOP: NEWTIME audio video differ anomaly detected number %d\n", newtime_anomalies_counter);
+#endif
+		}
+
 		if(newtime_anomalies_counter > 50) { //just a random threshold
 			if(live_source) { //restart just in case of live source
 #ifdef DEBUG_ANOMALIES
@@ -389,18 +554,18 @@ restart:
 		{
 			if(!live_source)
 			{
-			if(audioStream != -1) { //take this "time bank" method into account only if we have audio track
-				// lateTime < 0 means a positive time account that can be used to decode video frames
-				// if (lateTime + maxVDecodeTime) >= 0 then we may have a negative time account after video transcoding
-				// therefore, it's better to skip the frame
-				if((lateTime+maxVDecodeTime) >= 0)
-				{
+				if(audioStream != -1) { //take this "time bank" method into account only if we have audio track
+					// lateTime < 0 means a positive time account that can be used to decode video frames
+					// if (lateTime + maxVDecodeTime) >= 0 then we may have a negative time account after video transcoding
+					// therefore, it's better to skip the frame
+					if((lateTime+maxVDecodeTime) >= 0)
+					{
 #ifdef DEBUG_ANOMALIES
-					fprintf(stderr, "\n\n\t\t************************* SKIPPING VIDEO FRAME ***********************************\n\n", sleep);
+						fprintf(stderr, "\n\n\t\t************************* SKIPPING VIDEO FRAME ***********************************\n\n", sleep);
 #endif
-					continue;
+						continue;
+					}
 				}
-			}
 			}
 			
 			gettimeofday(&tmp_tv, NULL);
@@ -413,15 +578,30 @@ restart:
 				fprintf(stderr, "\n-------VIDEO FRAME type %d\n", pFrame->pict_type);
 				fprintf(stderr, "VIDEO: dts %lld pts %lld\n", packet.dts, packet.pts);
 #endif
-				if(frameFinished) { // it must be true all the time else error
-					frame->number = contFrameVideo;
+				if(frameFinished)
+				{ // it must be true all the time else error
+				
+					frame->number = ++contFrameVideo;
+
+#ifdef VIDEO_DEINTERLACE
+					avpicture_deinterlace(
+						(AVPicture*) pFrame,
+						(const AVPicture*) pFrame,
+						pCodecCtxEnc->pix_fmt,
+						pCodecCtxEnc->width,
+						pCodecCtxEnc->height);
+#endif
+
 #ifdef DEBUG_VIDEO_FRAMES
 					fprintf(stderr, "VIDEO: finished frame %d dts %lld pts %lld\n", frame->number, packet.dts, packet.pts);
 #endif
 					if(frame->number==0) {
 						if(packet.dts==AV_NOPTS_VALUE)
+						{
 							//a Dts with a noPts value is troublesome case for delta calculation based on Dts
+							contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
 							continue;
+						}
 						last_pkt_dts = packet.dts;
 						newTime = 0;
 					}
@@ -431,19 +611,40 @@ restart:
 							last_pkt_dts = packet.dts;
 						}
 						else if(delta_video==0)
+						{
 							//a Dts with a noPts value is troublesome case for delta calculation based on Dts
+							contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
 							continue;
+						}
 					}
 #ifdef DEBUG_VIDEO_FRAMES
 					fprintf(stderr, "VIDEO: deltavideo : %d\n", (int)delta_video);
 #endif
-					video_frame_size = avcodec_encode_video(pCodecCtxEnc, video_outbuf, video_outbuf_size, pFrame);
+
+					if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width)
+					{
+						static AVPicture pict;
+						static struct SwsContext *img_convert_ctx = NULL;
+						
+						if(img_convert_ctx == NULL)
+						{
+							img_convert_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, PIX_FMT_YUV420P, pCodecCtxEnc->width, pCodecCtxEnc->height, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
+							if(img_convert_ctx == NULL) {
+								fprintf(stderr, "Cannot initialize the conversion context!\n");
+								exit(1);
+							}
+						}
+						sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, pCodecCtx->height, scaledFrame->data, scaledFrame->linesize);
+						video_frame_size = avcodec_encode_video(pCodecCtxEnc, video_outbuf, video_outbuf_size, scaledFrame);
+					}
+					else
+						video_frame_size = avcodec_encode_video(pCodecCtxEnc, video_outbuf, video_outbuf_size, pFrame);
+					
 					if(video_frame_size <= 0)
+					{
+						contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
 						continue;
-#ifdef DEBUG_VIDEO_FRAMES
-					fprintf(stderr, "VIDEO: original codec frame number %d vs. encoded %d vs. packed %d\n", pCodecCtx->frame_number, pCodecCtxEnc->frame_number, frame->number);
-					fprintf(stderr, "VIDEO: duration %d timebase %d %d container timebase %d\n", (int)packet.duration, pCodecCtxEnc->time_base.den, pCodecCtxEnc->time_base.num, pCodecCtx->time_base.den);
-#endif
+					}
 
 					//use pts if dts is invalid
 					if(packet.dts!=AV_NOPTS_VALUE)
@@ -451,7 +652,10 @@ restart:
 					else if(packet.pts!=AV_NOPTS_VALUE)
 						target_pts = packet.pts;
 					else
+					{
+						contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
 						continue;
+					}
 
 					if(!offset_av)
 					{
@@ -492,30 +696,92 @@ restart:
 						fprintf(stderr, "VIDEO: SKIPPING FRAME\n");
 #endif
 						newtime_anomalies_counter++;
+#ifdef DEBUG_ANOMALIES
+						fprintf(stderr, "READLOOP: NEWTIME negative video timestamp anomaly detected number %d\n", newtime_anomalies_counter);
+#endif
+						contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
 						continue; //SKIP THIS FRAME, bad timestamp
 					}
+					
+					//~ printf("pCodecCtxEnc->error[0]=%lld\n", pFrame->error[0]);
 	
 					frame->timestamp.tv_sec = (long long)newTime/1000;
 					frame->timestamp.tv_usec = newTime%1000;
 					frame->size = video_frame_size;
 					/* pict_type maybe 1 (I), 2 (P), 3 (B), 5 (AUDIO)*/
-					frame->type = pFrame->pict_type;
+					frame->type = (unsigned char)pFrame->pict_type;
+
+#ifdef H264_VIDEO_ENCODER
+
+#ifdef STREAMER_X264_USE_SSIM
+					/*double ssim_y = x264_context->enc->stat.frame.f_ssim
+                      / (((x264_context->enc->param.i_width-6)>>2) * ((x264_context->enc->param.i_height-6)>>2));*/
+#else
+					//fprintf(psnrtrace, "%f\n", (float)x264_psnr( x264_context->enc->stat.frame.i_ssd[0], x264_context->enc->param.i_width * x264_context->enc->param.i_height ));
+					//frame->psnr = (uint16_t) ((float)(STREAMER_MIN(x264_psnr( x264_context->enc->stat.frame.i_ssd[0], x264_context->enc->param.i_width * x264_context->enc->param.i_height ),MAX_PSNR))*65536/MAX_PSNR);
+#endif
+
+#else
+					//psnr = (uint16_t) ((float)(STREAMER_MIN(GET_PSNR(pCodecCtxEnc->error[0]/(pCodecCtxEnc->width*pCodecCtxEnc->height*255.0*255.0)),MAX_PSNR))*65536/MAX_PSNR);
+					//pCodecCtxEnc->error[0] = 0;
+#endif
+
+#ifdef DEBUG_VIDEO_FRAMES
+					fprintf(stderr, "VIDEO: original codec frame number %d vs. encoded %d vs. packed %d\n", pCodecCtx->frame_number, pCodecCtxEnc->frame_number, frame->number);
+					fprintf(stderr, "VIDEO: duration %d timebase %d %d container timebase %d\n", (int)packet.duration, pCodecCtxEnc->time_base.den, pCodecCtxEnc->time_base.num, pCodecCtx->time_base.den);
+#endif
+
+#ifdef YUV_RECORD_ENABLED
+					if(ChunkerStreamerTestMode)
+					{
+						if(videotrace)
+							fprintf(videotrace, "%d %d %d\n", frame->number, pFrame->pict_type, frame->size);
+
+						if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width)
+							SaveFrame(scaledFrame, pCodecCtxEnc->width, pCodecCtxEnc->height);
+						else
+							SaveFrame(pFrame, pCodecCtxEnc->width, pCodecCtxEnc->height);
+
+						++savedVideoFrames;
+						SaveEncodedFrame(frame, video_outbuf);
+
+						if(!firstSavedVideoFrame)
+							firstSavedVideoFrame = frame->number;
+						
+						char tmp_filename[255];
+						sprintf(tmp_filename, "yuv_data/streamer_out_context.txt");
+						FILE* tmp = fopen(tmp_filename, "w");
+						if(tmp)
+						{
+							fprintf(tmp, "width = %d\nheight = %d\ntotal_frames_saved = %d\ntotal_frames_decoded = %d\nfirst_frame_number = %d\nlast_frame_number = %d\n"
+								,pCodecCtxEnc->width, pCodecCtxEnc->height
+								,savedVideoFrames, savedVideoFrames, firstSavedVideoFrame, frame->number);
+							fclose(tmp);
+						}
+					}
+#endif
+
 #ifdef DEBUG_VIDEO_FRAMES
 					fprintf(stderr, "VIDEO: encapsulated frame size:%d type:%d\n", frame->size, frame->type);
 					fprintf(stderr, "VIDEO: timestamped sec %d usec:%d\n", frame->timestamp.tv_sec, frame->timestamp.tv_usec);
 #endif
-					contFrameVideo++; //lets increase the numbering of the frames
+					//contFrameVideo++; //lets increase the numbering of the frames
 
 					if(update_chunk(chunk, frame, video_outbuf) == -1) {
 						fprintf(stderr, "VIDEO: unable to update chunk %d. Exiting.\n", chunk->seq);
 						exit(-1);
 					}
 
-					if(chunkFilled(chunk, cmeta)) { // is chunk filled using current strategy?
+					if(chunkFilled(chunk, VIDEO_CHUNK)) { // is chunk filled using current strategy?
 						//SAVE ON FILE
 						//saveChunkOnFile(chunk);
 						//Send the chunk via http to an external transport/player
+#ifdef HTTPIO
 						pushChunkHttp(chunk, cmeta->outside_world_url);
+#endif
+#ifdef TCPIO
+						pushChunkTcp(chunk);
+#endif
 #ifdef DEBUG_CHUNKER
 						fprintf(stderr, "VIDEO: sent chunk video %d\n", chunk->seq);
 #endif
@@ -667,6 +933,9 @@ restart:
 					fprintf(stderr, "AUDIO: SKIPPING FRAME\n");
 #endif
 					newtime_anomalies_counter++;
+#ifdef DEBUG_ANOMALIES
+					fprintf(stderr, "READLOOP: NEWTIME negative audio timestamp anomaly detected number %d\n", newtime_anomalies_counter);
+#endif
 					continue; //SKIP THIS FRAME, bad timestamp
 				}
 
@@ -688,7 +957,7 @@ restart:
 				//set priority
 				chunkaudio->priority = 1;
 
-				if(chunkFilled(chunkaudio, cmeta)) {
+				if(chunkFilled(chunkaudio, AUDIO_CHUNK)) {
 					// is chunk filled using current strategy?
 					//SAVE ON FILE
 					//saveChunkOnFile(chunkaudio);
@@ -736,7 +1005,6 @@ restart:
 					newTime_prev = newTime_audio;
 					gettimeofday(&lastAudioSent, NULL);
 				}
-
 			}
 		}
 		else {
@@ -746,6 +1014,11 @@ restart:
 			av_free_packet(&packet);
 		}
 	}
+	
+	if(videotrace)
+		fclose(videotrace);
+	if(psnrtrace)
+		fclose(psnrtrace);
 
 close:
 	if(chunk->seq != 0 && chunk->frames_num>0) {
@@ -769,18 +1042,24 @@ close:
 		chunkaudio->seq = 0; //signal that we need an increase just in case we will restart
 	}
 
+#ifdef HTTPIO
 	/* finalize the HTTP chunk pusher */
 	finalizeChunkPusher();
+#elif TCPIO
+	finalizeTCPChunkPusher();
+#endif
 
 	free(chunk);
 	free(chunkaudio);
 	free(frame);
 	av_free(video_outbuf);
+	av_free(scaledFrame_buffer);
 	av_free(audio_outbuf);
 	free(cmeta);
 
 	// Free the YUV frame
 	av_free(pFrame);
+	av_free(scaledFrame);
 	av_free(samples);
   
 	// Close the codec
@@ -819,12 +1098,28 @@ close:
 		last_pkt_dts_audio=0;
 		target_pts=0;
 		i=0;
+		//~ contFrameVideo = 0;
+		//~ contFrameAudio = 1;
+		
+#ifdef YUV_RECORD_ENABLED
+		if(ChunkerStreamerTestMode)
+		{
+			video_record_count++;
+			//~ savedVideoFrames = 0;
+			
+			//~ char tmp_filename[255];
+			//~ sprintf(tmp_filename, "yuv_data/out_%d.yuv", video_record_count);
+			//~ FILE *pFile=fopen(tmp_filename, "w");
+			//~ if(pFile!=NULL)
+				//~ fclose(pFile);
+		}
+#endif
+
 		goto restart;
 	}
 
 	return 0;
 }
-
 
 int update_chunk(ExternalChunk *chunk, Frame *frame, uint8_t *outbuf) {
 	//the frame.h gets encoded into 5 slots of 32bits (3 ints plus 2 more for the timeval struct
@@ -884,3 +1179,53 @@ int update_chunk(ExternalChunk *chunk, Frame *frame, uint8_t *outbuf) {
 	return 0;
 }
 
+void SaveFrame(AVFrame *pFrame, int width, int height)
+{
+	FILE *pFile;
+	int  y;
+
+	 // Open file
+	char tmp_filename[255];
+	sprintf(tmp_filename, "yuv_data/streamer_out.yuv");
+	pFile=fopen(tmp_filename, "ab");
+	if(pFile==NULL)
+		return;
+
+	// Write header
+	//fprintf(pFile, "P5\n%d %d\n255\n", width, height);
+  
+	// Write Y data
+	for(y=0; y<height; y++)
+  		if(fwrite(pFrame->data[0]+y*pFrame->linesize[0], 1, width, pFile) != width)
+		{
+			printf("errno = %d\n", errno);
+			exit(1);
+		}
+	// Write U data
+	for(y=0; y<height/2; y++)
+  		if(fwrite(pFrame->data[1]+y*pFrame->linesize[1], 1, width/2, pFile) != width/2)
+  		{
+			printf("errno = %d\n", errno);
+			exit(1);
+		}
+	// Write V data
+	for(y=0; y<height/2; y++)
+  		if(fwrite(pFrame->data[2]+y*pFrame->linesize[2], 1, width/2, pFile) != width/2)
+  		{
+			printf("errno = %d\n", errno);
+			exit(1);
+		}
+  
+	// Close file
+	fclose(pFile);
+}
+
+void SaveEncodedFrame(Frame* frame, uint8_t *video_outbuf)
+{
+	static FILE* pFile = NULL;
+	
+	pFile=fopen("yuv_data/streamer_out.mpeg4", "ab");
+	fwrite(frame, sizeof(Frame), 1, pFile);
+	fwrite(video_outbuf, frame->size, 1, pFile);
+	fclose(pFile);
+}

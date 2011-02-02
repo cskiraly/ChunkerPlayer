@@ -6,9 +6,13 @@
 #include <unistd.h>
 #include <memory.h>
 #include <sys/types.h>
+#ifndef WIN32
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <arpa/inet.h>
+#else
+#include <winsock2.h>
+#endif
 
 #include "external_chunk_transcoding.h"
 

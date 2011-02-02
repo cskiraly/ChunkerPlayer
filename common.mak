@@ -3,16 +3,30 @@
 #basically these are ffmpeg-related
 
 #default stuff from here on
+ifeq ($(LD),i586-mingw32msvc-ld)
+WINDOWS = 1
+endif
+
+ifdef WINDOWS
+CFLAGS = -g -O0 -Wall
+else
 CFLAGS = -pthread -g -O0 -Wall
-CFLAGS += -DHAVE_OPENGL -Wl,--warn-common -Wl,--as-needed -Wl,-Bsymbolic
-CPPFLAGS += -I../chunk_transcoding -I../
 LDFLAGS += -pthread
 DYNAMIC_LDLIBS += -lm
+endif
+
+CFLAGS += -DHAVE_OPENGL -Wl,--warn-common -Wl,--as-needed -Wl,-Bsymbolic
+CPPFLAGS += -I../chunk_transcoding -I../
 
 #default fmmpeg here
 LOCAL_FFMPEG_CPPFLAGS = -I$(LOCAL_FFMPEG)/include
 #LOCAL_FFMPEG_LDFLAGS = -L$(LOCAL_FFMPEG)/lib
+
+ifdef WINDOWS
+LOCAL_FFMPEG_LDLIBS = $(LOCAL_FFMPEG)/lib/libavdevice.a $(LOCAL_FFMPEG)/lib/libavformat.a $(LOCAL_FFMPEG)/lib/libavcodec.a $(LOCAL_FFMPEG)/lib/libavutil.a $(LOCAL_FFMPEG)/lib/libswscale.a -lws2_32
+else
 LOCAL_FFMPEG_LDLIBS = $(LOCAL_FFMPEG)/lib/libavdevice.a $(LOCAL_FFMPEG)/lib/libavformat.a $(LOCAL_FFMPEG)/lib/libavcodec.a $(LOCAL_FFMPEG)/lib/libavutil.a $(LOCAL_FFMPEG)/lib/libswscale.a
+endif
 
 LOCAL_COMMON_CPPFLAGS = -I$(LOCAL_X264)/include -I$(LOCAL_BZ2)/include -I$(LOCAL_Z)/include -I$(LOCAL_MP3LAME)/include
 #LOCAL_COMMON_LDFLAGS = -L$(LOCAL_X264)/lib -L$(LOCAL_BZ2)/lib -L$(LOCAL_MP3LAME)/lib

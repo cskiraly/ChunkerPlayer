@@ -2,15 +2,19 @@
 #include "chunker_player.h"
 #include "player_gui.h"
 #include "player_core.h"
+#include "player_stats.h"
 #include <assert.h>
+#include <time.h>
 
 void SaveFrame(AVFrame *pFrame, int width, int height);
 int VideoCallback(void *valthread);
+int CollectStatisticsThread(void *params);
 void AudioCallback(void *userdata, Uint8 *stream, int len);
-void UpdateQueueStats(PacketQueue *q, int packet_index);
-void UpdateLossTraces(int type, int first_lost, int n_lost);
-int UpdateQualityEvaluation(double instant_lost_frames, double instant_skips, int do_update);
-void PacketQueueCleanStats(PacketQueue *q);
+void PacketQueueClearStats(PacketQueue *q);
+void ChunkerPlayerCore_Pause();
+
+//int lastCheckedVideoFrame = -1;
+long int last_video_frame_extracted = -1;
 
 void PacketQueueInit(PacketQueue *q, short int Type)
 {
@@ -22,11 +26,6 @@ void PacketQueueInit(PacketQueue *q, short int Type)
 	QueueFillingMode=1;
 	q->queueType=Type;
 	q->last_frame_extracted = -1;
-	q->total_lost_frames = 0;
-	q->instant_lost_frames = 0;
-	q->total_skips = 0;
-	q->last_skips = 0;
-	q->instant_skips = 0;
 	q->first_pkt= NULL;
 	//q->last_pkt = NULL;
 	q->nb_packets = 0;
@@ -34,8 +33,11 @@ void PacketQueueInit(PacketQueue *q, short int Type)
 	q->density= 0.0;
 	FirstTime = 1;
 	FirstTimeAudio = 1;
-	//init up statistcs
-	PacketQueueCleanStats(q);
+	//init up statistics
+	
+	q->PacketHistory.Mutex = SDL_CreateMutex();
+	PacketQueueClearStats(q);
+	
 #ifdef DEBUG_QUEUE
 	printf("QUEUE: INIT END: NPackets=%d Type=%s\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
 #endif
@@ -58,7 +60,7 @@ void PacketQueueReset(PacketQueue *q)
 #ifdef DEBUG_QUEUE
 		printf("F ");
 #endif
-		q->total_lost_frames++;
+		q->PacketHistory.LostCount++;
 	}
 #ifdef DEBUG_QUEUE
 	printf("\n");
@@ -66,9 +68,9 @@ void PacketQueueReset(PacketQueue *q)
 
 	QueueFillingMode=1;
 	q->last_frame_extracted = -1;
+	
 	// on queue reset do not reset loss count
 	// (loss count reset is done on queue init, ie channel switch)
-	// q->total_lost_frames = 0;
 	q->density=0.0;
 	q->first_pkt= NULL;
 	//q->last_pkt = NULL;
@@ -76,43 +78,42 @@ void PacketQueueReset(PacketQueue *q)
 	q->size = 0;
 	FirstTime = 1;
 	FirstTimeAudio = 1;
-	//clean up statistcs
-	PacketQueueCleanStats(q);
+	//clean up statistics
+	PacketQueueClearStats(q);
 #ifdef DEBUG_QUEUE
 	printf("QUEUE: RESET END: NPackets=%d Type=%s LastExtr=%d\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->last_frame_extracted);
 #endif
 	SDL_UnlockMutex(q->mutex);
 }
 
-void PacketQueueCleanStats(PacketQueue *q) {
-	int i=0;
-	for(i=0; i<LOSS_HISTORY_MAX_SIZE; i++) {
-		q->skip_history[i] = -1;
-		q->loss_history[i] = -1;
-	}
-	q->loss_history_index = 0;
-	q->skip_history_index = 0;
-	q->instant_skips = 0.0;
-	q->instant_lost_frames = 0.0;
-	q->instant_window_size = 50; //averaging window size, self-correcting based on window_seconds
-	q->instant_window_size_target = 0;
-	q->instant_window_seconds = 1; //we want to compute number of events in a 1sec wide window
-	q->last_window_size_update = 0;
-	q->last_stats_display = 0;
+void PacketQueueClearStats(PacketQueue *q)
+{
 	sprintf(q->stats_message, "%s", "\n");
+	int i;
+	memset((void*)q->PacketHistory.History, 0, sizeof(SHistoryElement)*QUEUE_HISTORY_SIZE);
+	for(i=0; i<QUEUE_HISTORY_SIZE; i++)
+	{
+		q->PacketHistory.History[i].Statistics.LastIFrameDistance = -1;
+		q->PacketHistory.History[i].Status = -1;
+	}
+	q->PacketHistory.Index = q->PacketHistory.LogIndex = 0;
+	q->PacketHistory.Index = q->PacketHistory.QoEIndex = 0;
+	q->PacketHistory.LostCount = q->PacketHistory.PlayedCount = q->PacketHistory.SkipCount = 0;
 }
 
 int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 {
+	//~ printf("\tSTREAM_INDEX=%d\n", pkt->stream_index);
 	short int skip = 0;
 	AVPacketList *pkt1, *tmp, *prevtmp;
+	int res = 0;
 
 	if(q->nb_packets > queue_filling_threshold*QUEUE_MAX_GROW_FACTOR) {
 #ifdef DEBUG_QUEUE
 		printf("QUEUE: PUT i have TOO MANY packets %d Type=%s, RESETTING\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
 #endif
 		PacketQueueReset(q);
-  }
+	}
 
 	//make a copy of the incoming packet
 	if(av_dup_packet(pkt) < 0) {
@@ -129,76 +130,92 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 	}
 	pkt1->pkt = *pkt;
 	pkt1->next = NULL;
+	
+	static time_t last_auto_switch = 0;
 
-	SDL_LockMutex(q->mutex);
+	// file streaming loop detected => re-tune channel and start grabbing statistics
+	if(
+		(pkt->stream_index < last_video_frame_extracted)
+		&& (pkt->stream_index <= RESTART_FRAME_NUMBER_THRESHOLD)
+		&& ((time(NULL) - last_auto_switch) > 10)
+	)
+	{
+		last_auto_switch = time(NULL);
+		SDL_LockMutex(q->mutex);
+		ReTune(&(Channels[SelectedChannel]));
+		SDL_UnlockMutex(q->mutex);
+	}
 
-	// INSERTION SORT ALGORITHM
-	// before inserting pkt, check if pkt.stream_index is <= current_extracted_frame.
-	if(pkt->stream_index > q->last_frame_extracted) {
-		// either checking starting from the first_pkt or needed other struct like AVPacketList with next and prev....
-		//if (!q->last_pkt)
-		if(!q->first_pkt) {
-			q->first_pkt = pkt1;
-			q->last_pkt = pkt1;
-		}
-		else if(pkt->stream_index < q->first_pkt->pkt.stream_index) {
-			//the packet that has arrived is earlier than the first we got some time ago!
-			//we need to put it at the head of the queue
-			pkt1->next = q->first_pkt;
-			q->first_pkt = pkt1;
-		}
-		else {
-			tmp = q->first_pkt;
-			while(tmp->pkt.stream_index < pkt->stream_index) {
-				prevtmp = tmp;
-				tmp = tmp->next;
+	else
+	{
+		SDL_LockMutex(q->mutex);
 
-				if(!tmp) {
-					break;
-				}
+		// INSERTION SORT ALGORITHM
+		// before inserting pkt, check if pkt.stream_index is <= current_extracted_frame.
+		if(pkt->stream_index > q->last_frame_extracted)
+		{
+			// either checking starting from the first_pkt or needed other struct like AVPacketList with next and prev....
+			//if (!q->last_pkt)
+			if(!q->first_pkt) {
+				q->first_pkt = pkt1;
+				q->last_pkt = pkt1;
 			}
-			if(tmp && tmp->pkt.stream_index == pkt->stream_index) {
-				//we already have a frame with that index
-				skip = 1;
-#ifdef DEBUG_QUEUE
-				printf("QUEUE: PUT: we already have frame with index %d, skipping\n", pkt->stream_index);
-#endif
+			else if(pkt->stream_index < q->first_pkt->pkt.stream_index) {
+				//the packet that has arrived is earlier than the first we got some time ago!
+				//we need to put it at the head of the queue
+				pkt1->next = q->first_pkt;
+				q->first_pkt = pkt1;
 			}
 			else {
-				prevtmp->next = pkt1;
-				pkt1->next = tmp;
-				if(pkt1->next == NULL)
-					q->last_pkt = pkt1;
-			}
-			//q->last_pkt->next = pkt1; // It was uncommented when not insertion sort
-		}
-		if(skip == 0) {
-			//q->last_pkt = pkt1;
-			q->nb_packets++;
-			q->size += pkt1->pkt.size;
-			if(q->nb_packets>=queue_filling_threshold && QueueFillingMode) // && q->queueType==AUDIO)
-			{
-				QueueFillingMode=0;
+				tmp = q->first_pkt;
+				while(tmp->pkt.stream_index < pkt->stream_index) {
+					prevtmp = tmp;
+					tmp = tmp->next;
+
+					if(!tmp) {
+						break;
+					}
+				}
+				if(tmp && tmp->pkt.stream_index == pkt->stream_index) {
+					//we already have a frame with that index
+					skip = 1;
 #ifdef DEBUG_QUEUE
-				printf("QUEUE: PUT: FillingMode set to zero\n");
+					printf("%s QUEUE: PUT: we already have frame with index %d, skipping\n", ((q->queueType == AUDIO) ? "AUDIO" : "VIDEO"), pkt->stream_index);
 #endif
+				}
+				else {
+					prevtmp->next = pkt1;
+					pkt1->next = tmp;
+					if(pkt1->next == NULL)
+						q->last_pkt = pkt1;
+				}
+				//q->last_pkt->next = pkt1; // It was uncommented when not insertion sort
+			}
+			if(skip == 0) {
+				//q->last_pkt = pkt1;
+				q->nb_packets++;
+				q->size += pkt1->pkt.size;
+				if(q->nb_packets>=queue_filling_threshold && QueueFillingMode) // && q->queueType==AUDIO)
+				{
+					QueueFillingMode=0;
+#ifdef DEBUG_QUEUE
+					printf("QUEUE: PUT: FillingMode set to zero\n");
+#endif
+				}
 			}
 		}
+		else {
+			av_free_packet(&pkt1->pkt);
+			av_free(pkt1);
+#ifdef DEBUG_QUEUE
+			printf("QUEUE: PUT: NOT inserting because index %d <= last extracted %d\n", pkt->stream_index, q->last_frame_extracted);
+#endif
+			res = 1;
+		}
+		SDL_UnlockMutex(q->mutex);
 	}
 
-	else {
-		av_free_packet(&pkt1->pkt);
-		av_free(pkt1);
-#ifdef DEBUG_QUEUE
-				printf("QUEUE: PUT: NOT inserting because index %d > last extracted %d\n", pkt->stream_index, q->last_frame_extracted);
-#endif
-	}
-
-	// minus one means no lost frames estimation, useless during QueuePut operations
-	UpdateQueueStats(q, -1);
-
-	SDL_UnlockMutex(q->mutex);
-	return 0;
+	return res;
 }
 
 int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short int audio_channels)
@@ -246,16 +263,16 @@ int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short i
 	printf("using audio Codecid: %d ",aCodecCtx->codec_id);
 	printf("samplerate: %d ",aCodecCtx->sample_rate);
 	printf("channels: %d\n",aCodecCtx->channels);
-	wanted_spec.freq = aCodecCtx->sample_rate;
+	CurrentAudioFreq = wanted_spec.freq = aCodecCtx->sample_rate;
 	wanted_spec.format = AUDIO_S16SYS;
 	wanted_spec.channels = aCodecCtx->channels;
 	wanted_spec.silence = 0;
-	wanted_spec.samples = SDL_AUDIO_BUFFER_SIZE;
+	CurrentAudioSamples = wanted_spec.samples = SDL_AUDIO_BUFFER_SIZE;
 	wanted_spec.callback = AudioCallback;
 	wanted_spec.userdata = aCodecCtx;
 	if(SDL_OpenAudio(&wanted_spec,&AudioSpecification)<0)
 	{
-		fprintf(stderr,"SDL_OpenAudio: %s\n",SDL_GetError());
+		fprintf(stderr,"SDL_OpenAudio: %s\n", SDL_GetError());
 		return -1;
 	}
 	dimAudioQ = AudioSpecification.size;
@@ -305,7 +322,7 @@ int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short i
 	return 0;
 }
 
-int DecodeEnqueuedAudio(AVPacket *pkt, PacketQueue *q)
+int DecodeEnqueuedAudio(AVPacket *pkt, PacketQueue *q, int* size)
 {
 	uint16_t *audio_bufQ = NULL;
 	int16_t *dataQ = NULL;
@@ -334,6 +351,7 @@ int DecodeEnqueuedAudio(AVPacket *pkt, PacketQueue *q)
 				}
 				//subtract them from queue size
 				q->size -= pkt->size;
+				*size = pkt->size;
 				pkt->data = (int8_t *)dataQ;
 				pkt->size = data_sizeQ;
 				//add new size to queue size
@@ -371,19 +389,21 @@ AVPacketList *RemoveFromQueue(PacketQueue *q, AVPacketList *p)
 	//adjust size here and not in the various cases of the dequeue
 	q->size -= p->pkt.size;
 	if(&p->pkt)
+	{
 		av_free_packet(&p->pkt);
+	}
 	if(p)
 		av_free(p);
 	return retpk;
 }
 
-AVPacketList *SeekAndDecodePacketStartingFrom(AVPacketList *p, PacketQueue *q)
+AVPacketList *SeekAndDecodePacketStartingFrom(AVPacketList *p, PacketQueue *q, int* size)
 {
 	while(p) {
 			//check if audio packet has been already decoded
 			if(p->pkt.convergence_duration == 0) {
 				//not decoded yet, try to decode it
-				if( !DecodeEnqueuedAudio(&(p->pkt), q) ) {
+				if( !DecodeEnqueuedAudio(&(p->pkt), q, size) ) {
 					//it was not possible to decode this packet, return next one
 					p = RemoveFromQueue(q, p);
 				}
@@ -396,350 +416,13 @@ AVPacketList *SeekAndDecodePacketStartingFrom(AVPacketList *p, PacketQueue *q)
 	return NULL;
 }
 
-void UpdateQueueStats(PacketQueue *q, int packet_index)
+int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 {
-	//used as flag also (0 means dont update quality estimation average)
-	int update_quality_avg = 0;
-	int i;
-
-	if(q == NULL)
-		return;
-	if(q->first_pkt == NULL)
-		return;
-	if(q->last_pkt == NULL)
-		return;
-
-	int now = time(NULL);
-	if(!q->last_stats_display)
-		q->last_stats_display = now;
-	if(!q->last_window_size_update)
-		q->last_window_size_update = now;
-
-	//calculate the queue density both in case of QueuePut and QueueGet
-	if(q->last_pkt->pkt.stream_index >= q->first_pkt->pkt.stream_index)
-	{
-		q->density = (double)q->nb_packets / (double)(q->last_pkt->pkt.stream_index - q->first_pkt->pkt.stream_index + 1) * 100.0; //plus 1 because if they are adjacent (difference 1) there really should be 2 packets in the queue
-	}
-#ifdef DEBUG_STATS
-	if(q->queueType == AUDIO)
-		printf("STATS: AUDIO QUEUE DENSITY percentage %f, last %d, first %d, pkts %d\n", q->density, q->last_pkt->pkt.stream_index, q->first_pkt->pkt.stream_index, q->nb_packets);
-	if(q->queueType == VIDEO)
-		printf("STATS: VIDEO QUEUE DENSITY percentage %f, last %d, first %d, pkts %d\n", q->density, q->last_pkt->pkt.stream_index, q->first_pkt->pkt.stream_index, q->nb_packets);
-#endif
-
-	//adjust the sliding window_size according to the elapsed time
-	update_quality_avg = 0;
-	//dynamically self-adjust the instant_window_size based on the time passing
-	//to match it at our best, since we have no separate thread to count time
-	if((now - q->last_window_size_update) >= q->instant_window_seconds) {
-		int i = 0;
-		//if window is enlarged, erase old samples
-		for(i=q->instant_window_size; i<q->instant_window_size_target; i++) {
-			q->skip_history[i] = -1;
-			q->loss_history[i] = -1;
-		}
-#ifdef DEBUG_STATS
-		printf("STATS: %s WINDOW_SIZE instant set from %d to %d\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->instant_window_size, q->instant_window_size_target);
-#endif
-		q->instant_window_size = q->instant_window_size_target;
-		if(q->instant_window_size == 0) { //in case of anomaly reset to default
-			q->instant_window_size = 50;
-			printf("STATS: %s WINDOW_SIZE instant anomaly reset to default %d\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->instant_window_size);
-		}
-		if(q->instant_window_size > LOSS_HISTORY_MAX_SIZE) {
-			printf("ERROR: %s instant_window size updated to %d, which is more than the max of %d. Exiting.\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->instant_window_size, LOSS_HISTORY_MAX_SIZE);
-			exit(1);
-		}
-		q->instant_window_size_target = 0;
-#ifdef DEBUG_STATS
-		printf("STATS: %s WINDOW_SIZE instant moving time from %d to %d\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->last_window_size_update, now);
-#endif
-		//update time passing
-		q->last_window_size_update = now;
-		//signal to give the update values to the UpdateQuality evaluation
-		//since we dont update long-term averaging every time, just do it at every window_seconds
-		update_quality_avg = 1;
-	}
-
-	//calculate lost frames and skipped frames during playing only if we are called from a QueueGet
-	//averaging them in a short-sized time window
-	if(packet_index != -1)
-	{
-		int real_window_size = 0;
-		int lost_frames = 0;
-		double percentage = 0.0;	
-
-		//self adjust window size
-		q->instant_window_size_target++;
-
-		//compute lost frame statistics
-		if(q->last_frame_extracted > 0 && packet_index > q->last_frame_extracted)
-		{
-			lost_frames = packet_index - q->last_frame_extracted - 1;
-			q->total_lost_frames += lost_frames;
-			percentage = (double)q->total_lost_frames / (double)q->last_frame_extracted * 100.0;
-
-			//save a trace of lost frames to file
-			//we have lost "lost_frames" frames starting from the last extracted (excluded of course)
-			UpdateLossTraces(q->queueType, q->last_frame_extracted+1, lost_frames);
-
-			//compute the frame loss rate inside the short-sized sliding window
-			q->loss_history[q->loss_history_index] = lost_frames;
-			q->loss_history_index = (q->loss_history_index+1)%q->instant_window_size;
-			q->instant_lost_frames = 0.0;
-			real_window_size = 0;
-#ifdef DEBUG_STATS_DEEP
-			printf("STATS: QUALITY: %s UPDATE LOSS:", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
-#endif
-			for(i=0; i<q->instant_window_size; i++) {
-				//-1 means not initialized value or erased value due to window shrinking
-				if(q->loss_history[i] != -1) {
-					real_window_size++;
-					q->instant_lost_frames += (double)q->loss_history[i];
-#ifdef DEBUG_STATS_DEEP
-					printf(" %d", q->loss_history[i]);
-#endif
-				}
-#ifdef DEBUG_STATS_DEEP
-				else
-					printf(" *");
-#endif
-			}
-#ifdef DEBUG_STATS_DEEP
-			printf("\n");
-#endif
-			q->instant_lost_frames /= (double)q->instant_window_seconds; //express them in events/sec
-#ifdef DEBUG_STATS
-			if(q->queueType == AUDIO)
-				printf("STATS: AUDIO FRAMES LOST: instant %f, total %d, total percentage %f\n", q->instant_lost_frames, q->total_lost_frames, percentage);
-			else if(q->queueType == VIDEO)
-				printf("STATS: VIDEO FRAMES LOST: instant %f, total %d, total percentage %f\n", q->instant_lost_frames, q->total_lost_frames, percentage);
-
-			printf("STATS: QUALITY: %s UPDATE LOSS instant window %d, real window %d\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->instant_window_size, real_window_size);
-#endif
-		}
-
-		//compute the skip events inside the short-sized sliding window
-		int skips = q->total_skips - q->last_skips;
-		q->last_skips = q->total_skips;
-		q->skip_history[q->skip_history_index] = skips;
-		q->skip_history_index = (q->skip_history_index+1)%q->instant_window_size;
-		q->instant_skips = 0.0;
-		real_window_size = 0;
-#ifdef DEBUG_STATS_DEEP
-		printf("STATS: QUALITY: %s UPDATE SKIP:", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
-#endif
-		for(i=0; i<q->instant_window_size; i++) {
-			//-1 means not initialized value or erased value due to window shrinking
-			if(q->skip_history[i] != -1) {
-				real_window_size++;
-				q->instant_skips += (double)q->skip_history[i];
-#ifdef DEBUG_STATS_DEEP
-				printf(" %d", q->skip_history[i]);
-#endif
-			}
-#ifdef DEBUG_STATS_DEEP
-			else
-				printf(" *");
-#endif
-		}
-#ifdef DEBUG_STATS_DEEP
-		printf("\n");
-#endif
-		q->instant_skips /= (double)q->instant_window_seconds; //express them in events/sec
-#ifdef DEBUG_STATS
-		if(q->queueType == AUDIO)
-			printf("STATS: AUDIO SKIPS: instant %f, total %d\n", q->instant_skips, q->total_skips);
-		else if(q->queueType == VIDEO)
-			printf("STATS: VIDEO SKIPS: instant %f, total %d\n", q->instant_skips, q->total_skips);
-
-		printf("STATS: QUALITY: %s UPDATE SKIP instant window %d, real window %d\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->instant_window_size, real_window_size);
-#endif
-	}
-
-	//continuous estimate of the channel quality
-	//but print it only if it has changed since last time
-	if(UpdateQualityEvaluation(q->instant_lost_frames, q->instant_skips, update_quality_avg)) {
-		//display channel quality
-		char stats[255];
-		sprintf(stats, "%s - %s", Channels[SelectedChannel].Title, Channels[SelectedChannel].quality);
-		ChunkerPlayerGUI_SetChannelTitle(stats);
-	}
-
-	//if statistics estimate printout has changed since last time, display it
-	{
-		char stats[255];
-		if(q->queueType == AUDIO)
-		{
-			sprintf(stats, "[AUDIO] %d\%% qdensity - %d lost_frames/sec - %d lost_frames - %d skips/sec - %d skips", (int)q->density, (int)q->instant_lost_frames, q->total_lost_frames, (int)q->instant_skips, q->total_skips);
-		}
-		else if(q->queueType == VIDEO)
-		{
-			sprintf(stats, "[VIDEO] %d\%% qdensity - %d lost_frames/sec - %d lost_frames - %d skips/sec - %d skips", (int)q->density, (int)q->instant_lost_frames, q->total_lost_frames, (int)q->instant_skips, q->total_skips);
-		}
-		if((strcmp(q->stats_message, stats) ) && ((now-q->last_stats_display) >= 1))
-		{
-			//statistics estimate have changed
-			sprintf(q->stats_message, "%s", stats);
-			if(q->queueType == AUDIO)
-				ChunkerPlayerGUI_SetStatsText(stats, NULL);
-			else if(q->queueType == VIDEO)
-				ChunkerPlayerGUI_SetStatsText(NULL, stats);
-
-			q->last_stats_display = now;
-		}
-	}
-}
-
-//returns 1 if quality value has changed since last time
-int UpdateQualityEvaluation(double instant_lost_frames, double instant_skips, int do_update)
-{
-	//as of now, we enter new samples in the long-term averaging once every sec,
-	//thus 120 samples worth of window size equals 2 minutes averaging
-	static int avg_window_size = 10; //averaging window size, self-correcting based on window_seconds
-	static int avg_window_size_target = 0;
-	static int avg_window_seconds = 10; //we want to compute number of events in a 2min wide window
-
-	static int last_window_size_update = 0;
-
-	char base_quality[255];
-	char quality[255];
-	int i;
-	int now = time(NULL);
-	if(!last_window_size_update)
-		last_window_size_update = now;
-	int runningTime = now - Channels[SelectedChannel].startTime;
-
-	if(runningTime <= 0) {
-		runningTime = 1;
-#ifdef DEBUG_STATS
-		printf("STATS: QUALITY warning channel runningTime %d. Set to one!\n", runningTime);
-#endif
-	}
-
-	//update continuously the quality score
-	Channels[SelectedChannel].instant_score = instant_skips + instant_lost_frames;
-
-	if(do_update) {
-#ifdef DEBUG_STATS
-		printf("STATS: QUALITY: UPDATE SCORE lost frames %f, skips %f\n", instant_lost_frames, instant_skips);
-#endif
-		//every once in a while also enter samples in the long-term averaging window
-		Channels[SelectedChannel].score_history[Channels[SelectedChannel].history_index] = Channels[SelectedChannel].instant_score;
-		Channels[SelectedChannel].history_index = (Channels[SelectedChannel].history_index+1)%avg_window_size;
-
-		Channels[SelectedChannel].average_score = 0.0;
-		int real_window_size = 0;
-		for(i=0; i<avg_window_size; i++) {
-			//-1 means not initialized value or erased value due to window shrinking
-			if(Channels[SelectedChannel].score_history[i] != -1) {
-				real_window_size++;
-				Channels[SelectedChannel].average_score += Channels[SelectedChannel].score_history[i];
-			}
-		}
-		Channels[SelectedChannel].average_score /= (double)real_window_size; //average in the window
-		Channels[SelectedChannel].average_score /= (double)avg_window_seconds; //express it in events/sec
-#ifdef DEBUG_STATS
-		printf("STATS: QUALITY: UPDATE SCORE avg window %d, real window %d\n", avg_window_size, real_window_size);
-#endif
-		//whenever we enter a sample, enlarge the self-adjusting window target (it will be checked later on)
-		avg_window_size_target++;
-	}
-#ifdef DEBUG_STATS
-	printf("STATS: QUALITY: instant skips %f, instant loss %f\n", instant_skips, instant_lost_frames);
-	printf("STATS: QUALITY: instant score %f, avg score %f\n", Channels[SelectedChannel].instant_score, Channels[SelectedChannel].average_score);
-#endif
-
-	if(Channels[SelectedChannel].average_score > 0.02) {
-		sprintf(base_quality, "POOR");
-		if(Channels[SelectedChannel].instant_score < Channels[SelectedChannel].average_score) {
-			sprintf(quality, "%s, GETTING BETTER", base_quality);
-		}
-		else if(Channels[SelectedChannel].instant_score == Channels[SelectedChannel].average_score) {
-			sprintf(quality, "%s, STABLE", base_quality);
-		}
-		else {
-			sprintf(quality, "%s, GETTING WORSE", base_quality);
-		}
-	}
-	else {
-		sprintf(base_quality, "GOOD");
-		if(Channels[SelectedChannel].instant_score < Channels[SelectedChannel].average_score) {
-			sprintf(quality, "%s, GETTING BETTER", base_quality);
-		}
-		else if(Channels[SelectedChannel].instant_score == Channels[SelectedChannel].average_score) {
-			sprintf(quality, "%s, STABLE", base_quality);
-		}
-		else {
-			sprintf(quality, "%s, GETTING WORSE", base_quality);
-		}
-	}
-
-#ifdef DEBUG_STATS
-	printf("STATS: QUALITY %s\n", quality);
-#endif
-
-	//dynamically self-adjust the instant_window_size based on the time passing
-	//to match it at our best, since we have no separate thread to count time
-	if((now - last_window_size_update) >= avg_window_seconds) {
-		int i = 0;
-		//if window is enlarged, erase old samples
-		for(i=avg_window_size; i<avg_window_size_target; i++) {
-			Channels[SelectedChannel].score_history[i] = -1;
-		}
-		avg_window_size = avg_window_size_target;
-#ifdef DEBUG_STATS
-		printf("STATS: WINDOW_SIZE avg set to %d\n", avg_window_size);
-#endif
-		if(avg_window_size > CHANNEL_SCORE_HISTORY_SIZE) {
-			printf("ERROR: avg_window size updated to %d, which is more than the max of %d. Exiting.\n", avg_window_size, CHANNEL_SCORE_HISTORY_SIZE);
-			exit(1);
-		}
-		avg_window_size_target = 0;
-		//update time passing
-		last_window_size_update = now;
-	}
-
-	if( strcmp(Channels[SelectedChannel].quality, quality) ) {
-		//quality estimate has changed
-		sprintf(Channels[SelectedChannel].quality, "%s", quality);
-		return 1;
-	}
-	else {
-		return 0;
-	}
-}
-
-void UpdateLossTraces(int type, int first_lost, int n_lost)
-{
-	FILE *lossFile;
-	int i;
-
-	// Open loss traces file
-	char filename[255];
-	if(type == AUDIO)
-		sprintf(filename, "audio_%s", LossTracesFilename);
-	else
-		sprintf(filename, "video_%s", LossTracesFilename);
-
-	lossFile=fopen(filename, "a");
-	if(lossFile==NULL) {
-		printf("STATS: UNABLE TO OPEN Loss FILE: %s\n", filename);
-		return;
-	}
-
-	for(i=0; i<n_lost; i++) {
-		fprintf(lossFile, "%d\n", first_lost+i);
-	}
-
-	fclose(lossFile);
-}
-
-int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 	//AVPacket tmp;
 	AVPacketList *pkt1 = NULL;
 	int ret=-1;
 	int SizeToCopy=0;
+	struct timeval now_tv;
 
 	SDL_LockMutex(q->mutex);
 
@@ -755,10 +438,10 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 
 	if(av==1) { //somebody requested an audio packet, q is the audio queue
 		//try to dequeue the first packet of the audio queue
-		pkt1 = SeekAndDecodePacketStartingFrom(q->first_pkt, q);
+		pkt1 = SeekAndDecodePacketStartingFrom(q->first_pkt, q, size);
 		if(pkt1) { //yes we have them!
 			if(pkt1->pkt.size-AudioQueueOffset > dimAudioQ) {
-				//one packet if enough to give us the requested number of bytes by the audio_callback
+				//one packet is enough to give us the requested number of bytes by the audio_callback
 #ifdef DEBUG_QUEUE_DEEP
 				printf("  AV=1 and Extract from the same packet\n");
 #endif
@@ -781,15 +464,9 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 #ifdef DEBUG_QUEUE_DEEP
 				printf("   deltaAudioQError = %f\n",deltaAudioQError);
 #endif
-				//update overall state of queue
-				//size is diminished because we played some audio samples
-				//but packet is not removed since a portion has still to be played
-				//HINT ERRATA we had a size mismatch since size grows with the
-				//number of compressed bytes, and diminishes here with the number
-				//of raw uncompressed bytes, hence we update size during the
-				//real removes and not here anymore
-				//q->size -= dimAudioQ;
-				UpdateQueueStats(q, pkt->stream_index);
+
+				ChunkerPlayerStats_UpdateAudioLossHistory(&(q->PacketHistory), pkt->stream_index, q->last_frame_extracted);
+				
 				//update index of last frame extracted
 				q->last_frame_extracted = pkt->stream_index;
 #ifdef DEBUG_AUDIO_BUFFER
@@ -804,7 +481,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 #endif
 				//check for a valid next packet since we will finish the current packet
 				//and also take some bytes from the next one
-				pkt1->next = SeekAndDecodePacketStartingFrom(pkt1->next, q);
+				pkt1->next = SeekAndDecodePacketStartingFrom(pkt1->next, q, size);
 				if(pkt1->next) {
 #ifdef DEBUG_QUEUE_DEEP
 					printf("   we have a next...\n");
@@ -850,7 +527,8 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 					AudioQueueOffset = dimAudioQ - SizeToCopy;
 					//SEE BEFORE HINT q->size -= AudioQueueOffset;
 					ret = 1;
-					UpdateQueueStats(q, pkt->stream_index);
+					
+					ChunkerPlayerStats_UpdateAudioLossHistory(&(q->PacketHistory), pkt->stream_index, q->last_frame_extracted);
 				}
 				else {
 					AudioQueueOffset=0;
@@ -880,14 +558,17 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 			
 			if((pkt->data != NULL) && (pkt1->pkt.data != NULL))
 				memcpy(pkt->data, pkt1->pkt.data, pkt1->pkt.size);
-
+				
 			//HINT SEE BEFORE q->size -= pkt1->pkt.size;
 			q->first_pkt = RemoveFromQueue(q, pkt1);
 
 			ret = 1;
-			UpdateQueueStats(q, pkt->stream_index);
+			
+			ChunkerPlayerStats_UpdateVideoLossHistory(&(q->PacketHistory), pkt->stream_index, q->last_frame_extracted);
+			
 			//update index of last frame extracted
 			q->last_frame_extracted = pkt->stream_index;
+			last_video_frame_extracted = q->last_frame_extracted;
 		}
 #ifdef DEBUG_QUEUE
 		else {
@@ -913,6 +594,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av) {
 int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 	//struct timeval now;
 	int audio_pkt_size = 0;
+	int compressed_size = 0;
 	long long Now;
 	short int DecodeAudio=0, SkipAudio=0;
 	//int len1, data_size;
@@ -920,6 +602,7 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 	//gettimeofday(&now,NULL);
 	//Now = (now.tv_sec)*1000+now.tv_usec/1000;
 	Now=(long long)SDL_GetTicks();
+	struct timeval now_tv;
 
 	if(QueueFillingMode || QueueStopped)
 	{
@@ -955,9 +638,11 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 		printf("AUDIO: audio_decode_frame - Empty queue\n");
 #endif
 
-
-	if(audioq.nb_packets>0) {
-		if((long long)audioq.first_pkt->pkt.pts+DeltaTime<Now-(long long)MAX_TOLLERANCE) {
+	gettimeofday(&now_tv, NULL);
+	if(audioq.nb_packets>0)
+	{
+		if((long long)audioq.first_pkt->pkt.pts+DeltaTime<Now-(long long)MAX_TOLLERANCE)
+		{
 			SkipAudio = 1;
 			DecodeAudio = 0;
 		}
@@ -967,19 +652,22 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 				DecodeAudio = 1;
 		}
 	}
-		
-	while(SkipAudio==1 && audioq.size>0) {
-		audioq.total_skips++;
+	
+	while(SkipAudio==1 && audioq.size>0)
+	{
 		SkipAudio = 0;
 #ifdef DEBUG_AUDIO
  		printf("AUDIO: skipaudio: queue size=%d\n",audioq.size);
 #endif
-		if(PacketQueueGet(&audioq,&AudioPkt,1) < 0) {
+		if(PacketQueueGet(&audioq,&AudioPkt,1, &compressed_size) < 0) {
 			return -1;
 		}
 		if(audioq.first_pkt)
 		{
-			if((long long)audioq.first_pkt->pkt.pts+DeltaTime<Now-(long long)MAX_TOLLERANCE) {
+			ChunkerPlayerStats_UpdateAudioSkipHistory(&(audioq.PacketHistory), AudioPkt.stream_index, compressed_size);
+			
+			if((long long)audioq.first_pkt->pkt.pts+DeltaTime<Now-(long long)MAX_TOLLERANCE)
+			{
 				SkipAudio = 1;
 				DecodeAudio = 0;
 			}
@@ -991,7 +679,7 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 		}
 	}
 	if(DecodeAudio==1) {
-		if(PacketQueueGet(&audioq,&AudioPkt,1) < 0) {
+		if(PacketQueueGet(&audioq,&AudioPkt,1, &compressed_size) < 0) {
 			return -1;
 		}
 		memcpy(audio_buf,AudioPkt.data,AudioPkt.size);
@@ -999,6 +687,8 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 #ifdef DEBUG_AUDIO
  		printf("AUDIO: Decode audio\n");
 #endif
+
+		ChunkerPlayerStats_UpdateAudioPlayedHistory(&(audioq.PacketHistory), AudioPkt.stream_index, compressed_size);
 	}
 
 	return audio_pkt_size;
@@ -1014,6 +704,13 @@ int VideoCallback(void *valthread)
 	AVPicture pict;
 	long long Now;
 	short int SkipVideo, DecodeVideo;
+	
+#ifdef SAVE_YUV
+	static AVFrame* lastSavedFrameBuffer = NULL;
+	
+	if(!lastSavedFrameBuffer)
+		lastSavedFrameBuffer = (AVFrame*) malloc(sizeof(AVFrame));
+#endif
 
 	//double frame_rate = 0.0,time_between_frames=0.0;
 	//struct timeval now;
@@ -1030,6 +727,7 @@ int VideoCallback(void *valthread)
 
 	pCodecCtx=avcodec_alloc_context();
 	pCodecCtx->codec_type = CODEC_TYPE_VIDEO;
+	//pCodecCtx->debug = FF_DEBUG_DCT_COEFF;
 #ifdef H264_VIDEO_ENCODER
 	pCodecCtx->codec_id  = CODEC_ID_H264;
 	pCodecCtx->me_range = 16;
@@ -1044,7 +742,7 @@ int VideoCallback(void *valthread)
 	// resolution must be a multiple of two
 	pCodecCtx->width = tval->width;//176;//352;
 	pCodecCtx->height = tval->height;//144;//288;
-	
+
 	// frames per second
 	//pCodecCtx->time_base = (AVRational){1,25};
 	//pCodecCtx->gop_size = 10; // emit one intra frame every ten frames
@@ -1069,6 +767,8 @@ int VideoCallback(void *valthread)
 #ifdef DEBUG_VIDEO
  	printf("VIDEO: video_callback entering main cycle\n");
 #endif
+
+	struct timeval now_tv;
 	while(AVPlaying && !quit) {
 		if(QueueFillingMode || QueueStopped)
 		{
@@ -1108,7 +808,8 @@ int VideoCallback(void *valthread)
 #endif
 
 		if(videoq.nb_packets>0) {
-			if(((long long)videoq.first_pkt->pkt.pts+DeltaTime)<Now-(long long)MAX_TOLLERANCE) {
+			if(((long long)videoq.first_pkt->pkt.pts+DeltaTime)<Now-(long long)MAX_TOLLERANCE)
+			{
 				SkipVideo = 1;
 				DecodeVideo = 0;
 			}
@@ -1118,24 +819,35 @@ int VideoCallback(void *valthread)
 					SkipVideo = 0;
 					DecodeVideo = 1;
 				}
+				
+				// else (i.e. videoq.first_pkt->pkt.pts+DeltaTime>Now+MAX_TOLLERANCE)
+				// do nothing and continue
 		}
 #ifdef DEBUG_VIDEO
 		printf("VIDEO: skipvideo:%d decodevideo:%d\n",SkipVideo,DecodeVideo);
 #endif
-
-		while(SkipVideo==1 && videoq.size>0) {
-			videoq.total_skips++;
+		gettimeofday(&now_tv, NULL);
+		
+		while(SkipVideo==1 && videoq.size>0)
+		{
 			SkipVideo = 0;
 #ifdef DEBUG_VIDEO 
  			printf("VIDEO: Skip Video\n");
 #endif
-			if(PacketQueueGet(&videoq,&VideoPkt,0) < 0) {
+			if(PacketQueueGet(&videoq,&VideoPkt,0, NULL) < 0) {
 				break;
 			}
+
 			avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &VideoPkt);
+			
+			// sometimes assertion fails, maybe the decoder change the frame type
+			//~ if(LastSourceIFrameDistance == 0)
+				//~ assert(pFrame->pict_type == 1);
+
 			if(videoq.first_pkt)
 			{
-				if((long long)videoq.first_pkt->pkt.pts+DeltaTime<Now-(long long)MAX_TOLLERANCE) {
+				if((long long)videoq.first_pkt->pkt.pts+DeltaTime<Now-(long long)MAX_TOLLERANCE)
+				{
 					SkipVideo = 1;
 					DecodeVideo = 0;
 				}
@@ -1145,24 +857,62 @@ int VideoCallback(void *valthread)
 					DecodeVideo = 1;
 				}
 			}
+			
+			ChunkerPlayerStats_UpdateVideoSkipHistory(&(videoq.PacketHistory), VideoPkt.stream_index, pFrame->pict_type, VideoPkt.size, pFrame);
+			
+			/*if(pFrame->pict_type == 1)
+			{
+				int i1;
+				// every 23 items (23 is the qstride field in the AVFrame struct) there is 1 zero.
+				// 396/23 = 17 => 396 macroblocks + 17 zeros = 413 items
+				for(i1=0; i1< 413; i1++)
+					fprintf(qscaletable_file, "%d\t", (int)pFrame->qscale_table[i1]);
+				fprintf(qscaletable_file, "\n");
+			}*/
+			
+			//ChunkerPlayerStats_UpdateVideoPlayedHistory(&(videoq.PacketHistory), VideoPkt.stream_index, pFrame->pict_type, VideoPkt.size);
 		}
-		
+
 		if(DecodeVideo==1) {
-			if(PacketQueueGet(&videoq,&VideoPkt,0) > 0) {
-
-#ifdef DEBUG_VIDEO
-				printf("VIDEO: Decode video FrameTime=%lld Now=%lld\n",(long long)VideoPkt.pts+DeltaTime,Now);
-#endif
-
+			if(PacketQueueGet(&videoq,&VideoPkt,0, NULL) > 0) {
 				avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &VideoPkt);
 
-				if(frameFinished) { // it must be true all the time else error
+				if(frameFinished)
+				{ // it must be true all the time else error
 #ifdef DEBUG_VIDEO
 					printf("VIDEO: FrameFinished\n");
 #endif
-					if(SaveYUV)
+					decoded_vframes++;
+					
+					// sometimes assertion fails, maybe the decoder change the frame type
+					//~ if(LastSourceIFrameDistance == 0)
+						//~ assert(pFrame->pict_type == 1);
+#ifdef SAVE_YUV
+					if(LastSavedVFrame == -1)
+					{
+						memcpy(lastSavedFrameBuffer, pFrame, sizeof(AVFrame));
 						SaveFrame(pFrame, pCodecCtx->width, pCodecCtx->height);
-					//fwrite(pktvideo.data, 1, pktvideo.size, frecon);
+						LastSavedVFrame = VideoPkt.stream_index;
+					}
+					else if(LastSavedVFrame == (VideoPkt.stream_index-1))
+					{
+						memcpy(lastSavedFrameBuffer, pFrame, sizeof(AVFrame));
+						SaveFrame(pFrame, pCodecCtx->width, pCodecCtx->height);
+						LastSavedVFrame = VideoPkt.stream_index;
+					}
+					else if(LastSavedVFrame >= 0)
+					{
+						while(LastSavedVFrame < (VideoPkt.stream_index-1))
+						{
+							SaveFrame(lastSavedFrameBuffer, pCodecCtx->width, pCodecCtx->height);
+						}
+
+						memcpy(lastSavedFrameBuffer, pFrame, sizeof(AVFrame));
+						SaveFrame(pFrame, pCodecCtx->width, pCodecCtx->height);
+						LastSavedVFrame = VideoPkt.stream_index;
+					}
+#endif
+					ChunkerPlayerStats_UpdateVideoPlayedHistory(&(videoq.PacketHistory), VideoPkt.stream_index, pFrame->pict_type, VideoPkt.size, pFrame);
 
 					if(SilentMode)
 						continue;
@@ -1196,6 +946,15 @@ int VideoCallback(void *valthread)
 							exit(1);
 						}
 					}
+					
+#ifdef VIDEO_DEINTERLACE
+					avpicture_deinterlace(
+						(AVPicture*) pFrame,
+						(const AVPicture*) pFrame,
+						pCodecCtx->pix_fmt,
+						tval->width, tval->height);
+#endif
+					
 					// let's draw the data (*yuv[3]) on a SDL screen (*screen)
 					sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, tval->height, pict.data, pict.linesize);
 					SDL_UnlockYUVOverlay(YUVOverlay);
@@ -1213,18 +972,30 @@ int VideoCallback(void *valthread)
 						SDL_UnlockSurface(MainScreen);
 					}
 				} //if FrameFinished
+				else
+				{
+					ChunkerPlayerStats_UpdateVideoLossHistory(&(videoq.PacketHistory), VideoPkt.stream_index+1, videoq.last_frame_extracted-1);
+				}
 			} // if packet_queue_get
 		} //if DecodeVideo=1
 
 		usleep(5000);
 	}
-	
+	avcodec_close(pCodecCtx);
 	av_free(pCodecCtx);
 	av_free(pFrame);
 	//fclose(frecon);
 #ifdef DEBUG_VIDEO
  	printf("VIDEO: video callback end\n");
 #endif
+
+#ifdef SAVE_YUV
+	if(!lastSavedFrameBuffer)
+		free(lastSavedFrameBuffer);
+	
+	lastSavedFrameBuffer = NULL;
+#endif
+
 	return 0;
 }
 
@@ -1237,7 +1008,7 @@ void AudioCallback(void *userdata, Uint8 *stream, int len)
 
 	audio_size = AudioDecodeFrame(audio_buf, sizeof(audio_buf));
 	
-	if(!SilentMode)
+	if(SilentMode != 1)
 		if(audio_size != len) {
 			memset(stream, 0, len);
 		} else {
@@ -1280,10 +1051,15 @@ int ChunkerPlayerCore_IsRunning()
 void ChunkerPlayerCore_Play()
 {
 	if(AVPlaying) return;
-	
 	AVPlaying = 1;
+	
 	SDL_PauseAudio(0);
 	video_thread = SDL_CreateThread(VideoCallback, &VideoCallbackThreadParams);
+	ChunkerPlayerStats_Init();
+	stats_thread = SDL_CreateThread(CollectStatisticsThread, NULL);
+	
+	decoded_vframes = 0;
+	LastSavedVFrame = -1;
 }
 
 void ChunkerPlayerCore_Stop()
@@ -1294,7 +1070,8 @@ void ChunkerPlayerCore_Stop()
 	
 	// Stop audio&video playback
 	SDL_WaitThread(video_thread, NULL);
-	SDL_PauseAudio(1);
+	SDL_WaitThread(stats_thread, NULL);
+	SDL_PauseAudio(1);	
 	SDL_CloseAudio();
 	
 	if(YUVOverlay != NULL)
@@ -1306,11 +1083,35 @@ void ChunkerPlayerCore_Stop()
 	PacketQueueReset(&audioq);
 	PacketQueueReset(&videoq);
 	
+	avcodec_close(aCodecCtx);
 	av_free(aCodecCtx);
 	free(AudioPkt.data);
 	free(VideoPkt.data);
 	free(outbuf_audio);
 	free(InitRect);
+	
+	/*
+	* Sleep two buffers' worth of audio before closing, in order
+	*  to allow the playback to finish. This isn't always enough;
+	*   perhaps SDL needs a way to explicitly wait for device drain?
+	*/
+	int delay = 2 * 1000 * CurrentAudioSamples / CurrentAudioFreq;
+	// printf("SDL_Delay(%d)\n", delay*10);
+	SDL_Delay(delay*10);
+}
+
+void ChunkerPlayerCore_Pause()
+{
+	if(!AVPlaying) return;
+	
+	AVPlaying = 0;
+	
+	// Stop audio&video playback
+	SDL_WaitThread(video_thread, NULL);
+	SDL_PauseAudio(1);
+	
+	PacketQueueReset(&audioq);
+	PacketQueueReset(&videoq);
 }
 
 int ChunkerPlayerCore_AudioEnded()
@@ -1329,6 +1130,50 @@ void ChunkerPlayerCore_ResetAVQueues()
 
 int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 {
+#ifdef EMULATE_CHUNK_LOSS
+	static time_t loss_cycle_start_time = 0, now = 0;
+	static int early_losses = 0;
+	static int clp_frames = 0;
+	
+	if(ScheduledChunkLosses)
+	{
+		static unsigned int random_threshold;
+		now=time(NULL);
+		if(!loss_cycle_start_time)
+			loss_cycle_start_time = now;
+			
+		if(((now-loss_cycle_start_time) >= ScheduledChunkLosses[((CurrChunkLossIndex+1)%NScheduledChunkLosses)].Time) && (NScheduledChunkLosses>1 || CurrChunkLossIndex==-1))
+		{
+			CurrChunkLossIndex = ((CurrChunkLossIndex+1)%NScheduledChunkLosses);
+			if(CurrChunkLossIndex == (NScheduledChunkLosses-1))
+				loss_cycle_start_time = now;
+			
+			if(ScheduledChunkLosses[CurrChunkLossIndex].Value == -1)
+				random_threshold = ScheduledChunkLosses[CurrChunkLossIndex].MinValue + (rand() % (ScheduledChunkLosses[CurrChunkLossIndex].MaxValue-ScheduledChunkLosses[CurrChunkLossIndex].MinValue));
+			else
+				random_threshold = ScheduledChunkLosses[CurrChunkLossIndex].Value;
+			
+			printf("new ScheduledChunkLoss, time: %d, value: %d\n", (int)ScheduledChunkLosses[CurrChunkLossIndex].Time, random_threshold);
+		}
+	
+		if(clp_frames > 0)
+		{
+			clp_frames--;
+			return PLAYER_FAIL_RETURN;
+		}
+		if((rand() % 100) < random_threshold)
+		{
+			if(early_losses > 0)
+                early_losses--;
+            else
+            {
+                clp_frames=early_losses=(ScheduledChunkLosses[CurrChunkLossIndex].Burstiness-1);
+                return PLAYER_FAIL_RETURN;
+            }
+		}
+	}
+#endif
+
 	Chunk *gchunk = NULL;
 	int decoded_size = -1;
 	uint8_t *tempdata, *buffer;
@@ -1509,4 +1354,101 @@ void ChunkerPlayerCore_SetupOverlay(int width, int height)
 	SDL_DisplayYUVOverlay(YUVOverlay, &OverlayRect);
 	
 	SDL_UnlockMutex(OverlayMutex);
+}
+
+int CollectStatisticsThread(void *params)
+{
+	struct timeval last_stats_evaluation, now, last_trace, last_qoe_evaluation;
+	gettimeofday(&last_stats_evaluation, NULL);
+	last_trace = last_stats_evaluation;
+	last_qoe_evaluation = last_stats_evaluation;
+	
+	double video_qdensity;
+	double audio_qdensity;
+	char audio_stats_text[255];
+	char video_stats_text[255];
+	int loss_changed = 0;
+	int density_changed = 0;
+	SStats audio_statistics, video_statistics;
+	double qoe = 0;
+	int sleep_time = STATS_THREAD_GRANULARITY*1000;
+	
+	while(AVPlaying && !quit)
+	{
+		usleep(sleep_time);
+		
+		gettimeofday(&now, NULL);
+		
+		if((((now.tv_sec*1000)+(now.tv_usec/1000)) - ((last_stats_evaluation.tv_sec*1000)+(last_stats_evaluation.tv_usec/1000))) > GUI_PRINTSTATS_INTERVAL)
+		{
+			// estimate audio queue stats
+			int audio_stats_changed = ChunkerPlayerStats_GetStats(&(audioq.PacketHistory), &audio_statistics);
+			
+			// estimate video queue stats
+			int video_stats_changed = ChunkerPlayerStats_GetStats(&(videoq.PacketHistory), &video_statistics);
+
+#ifdef DEBUG_STATS
+			printf("VIDEO: %d Kbit/sec; ", video_statistics.Bitrate);
+			printf("AUDIO: %d Kbit/sec\n", audio_statistics.Bitrate);
+#endif
+
+			// QUEUE DENSITY EVALUATION
+			if((audioq.last_pkt != NULL) && (audioq.first_pkt != NULL))
+				if(audioq.last_pkt->pkt.stream_index >= audioq.first_pkt->pkt.stream_index)
+				{
+					//plus 1 because if they are adjacent (difference 1) there really should be 2 packets in the queue
+					audio_qdensity = (double)audioq.nb_packets / (double)(audioq.last_pkt->pkt.stream_index - audioq.first_pkt->pkt.stream_index + 1) * 100.0;
+				}
+			
+			if((videoq.last_pkt != NULL) && (videoq.first_pkt != NULL))
+				if(videoq.last_pkt->pkt.stream_index >= videoq.first_pkt->pkt.stream_index)
+				{
+					// plus 1 because if they are adjacent (difference 1) there really should be 2 packets in the queue
+					video_qdensity = (double)videoq.nb_packets / (double)(videoq.last_pkt->pkt.stream_index - videoq.first_pkt->pkt.stream_index + 1) * 100.0;
+				}
+			
+			if(LogTraces)
+			{
+				ChunkerPlayerStats_PrintHistoryTrace(&(audioq.PacketHistory), AudioTraceFilename);
+				ChunkerPlayerStats_PrintHistoryTrace(&(videoq.PacketHistory), VideoTraceFilename);
+				
+				if(SilentMode != 1 && SilentMode != 2)
+					ChunkerPlayerStats_PrintContextFile();
+			}
+
+			// PRINT STATISTICS ON GUI
+			if(!Audio_ON)
+				sprintf(audio_stats_text, "AUDIO MUTED");
+			else if(audio_stats_changed)
+				sprintf(audio_stats_text, "[AUDIO] qdensity: %d\%% - losses: %d/sec (%ld tot) - skips: %d/sec (%ld tot)", (int)audio_qdensity, (int)audio_statistics.Lossrate, audioq.PacketHistory.LostCount, audio_statistics.Skiprate, audioq.PacketHistory.SkipCount);
+			else
+				sprintf(audio_stats_text, "waiting for incoming audio packets...");
+
+			if(video_stats_changed)
+			{
+				char est_psnr_string[255];
+				sprintf(est_psnr_string, "");
+				if(qoe)
+					sprintf(est_psnr_string, " - Est. Mean PSNR: %.1f db", (float)qoe);
+
+				sprintf(video_stats_text, "[VIDEO] qdensity: %d\%% - losses: %d/sec (%ld tot) - skips: %d/sec (%ld tot)%s", (int)video_qdensity, video_statistics.Lossrate, videoq.PacketHistory.LostCount, video_statistics.Skiprate, videoq.PacketHistory.SkipCount, est_psnr_string);
+			}
+			else
+				sprintf(video_stats_text, "waiting for incoming video packets...");
+
+			ChunkerPlayerGUI_SetStatsText(audio_stats_text, video_stats_text);
+			last_stats_evaluation = now;
+		}
+		
+		if((((now.tv_sec*1000)+(now.tv_usec/1000)) - ((last_qoe_evaluation.tv_sec*1000)+(last_qoe_evaluation.tv_usec/1000))) > EVAL_QOE_INTERVAL)
+		{
+			// ESTIMATE QoE
+			ChunkerPlayerStats_GetMeanVideoQuality(&(videoq.PacketHistory), &qoe);
+			
+#ifdef DEBUG_STATS
+			printf("QoE index: %f\n", (float) qoe);
+#endif
+			last_qoe_evaluation = now;
+		}
+	}
 }

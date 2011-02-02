@@ -1,55 +1,6 @@
 This is the test package for the Napa-Wine player.
-You can download the lates version of this player from
-http://www.napa-wine.eu/~napawine/napabot/
+You can download the latest version of this player from
+http://www.napa-wine.eu/
 
-Download and uncompress the tar.gz archive
-
-tar xvfz napaplayer.tar.gz
-
-get into the napaplayer folder
-
-cd napaplayer
-
-If you run the chunker_player executable without parameters, it will print
-a brief list of accepted input parameters:
-
-queue_thresh
-httpd_port
-silentMode
-LossTracesFilenameSuffix
-ChannelName
-<YUVFilename>
-
-Parameters have to be issued on the command line in the correct order.
-Example run:
-./chunker_player 30 45454 0 losses.txt UL_BBC_Torino
-
-
-Explanation of parameters.
-1st parameter: queue_thresh: size of the playout buffer in number of frames, i.e. 40.
-
-2nd parameter: httpd_port: the player receives chunks from the offerstreamer
-peer through this http port.
-
-3rd parameter: silentMode: it can be 0 or 1. One means run in silent mode, that is
-without graphical interface, so that multiple players can be run, provided you
-give different port numbers, and statistics can be collected also. This way the
-player can also be run remotely via ssh.
-
-4th parameter: LossTracesFilenameSuffix: if you give for example losses.txt as a
-value, the two files video_losses.txt and audio_losses.txt will be created.
-These trace files record the sequence number of all lost frames as seen from
-the player point of view.
-
-5th parameter: ChannelName: the name of the channel/swarm to tune in. See the
-channels.conf file for configuring the channels, and a list of available channels.
-
-6th parameter: <YUVFilename>: this parameter is optional. If you give it, a
-YUV file will be created with the received video, as it is played. This is a raw
-uncompressed sequence of frames, and it can get very big.
-
-The player takes care of spawning the peer client with the correct parameters,
-and of killing it on channel switch. The offerstreamer parameters can be fine
-tuned via the channels.conf file, by editing the LaunchString of each channel.
-Beware that -C, -P, -and F offerstreamer parameters are added dynamically and
-must not be issued inside the LaunchString.
+simply unzip/untar the package and run the provided
+runme.bat ir runme.sh script.

@@ -10,6 +10,7 @@ void RedrawButtons();
 void RedrawChannelName();
 void RedrawStats();
 void SetupGUI();
+void ToggleAudio();
 
 static char AudioStatsText[255];
 static char VideoStatsText[255];
@@ -71,6 +72,7 @@ int ChunkerPlayerGUI_Init()
 	ratio = DEFAULT_RATIO;
 	FullscreenWidth = 0;
 	FullscreenHeight = 0;
+	Audio_ON = 1;
 	
 	UpdateOverlaySize(ratio, DEFAULT_WIDTH, DEFAULT_HEIGHT);
 	
@@ -80,10 +82,10 @@ int ChunkerPlayerGUI_Init()
 	return 0;
 }
 
-void SetVideoMode(int width, int height, int fullscreen)
+int SetVideoMode(int width, int height, int fullscreen)
 {
 	if(SilentMode)
-		return;
+		return 1;
 		
 	// printf("SetVideoMode(%d, %d, %d)\n", width, height, fullscreen);
 	SDL_LockMutex(OverlayMutex);
@@ -106,10 +108,12 @@ void SetVideoMode(int width, int height, int fullscreen)
 	}
 
 	if(!MainScreen) {
-		fprintf(stderr, "SDL_SetVideoMode returned null: could not set video mode - exiting\n");
-		exit(1);
+		fprintf(stderr, "ERROR: could not change video mode\n");
+		return 1;
 	}
 	SDL_UnlockMutex(OverlayMutex);
+	
+	return 0;
 }
 
 void ChunkerPlayerGUI_HandleResize(int resize_w, int resize_h)
@@ -117,8 +121,24 @@ void ChunkerPlayerGUI_HandleResize(int resize_w, int resize_h)
 	if(SilentMode)
 		return;
 		
-	// printf("ChunkerPlayerGUI_HandleResize(%d, %d)\n", resize_w, resize_h);
-	SetVideoMode(resize_w, resize_h, FullscreenMode?1:0);
+	SDL_LockMutex(OverlayMutex);
+	
+	int res = SetVideoMode(resize_w, resize_h, FullscreenMode?1:0);
+
+	if(res && FullscreenMode)
+	{
+		// an error has occurred while switching to fullscreen mode
+		
+		// trying resize without fullscreen mode
+		FullscreenMode = 0;
+		res = SetVideoMode(resize_w, resize_h, 0);
+	}
+	if(res)
+	{
+		// nothing to do
+		fprintf(stderr, "CRITICAL ERROR: could not change video mode\n");
+		exit(1);
+	}
 	
 	window_width = resize_w;
 	window_height = resize_h;
@@ -141,6 +161,8 @@ void ChunkerPlayerGUI_HandleResize(int resize_w, int resize_h)
 	RedrawButtons();
 	RedrawChannelName();
 	RedrawStats();
+	
+	SDL_UnlockMutex(OverlayMutex);
 }
 
 void ChunkerPlayerGUI_HandleGetFocus()
@@ -235,6 +257,16 @@ void RedrawButtons()
 	int i;
 	for(i=0; i<NBUTTONS; i++)
 	{
+		if(!Buttons[i].Visible)
+		{
+			SDL_LockMutex(OverlayMutex);
+			SDL_FillRect( MainScreen, &Buttons[i].ButtonIconBox, SDL_MapRGB(MainScreen->format, 0, 0, 0) );
+			SDL_UpdateRects(MainScreen, 1, &Buttons[i].ButtonIconBox);
+			SDL_UnlockMutex(OverlayMutex);
+		}
+	}
+	for(i=0; i<NBUTTONS; i++)
+	{
 		if(Buttons[i].Visible)
 		{
 			if(!Buttons[i].Hover)
@@ -280,40 +312,54 @@ void ChunkerPlayerGUI_ToggleFullscreen()
 {
 	if(SilentMode)
 		return;
+
+	SDL_LockMutex(OverlayMutex);
 		
-	int i;
+	int i, done = 0;
 	//If the screen is windowed
 	if( !FullscreenMode )
 	{
-		// printf("SETTING FULLSCREEN ON\n");
-		SetVideoMode(FullscreenWidth, FullscreenHeight, 1);
-		
-		// update the overlay surface size, mantaining the aspect ratio
-		UpdateOverlaySize(ratio, FullscreenWidth, FullscreenHeight);
-		
-		// update each button coordinates
-		for(i=0; i<NBUTTONS; i++)
-		{
-			if(Buttons[i].XOffset > 0)
-				Buttons[i].ButtonIconBox.x = Buttons[i].XOffset;
-			else
-				Buttons[i].ButtonIconBox.x = (FullscreenWidth + Buttons[i].XOffset);
-				
-			Buttons[i].ButtonIconBox.y = FullscreenHeight - Buttons[i].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
-		}
-
+		int res = SetVideoMode(FullscreenWidth, FullscreenHeight, 1);
 		//Set the window state flag
 		FullscreenMode = 1;
-		
-		Buttons[FULLSCREEN_BUTTON_INDEX].Visible = 0;
-		Buttons[NO_FULLSCREEN_BUTTON_INDEX].Visible = 1;
+
+		if(res)
+		{
+			fprintf(stderr, "ERROR: an error has occurred while switching to fullscreen mode\n");
+		}
+		else
+		{
+			// update the overlay surface size, mantaining the aspect ratio
+			UpdateOverlaySize(ratio, FullscreenWidth, FullscreenHeight);
+			
+			// update each button coordinates
+			for(i=0; i<NBUTTONS; i++)
+			{
+				if(Buttons[i].XOffset > 0)
+					Buttons[i].ButtonIconBox.x = Buttons[i].XOffset;
+				else
+					Buttons[i].ButtonIconBox.x = (FullscreenWidth + Buttons[i].XOffset);
+					
+				Buttons[i].ButtonIconBox.y = FullscreenHeight - Buttons[i].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
+			}
+			
+			Buttons[FULLSCREEN_BUTTON_INDEX].Visible = 0;
+			Buttons[NO_FULLSCREEN_BUTTON_INDEX].Visible = 1;
+			
+			done = 1;
+		}
 	}
 	
 	//If the screen is fullscreen
-	else
+	if(FullscreenMode && !done)
 	{
-		// printf("ToggleFullscreen callback, setting WINDOWED\n");
-		SetVideoMode(window_width, window_height, 0);
+		int res = SetVideoMode(window_width, window_height, 0);
+		if(res)
+		{
+			// nothing to do
+			fprintf(stderr, "CRITICAL ERROR: could not change video mode\n");
+			exit(1);
+		}
 		
 		// update the overlay surface size, mantaining the aspect ratio
 		UpdateOverlaySize(ratio, window_width, window_height);
@@ -339,6 +385,13 @@ void ChunkerPlayerGUI_ToggleFullscreen()
 	RedrawButtons();
 	RedrawChannelName();
 	RedrawStats();
+	
+	SDL_UnlockMutex(OverlayMutex);
+}
+
+void ChunkerPlayerGUI_AspectRatioResize(float aspect_ratio, int width, int height, int* out_width, int* out_height)
+{
+	AspectRatioResize(aspect_ratio, width, height, out_width, out_height);
 }
 
 void AspectRatioResize(float aspect_ratio, int width, int height, int* out_width, int* out_height)
@@ -363,7 +416,6 @@ void AspectRatioResize(float aspect_ratio, int width, int height, int* out_width
  */
 void UpdateOverlaySize(float aspect_ratio, int width, int height)
 {
-	// printf("UpdateOverlaySize(%f, %d, %d)\n", aspect_ratio, width, height);
 	// height -= (BUTTONS_LAYER_OFFSET + BUTTONS_CONTAINER_HEIGHT);
 	height -= SCREEN_BOTTOM_PADDING;
 	int h = 0, w = 0, x, y;
@@ -386,7 +438,7 @@ void GetScreenSizeFromOverlay(int overlayWidth, int overlayHeight, int* screenWi
 	*screenWidth = overlayWidth;
 }
 
-/* From SDL documentation. */
+/* From the SDL documentation. */
 SDL_Cursor *InitSystemCursor(const char *image[])
 {
 	int i, row, col;
@@ -473,10 +525,8 @@ void SetupGUI()
 	screen_h = OverlayRect.h + SCREEN_BOTTOM_PADDING;
 
 	SDL_WM_SetCaption("Filling buffer...", NULL);
+	
 	// Make a screen to put our video
-	
-	// printf("screen_w = %d, screen_h = %d\n", screen_w, screen_h);
-	
 	SetVideoMode(screen_w, screen_h, 0);
 	
 	window_width = screen_w;
@@ -560,6 +610,26 @@ void SetupGUI()
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIcon = SDL_DisplayFormatAlpha(temp);
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonHoverIcon = SDL_DisplayFormatAlpha(temp);
 	SDL_FreeSurface(temp);
+	
+	// audio OFF
+	temp = IMG_Load(AUDIO_OFF_ICON_FILE);
+	if (temp == NULL) {
+		fprintf(stderr, "Error loading %s: %s\n", AUDIO_OFF_ICON_FILE, SDL_GetError());
+		exit(1);
+	}
+	Buttons[AUDIO_OFF_BUTTON_INDEX].ButtonIcon = SDL_DisplayFormatAlpha(temp);
+	Buttons[AUDIO_OFF_BUTTON_INDEX].ButtonHoverIcon = SDL_DisplayFormatAlpha(temp);
+	SDL_FreeSurface(temp);
+	
+	// audio ON
+	temp = IMG_Load(AUDIO_ON_ICON_FILE);
+	if (temp == NULL) {
+		fprintf(stderr, "Error loading %s: %s\n", AUDIO_ON_ICON_FILE, SDL_GetError());
+		exit(1);
+	}
+	Buttons[AUDIO_ON_BUTTON_INDEX].ButtonIcon = SDL_DisplayFormatAlpha(temp);
+	Buttons[AUDIO_ON_BUTTON_INDEX].ButtonHoverIcon = SDL_DisplayFormatAlpha(temp);
+	SDL_FreeSurface(temp);
 
 	/** Setting up icon boxes */
 	Buttons[FULLSCREEN_BUTTON_INDEX].XOffset = Buttons[NO_FULLSCREEN_BUTTON_INDEX].XOffset = 20;
@@ -585,12 +655,27 @@ void SetupGUI()
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.x = (screen_w + Buttons[CHANNEL_DOWN_BUTTON_INDEX].XOffset);
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[CHANNEL_DOWN_BUTTON_INDEX].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
 	
+	Buttons[AUDIO_OFF_BUTTON_INDEX].XOffset = Buttons[AUDIO_ON_BUTTON_INDEX].XOffset = 70;
+	Buttons[AUDIO_OFF_BUTTON_INDEX].ButtonIconBox.x = 20;
+	Buttons[AUDIO_OFF_BUTTON_INDEX].ButtonIconBox.w = Buttons[AUDIO_OFF_BUTTON_INDEX].ButtonIcon->w;
+	Buttons[AUDIO_OFF_BUTTON_INDEX].ButtonIconBox.h = Buttons[AUDIO_OFF_BUTTON_INDEX].ButtonIcon->h;
+	Buttons[AUDIO_OFF_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[AUDIO_OFF_BUTTON_INDEX].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
+	Buttons[AUDIO_OFF_BUTTON_INDEX].Visible = 1;
+
+	Buttons[AUDIO_ON_BUTTON_INDEX].ButtonIconBox.x = 20;
+	Buttons[AUDIO_ON_BUTTON_INDEX].ButtonIconBox.w = Buttons[AUDIO_ON_BUTTON_INDEX].ButtonIcon->w;
+	Buttons[AUDIO_ON_BUTTON_INDEX].ButtonIconBox.h = Buttons[AUDIO_ON_BUTTON_INDEX].ButtonIcon->h;
+	Buttons[AUDIO_ON_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[AUDIO_ON_BUTTON_INDEX].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
+	Buttons[AUDIO_ON_BUTTON_INDEX].Visible = 0;
+	
 	// Setting up buttons events
 	Buttons[FULLSCREEN_BUTTON_INDEX].ToggledButton = &(Buttons[NO_FULLSCREEN_BUTTON_INDEX]);
 	Buttons[FULLSCREEN_BUTTON_INDEX].LButtonUpCallback = &ChunkerPlayerGUI_ToggleFullscreen;
 	Buttons[NO_FULLSCREEN_BUTTON_INDEX].LButtonUpCallback = &ChunkerPlayerGUI_ToggleFullscreen;
 	Buttons[CHANNEL_UP_BUTTON_INDEX].LButtonUpCallback = &ZapUp;
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].LButtonUpCallback = &ZapDown;
+	Buttons[AUDIO_OFF_BUTTON_INDEX].LButtonUpCallback = &ToggleAudio;
+	Buttons[AUDIO_ON_BUTTON_INDEX].LButtonUpCallback = &ToggleAudio;
 }
 
 void ChunkerPlayerGUI_SetChannelTitle(char* title)
@@ -695,7 +780,6 @@ void ChunkerPlayerGUI_SetupOverlayRect(SChannel* channel)
 	ratio = channel->Ratio;
 	int w, h;
 	GetScreenSizeFromOverlay(channel->Width, channel->Height, &w, &h);
-	// printf("CALLING UpdateOverlaySize(%f, %d, %d)\n", ratio, w, h);
 	UpdateOverlaySize(ratio, w, h);
 	// UpdateOverlaySize(ratio, channel->Width, channel->Height);
 }
@@ -706,4 +790,36 @@ void ChunkerPlayerGUI_ForceResize(int width, int height)
 	int w, h;
 	GetScreenSizeFromOverlay(width, height, &w, &h);
 	ChunkerPlayerGUI_HandleResize(w, h);
+}
+
+void ToggleAudio()
+{
+	if(Audio_ON)
+	{
+		SDL_PauseAudio(1);
+		Buttons[AUDIO_OFF_BUTTON_INDEX].Visible = 0;
+		Buttons[AUDIO_ON_BUTTON_INDEX].Visible = 1;
+		Audio_ON = 0;
+	}
+	else
+	{
+		SDL_PauseAudio(0);
+		Buttons[AUDIO_OFF_BUTTON_INDEX].Visible = 1;
+		Buttons[AUDIO_ON_BUTTON_INDEX].Visible = 0;
+		Audio_ON = 1;
+	}
+	
+	RedrawButtons();
+}
+
+void ChunkerPlayerGUI_ChannelSwitched()
+{
+	if(!Audio_ON)
+	{
+		SDL_PauseAudio(1);
+		Buttons[AUDIO_OFF_BUTTON_INDEX].Visible = 0;
+		Buttons[AUDIO_ON_BUTTON_INDEX].Visible = 1;
+	}
+	
+	RedrawButtons();
 }
