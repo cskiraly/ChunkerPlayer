@@ -9,10 +9,6 @@
 #include "chunker_player.h"
 #include "player_gui.h"
 
-#ifdef WIN32
-#include <windows.h> 
-#endif
-
 int main(int argc, char *argv[])
 {
 	// some initializations
@@ -21,15 +17,7 @@ int main(int argc, char *argv[])
 	SaveYUV = 0;
 	quit = 0;
 	QueueFillingMode=1;
-
-#ifndef __WIN32__
-	static pid_t fork_pid = -1;
-	P2PProcessHandle=&fork_pid;
-#else
-	static PROCESS_INFORMATION ProcessInfo;
-	ZeroMemory( &ProcessInfo, sizeof(ProcessInfo) );
-	P2PProcessHandle=&ProcessInfo;
-#endif
+	P2PProcessID = -1;
 	NChannels = 0;
 	SelectedChannel = -1;
 	char firstChannelName[255];
@@ -45,7 +33,7 @@ int main(int argc, char *argv[])
 	FILE *fp;
 		
 	if(argc<6) {
-		printf("\nUSAGE:\n\tchunker_player queue_thresh player_port silentMode LossTracesFilenameSuffix ChannelName <YUVFilename>\n\n");
+		printf("chunker_player queue_thresh httpd_port silentMode LossTracesFilenameSuffix ChannelName <YUVFilename>\n");
 		exit(1);
 	}
 	sscanf(argv[1],"%d",&queue_filling_threshold);
@@ -230,8 +218,9 @@ int main(int argc, char *argv[])
 		}
 		usleep(120000);
 	}
-
-	KILL_PROCESS(P2PProcessHandle);
+	
+	if(P2PProcessID > 0)
+		KILL_PROCESS(P2PProcessID);
 
 	//TERMINATE
 	ChunkerPlayerCore_Stop();
@@ -243,54 +232,6 @@ int main(int argc, char *argv[])
 	SDL_Quit();
 	finalizeChunkPuller(daemon);
 	return 0;
-}
-
-int cb_validate_conffile(cfg_t *cfg)
-{
-	char PeerExecName[255];
-	char LaunchString[255];
-	int AudioChannels;
-	int SampleRate;
-	int Width;
-	int Height;
-	float Ratio;
-	cfg_t *cfg_greet;
-	
-	sprintf(PeerExecName, "%s", cfg_getstr(cfg, "PeerExecName"));
-	if(!(strlen(PeerExecName) > 0))
-	{
-		cfg_error(cfg, "invalid PeerExecName");
-		return -1;
-	}
-	
-	printf("\tPeerExecName ok\n");
-	
-	if(cfg_size(cfg, "Channel") == 0)
-	{
-		cfg_error(cfg, "no \"Channel\" section found");
-		return -1;
-	}
-	
-	printf("\t%d Channel setions found\n", cfg_size(cfg, "Channel"));
-	
-	int j;
-	for(j = 0; j < cfg_size(cfg, "Channel"); j++)
-	{
-		cfg_greet = cfg_getnsec(cfg, "Channel", j);
-		sprintf(LaunchString, "%s", cfg_getstr(cfg_greet, "LaunchString"));
-		if(!(strlen(LaunchString) > 0))
-		{
-			cfg_error(cfg, "invalid LaunchString for Channel[%d]", j);
-			return -1;
-		}
-		printf("\tChannel[%d].LaunchString = %s\n", j, LaunchString);
-		printf("\tChannel[%d].AudioChannels = %d\n", j, cfg_getint(cfg_greet, "AudioChannels"));
-		printf("\tChannel[%d].SampleRate = %d\n", j, cfg_getint(cfg_greet, "SampleRate"));
-		printf("\tChannel[%d].Width = %d\n", j, cfg_getint(cfg_greet, "Width"));
-		printf("\tChannel[%d].Height = %d\n", j, cfg_getint(cfg_greet, "Height"));
-		printf("\tChannel[%d].Ratio = %s\n", j, cfg_getstr(cfg_greet, "Ratio"));
-	}
-    return 0;
 }
 
 int ParseConf()
@@ -306,10 +247,7 @@ int ParseConf()
 		CFG_INT("SampleRate", 48000, CFGF_NONE),
 		CFG_INT("Width", 176, CFGF_NONE),
 		CFG_INT("Height", 144, CFGF_NONE),
-		
-		// for some reason libconfuse parsing for floating point does not work in windows
-		//~ CFG_FLOAT("Ratio", 1.22, CFGF_NONE),
-		CFG_STR("Ratio", "1.22", CFGF_NONE),
+		CFG_FLOAT("Ratio", 1.22, CFGF_NONE),
 		CFG_END()
 	};
 	cfg_opt_t opts[] =
@@ -323,7 +261,6 @@ int ParseConf()
 	if(cfg_parse(cfg, DEFAULT_CONF_FILENAME) == CFG_PARSE_ERROR)
 	{
 		printf("Error while parsing configuration file, exiting...\n");
-		cb_validate_conffile(cfg);
 		return 1;
 	}
 	
@@ -333,11 +270,7 @@ int ParseConf()
 		return 1;
 	}
 	
-#ifdef __WIN32__
-	sprintf(OfferStreamerFilename, "%s.exe", cfg_getstr(cfg, "PeerExecName"));
-#else
 	sprintf(OfferStreamerFilename, "%s", cfg_getstr(cfg, "PeerExecName"));
-#endif
 	
 	FILE * tmp_file;
 	if(tmp_file = fopen(OfferStreamerFilename, "r"))
@@ -359,8 +292,7 @@ int ParseConf()
 		Channels[j].Height = cfg_getint(cfg_channel, "Height");
 		Channels[j].AudioChannels = cfg_getint(cfg_channel, "AudioChannels");
 		Channels[j].SampleRate = cfg_getint(cfg_channel, "SampleRate");
-		Channels[j].Ratio = strtof(cfg_getstr(cfg_channel, "Ratio"), 0);
-		
+		Channels[j].Ratio = cfg_getfloat(cfg_channel, "Ratio");
 		Channels[j].Index = j+1;
 		NChannels++;
 	}
@@ -380,46 +312,31 @@ int SwitchChannel(SChannel* channel)
 	if(ChunkerPlayerCore_IsRunning())
 		ChunkerPlayerCore_Stop();
 
-	KILL_PROCESS(P2PProcessHandle);
+	if(P2PProcessID > 0)
+		KILL_PROCESS(P2PProcessID);
 	
 	ratio = channel->Ratio;
 	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
 	ChunkerPlayerGUI_ForceResize(channel->Width, channel->Height);
 	
-	int w=0, h=0;
-	ChunkerPlayerGUI_AspectRatioResize((float)channel->Ratio, channel->Width, channel->Height, &w, &h);
-	ChunkerPlayerCore_SetupOverlay(w, h);
+	ChunkerPlayerCore_SetupOverlay(channel->Width, channel->Height);
 	//ChunkerPlayerGUI_SetupOverlayRect(channel);
 	
-	if(ChunkerPlayerCore_InitCodecs(channel->Width, channel->Height, channel->SampleRate, channel->AudioChannels) < 0)
-	{
-		printf("ERROR, COULD NOT INITIALIZE CODECS\n");
-		exit(2);
-	}
-	
-	//reset quality info
-	channel->startTime = time(NULL);
-	channel->instant_score = 0.0;
-	channel->average_score = 0.0;
-	channel->history_index = 0;
-	for(i=0; i<CHANNEL_SCORE_HISTORY_SIZE; i++)
-		channel->score_history[i] = -1;
-	sprintf(channel->quality, "EVALUATING...");
+	ChunkerPlayerCore_InitCodecs(channel->Width, channel->Height, channel->SampleRate, channel->AudioChannels);
 		
+	char* parameters_vector[255];
 	char argv0[255], parameters_string[511];
 	sprintf(argv0, "%s", OfferStreamerFilename);
 	
-	sprintf(parameters_string, "%s %s %s %s %d %s %s:%d", channel->LaunchString, "-C", channel->Title, "-P", (HttpPort+channel->Index), "-F", "127.0.0.1", HttpPort);
+	sprintf(parameters_string, "%s %s %s %s %s %d %s %d", argv0, channel->LaunchString, "-C", channel->Title, "-P", (HttpPort+channel->Index), "-F", HttpPort);
 	
-	printf("OFFERSTREAMER LAUNCH STRING: %s %s\n", argv0, parameters_string);
-
-#ifdef __LINUX__
-	char* parameters_vector[255];
-	parameters_vector[0] = argv0;
+	printf("EXECUTING %s\n", parameters_string);
+	
+	int par_count=0;
 	
 	// split parameters and count them
-	int par_count=1;
 	char* pch = strtok (parameters_string, " ");
+	
 	while (pch != NULL)
 	{
 		if(par_count > 255) break;
@@ -430,6 +347,17 @@ int SwitchChannel(SChannel* channel)
 		par_count++;
 	}
 	parameters_vector[par_count] = NULL;
+
+	//reset quality info
+	channel->startTime = time(NULL);
+	channel->instant_score = 0.0;
+	channel->average_score = 0.0;
+	channel->history_index = 0;
+	for(i=0; i<CHANNEL_SCORE_HISTORY_SIZE; i++)
+		channel->score_history[i] = -1;
+	sprintf(channel->quality, "EVALUATING...");
+
+#ifdef __LINUX__
 
 	int d;
 	int stdoutS, stderrS;
@@ -453,13 +381,13 @@ int SwitchChannel(SChannel* channel)
 		exit(2);
 	}
 	else
-		*((pid_t*)P2PProcessHandle) = pid;
+		P2PProcessID = pid;
 	
 	// restore backup descriptors in the parent process
 	dup2(stdoutS, STDOUT_FILENO);
 	dup2(stderrS, STDERR_FILENO);
 	
-	for(i=1; i<par_count; i++)
+	for(i=0; i<par_count; i++)
 		free(parameters_vector[i]);
 		
 	fclose(stream);
@@ -476,41 +404,6 @@ int SwitchChannel(SChannel* channel)
 	ChunkerPlayerCore_Play();
 	
 	return 0;
-
-#else
-#ifdef __WIN32__
-	STARTUPINFO sti;
-	SECURITY_ATTRIBUTES sats = { 0 }; 
-	DWORD writ, excode, read, available; 
-	int ret = 0; 
-
-	//set SECURITY_ATTRIBUTES struct fields 
-	sats.nLength = sizeof(sats); 
-	sats.bInheritHandle = TRUE; 
-	sats.lpSecurityDescriptor = NULL;
-	
-	ZeroMemory( &sti, sizeof(sti) );
-    sti.cb = sizeof(sti);
-    ZeroMemory( P2PProcessHandle, sizeof(PROCESS_INFORMATION) );
-    
-	if(!CreateProcess(argv0, 
-	  parameters_string,
-	  &sats, 
-	  &sats, 
-	  TRUE, 
-	  0, 
-	  NULL, 
-	  NULL, 
-	  &sti, 
-	  P2PProcessHandle))
-	{ 
-		printf("Unable to generate process \n"); 
-		return -1; 
-	}
-	
-	ChunkerPlayerCore_Play();
-	return 0;
-#endif
 #endif
 
 	return 1;

@@ -117,8 +117,6 @@ void ChunkerPlayerGUI_HandleResize(int resize_w, int resize_h)
 	if(SilentMode)
 		return;
 		
-	SDL_LockMutex(OverlayMutex);
-		
 	// printf("ChunkerPlayerGUI_HandleResize(%d, %d)\n", resize_w, resize_h);
 	SetVideoMode(resize_w, resize_h, FullscreenMode?1:0);
 	
@@ -143,8 +141,6 @@ void ChunkerPlayerGUI_HandleResize(int resize_w, int resize_h)
 	RedrawButtons();
 	RedrawChannelName();
 	RedrawStats();
-	
-	SDL_UnlockMutex(OverlayMutex);
 }
 
 void ChunkerPlayerGUI_HandleGetFocus()
@@ -284,13 +280,12 @@ void ChunkerPlayerGUI_ToggleFullscreen()
 {
 	if(SilentMode)
 		return;
-
-	SDL_LockMutex(OverlayMutex);
 		
 	int i;
 	//If the screen is windowed
 	if( !FullscreenMode )
 	{
+		// printf("SETTING FULLSCREEN ON\n");
 		SetVideoMode(FullscreenWidth, FullscreenHeight, 1);
 		
 		// update the overlay surface size, mantaining the aspect ratio
@@ -317,6 +312,7 @@ void ChunkerPlayerGUI_ToggleFullscreen()
 	//If the screen is fullscreen
 	else
 	{
+		// printf("ToggleFullscreen callback, setting WINDOWED\n");
 		SetVideoMode(window_width, window_height, 0);
 		
 		// update the overlay surface size, mantaining the aspect ratio
@@ -343,13 +339,6 @@ void ChunkerPlayerGUI_ToggleFullscreen()
 	RedrawButtons();
 	RedrawChannelName();
 	RedrawStats();
-	
-	SDL_UnlockMutex(OverlayMutex);
-}
-
-void ChunkerPlayerGUI_AspectRatioResize(float aspect_ratio, int width, int height, int* out_width, int* out_height)
-{
-	AspectRatioResize(aspect_ratio, width, height, out_width, out_height);
 }
 
 void AspectRatioResize(float aspect_ratio, int width, int height, int* out_width, int* out_height)
@@ -374,6 +363,7 @@ void AspectRatioResize(float aspect_ratio, int width, int height, int* out_width
  */
 void UpdateOverlaySize(float aspect_ratio, int width, int height)
 {
+	// printf("UpdateOverlaySize(%f, %d, %d)\n", aspect_ratio, width, height);
 	// height -= (BUTTONS_LAYER_OFFSET + BUTTONS_CONTAINER_HEIGHT);
 	height -= SCREEN_BOTTOM_PADDING;
 	int h = 0, w = 0, x, y;
@@ -396,7 +386,7 @@ void GetScreenSizeFromOverlay(int overlayWidth, int overlayHeight, int* screenWi
 	*screenWidth = overlayWidth;
 }
 
-/* From the SDL documentation. */
+/* From SDL documentation. */
 SDL_Cursor *InitSystemCursor(const char *image[])
 {
 	int i, row, col;
@@ -483,8 +473,10 @@ void SetupGUI()
 	screen_h = OverlayRect.h + SCREEN_BOTTOM_PADDING;
 
 	SDL_WM_SetCaption("Filling buffer...", NULL);
-	
 	// Make a screen to put our video
+	
+	// printf("screen_w = %d, screen_h = %d\n", screen_w, screen_h);
+	
 	SetVideoMode(screen_w, screen_h, 0);
 	
 	window_width = screen_w;
@@ -703,6 +695,7 @@ void ChunkerPlayerGUI_SetupOverlayRect(SChannel* channel)
 	ratio = channel->Ratio;
 	int w, h;
 	GetScreenSizeFromOverlay(channel->Width, channel->Height, &w, &h);
+	// printf("CALLING UpdateOverlaySize(%f, %d, %d)\n", ratio, w, h);
 	UpdateOverlaySize(ratio, w, h);
 	// UpdateOverlaySize(ratio, channel->Width, channel->Height);
 }

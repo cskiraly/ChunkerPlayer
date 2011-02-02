@@ -1,12 +1,7 @@
 include ../common.mak
 
-ifndef MAC_OS
-LIBRT=-lrt
-endif
-
-
 CPPFLAGS += -I$(LOCAL_CONFUSE)/include -I$(LOCAL_CURL)/include
-LDLIBS += $(LOCAL_CURL)/lib/libcurl.a $(LIBRT)
+LDLIBS += $(LOCAL_CURL)/lib/libcurl.a -lrt
 LDLIBS += $(LOCAL_CONFUSE)/lib/libconfuse.a
 
 CPPFLAGS += $(LOCAL_FFMPEG_CPPFLAGS) $(LOCAL_COMMON_CPPFLAGS)

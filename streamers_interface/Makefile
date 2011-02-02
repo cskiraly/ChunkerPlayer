@@ -100,7 +100,7 @@ CPPFLAGS += -I$(LOCAL_MHD) -I$(LOCAL_MHD)/src/daemon -I$(LOCAL_MHD)/src/include
 LDFLAGS += -L$(LOCAL_MHD)/src/daemon
 LDLIBS += $(LOCAL_MHD)/src/daemon/.libs/libmicrohttpd.a
 
-LOCAL_CURL?=$(ULPLAYER)/$(ULPLAYER_EXTERNAL_LIBS)/curl-7.21.0/temp_curl_install
+LOCAL_CURL=$(ULPLAYER)/$(ULPLAYER_EXTERNAL_LIBS)/curl-7.21.0/temp_curl_install
 LDLIBS += $(LOCAL_CURL)/lib/libcurl.a -lrt
 endif
 else

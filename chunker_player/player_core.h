@@ -7,6 +7,10 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <arpa/inet.h>
 #include <microhttpd.h>
 #include "external_chunk_transcoding.h"
 #include "frame.h"
@@ -67,8 +71,6 @@ PacketQueue audioq;
 PacketQueue videoq;
 AVPacket AudioPkt, VideoPkt;
 int AVPlaying;
-int CurrentAudioFreq;
-int CurrentAudioSamples;
 
 SDL_Rect *InitRect;
 SDL_AudioSpec AudioSpecification;
