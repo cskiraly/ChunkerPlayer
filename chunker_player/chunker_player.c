@@ -14,7 +14,7 @@
 #define MANDATORY_PARAMS 3
 #define OPTIONAL_PARAMS 1
 
-#ifdef WIN32
+#ifdef _WIN32
 #include <windows.h>
 #endif
 
