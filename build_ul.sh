@@ -363,8 +363,13 @@ if [ -n "$BUILD_MHD" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MHD" ]; then
 		make clean
 	else
 		#get and compile libmicrohttpd lib
-		svn --non-interactive --trust-server-cert checkout https://ng.gnunet.org/svn/libmicrohttpd
-		cd libmicrohttpd
+		if [ X`svn --version|head -1|cut -c14-16` = X1.6 ]; then
+			svn --non-interactive --trust-server-cert checkout https://ng.gnunet.org/svn/libmicrohttpd
+		else
+			svn --non-interactive checkout https://ng.gnunet.org/svn/libmicrohttpd
+		fi
+		cd libmicrohttpd || { echo "CANNOT download libmicrohttpd"; exit 1; }
+ 
 	fi
 	
 	autoreconf -fi
