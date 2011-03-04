@@ -1,3 +1,10 @@
+/*
+ *  Copyright (c) 2009-2011 Carmelo Daniele, Dario Marchese, Diego Reforgiato, Giuseppe Tropea
+ *  developed for the Napa-Wine EU project. See www.napa-wine.eu
+ *
+ *  This is free software; see lgpl-2.1.txt
+ */
+
 #include "player_defines.h"
 #include "chunker_player.h"
 #include "player_gui.h"
@@ -240,6 +247,7 @@ int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short i
 	VideoCallbackThreadParams.height = height;
 
 	// Register all formats and codecs
+	avcodec_init();
 	av_register_all();
 
 	aCodecCtx = avcodec_alloc_context();

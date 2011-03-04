@@ -1,3 +1,10 @@
+/*
+ *  Copyright (c) 2009-2011 Carmelo Daniele, Dario Marchese, Diego Reforgiato, Giuseppe Tropea
+ *  developed for the Napa-Wine EU project. See www.napa-wine.eu
+ *
+ *  This is free software; see lgpl-2.1.txt
+ */
+
 #define CURL_STATICLIB
 #include <curl/curl.h>
 

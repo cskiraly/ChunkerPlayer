@@ -1,12 +1,9 @@
-// chunker_streamer.c
-// Author 
-// Diego Reforgiato
-// Giuseppe Tropea
-// Dario Marchese
-// Carmelo Daniele
-//
-// Use the file compile.localffmpeg.static to build the program
-
+/*
+ *  Copyright (c) 2009-2011 Carmelo Daniele, Dario Marchese, Diego Reforgiato, Giuseppe Tropea
+ *  developed for the Napa-Wine EU project. See www.napa-wine.eu
+ *
+ *  This is free software; see lgpl-2.1.txt
+ */
 
 #include "chunker_streamer.h"
 #include <signal.h>
