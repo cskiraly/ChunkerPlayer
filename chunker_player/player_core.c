@@ -325,7 +325,7 @@ int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short i
 	char audio_stats[255], video_stats[255];
 	sprintf(audio_stats, "waiting for incoming audio packets...");
 	sprintf(video_stats, "waiting for incoming video packets...");
-	ChunkerPlayerGUI_SetStatsText(audio_stats, video_stats);
+	ChunkerPlayerGUI_SetStatsText(audio_stats, video_stats,LED_GREEN);
 	
 	return 0;
 }
@@ -1443,8 +1443,13 @@ int CollectStatisticsThread(void *params)
 			}
 			else
 				sprintf(video_stats_text, "waiting for incoming video packets...");
+			
+			if(qoe)
+			    ChunkerPlayerGUI_SetStatsText(audio_stats_text, video_stats_text,(qoe>LED_THRS_YELLOW?LED_GREEN:((qoe<=LED_THRS_YELLOW && qoe>LED_THRS_RED)?LED_YELLOW:LED_RED)));
+			else
+			    ChunkerPlayerGUI_SetStatsText(audio_stats_text, video_stats_text,LED_GREEN);
+			
 
-			ChunkerPlayerGUI_SetStatsText(audio_stats_text, video_stats_text);
 			last_stats_evaluation = now;
 		}
 		

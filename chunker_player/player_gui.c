@@ -18,6 +18,7 @@ void RedrawChannelName();
 void RedrawStats();
 void SetupGUI();
 void ToggleAudio();
+void PSNRLedCallback();
 
 static char AudioStatsText[255];
 static char VideoStatsText[255];
@@ -196,6 +197,13 @@ void ChunkerPlayerGUI_HandleMouseMotion(int x, int y)
 			&& ( y > Buttons[i].ButtonIconBox.y ) && ( y < Buttons[i].ButtonIconBox.y + Buttons[i].ButtonIcon->h )
 		)
 		{
+		    // LED Button 
+		    if(i>=PSNR_LED_RED_BUTTON_INDEX && i<=PSNR_LED_GREEN_BUTTON_INDEX)
+		    {
+		        SDL_SetCursor(defaultCursor);
+		        break;
+		    }
+		        
 			Buttons[i].Hover = 1;
 			SDL_SetCursor(handCursor);
 			break;
@@ -231,7 +239,7 @@ void ChunkerPlayerGUI_HandleLButton(int x, int y)
 
 void ChunkerPlayerGUI_HandleKey()
 {
-	static Uint32 LastTime=0;
+	/*static Uint32 LastTime=0;
 	static int LastKey=-1;
 
 	Uint32 Now=SDL_GetTicks();
@@ -242,7 +250,7 @@ void ChunkerPlayerGUI_HandleKey()
 		LastKey=SDLK_ESCAPE;
 		LastTime=Now;
 		quit=1;
-	}
+	}*/
 }
 
 void ChunkerPlayerGUI_Close()
@@ -637,6 +645,36 @@ void SetupGUI()
 	Buttons[AUDIO_ON_BUTTON_INDEX].ButtonIcon = SDL_DisplayFormatAlpha(temp);
 	Buttons[AUDIO_ON_BUTTON_INDEX].ButtonHoverIcon = SDL_DisplayFormatAlpha(temp);
 	SDL_FreeSurface(temp);
+	
+	// PSNR RED LED
+	temp = IMG_Load(PSNR_LED_RED_ICON_FILE);
+	if (temp == NULL) {
+		fprintf(stderr, "Error loading %s: %s\n", PSNR_LED_RED_ICON_FILE, SDL_GetError());
+		exit(1);
+	}
+	Buttons[PSNR_LED_RED_BUTTON_INDEX].ButtonIcon = SDL_DisplayFormatAlpha(temp);
+	Buttons[PSNR_LED_RED_BUTTON_INDEX].ButtonHoverIcon = SDL_DisplayFormatAlpha(temp);
+	SDL_FreeSurface(temp);
+	
+	// PSNR YELLOW LED
+	temp = IMG_Load(PSNR_LED_YELLOW_ICON_FILE);
+	if (temp == NULL) {
+		fprintf(stderr, "Error loading %s: %s\n", PSNR_LED_YELLOW_ICON_FILE, SDL_GetError());
+		exit(1);
+	}
+	Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].ButtonIcon = SDL_DisplayFormatAlpha(temp);
+	Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].ButtonHoverIcon = SDL_DisplayFormatAlpha(temp);
+	SDL_FreeSurface(temp);
+	
+	// PSNR GREEN LED
+	temp = IMG_Load(PSNR_LED_GREEN_ICON_FILE);
+	if (temp == NULL) {
+		fprintf(stderr, "Error loading %s: %s\n", PSNR_LED_GREEN_ICON_FILE, SDL_GetError());
+		exit(1);
+	}
+	Buttons[PSNR_LED_GREEN_BUTTON_INDEX].ButtonIcon = SDL_DisplayFormatAlpha(temp);
+	Buttons[PSNR_LED_GREEN_BUTTON_INDEX].ButtonHoverIcon = SDL_DisplayFormatAlpha(temp);
+	SDL_FreeSurface(temp);
 
 	/** Setting up icon boxes */
 	Buttons[FULLSCREEN_BUTTON_INDEX].XOffset = Buttons[NO_FULLSCREEN_BUTTON_INDEX].XOffset = 20;
@@ -675,6 +713,27 @@ void SetupGUI()
 	Buttons[AUDIO_ON_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[AUDIO_ON_BUTTON_INDEX].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
 	Buttons[AUDIO_ON_BUTTON_INDEX].Visible = 0;
 	
+	Buttons[PSNR_LED_RED_BUTTON_INDEX].XOffset = -106;
+	Buttons[PSNR_LED_RED_BUTTON_INDEX].ButtonIconBox.w = Buttons[PSNR_LED_RED_BUTTON_INDEX].ButtonIcon->w;
+	Buttons[PSNR_LED_RED_BUTTON_INDEX].ButtonIconBox.h = Buttons[PSNR_LED_RED_BUTTON_INDEX].ButtonIcon->h;
+	Buttons[PSNR_LED_RED_BUTTON_INDEX].ButtonIconBox.x = (screen_w + Buttons[PSNR_LED_RED_BUTTON_INDEX].XOffset);
+	Buttons[PSNR_LED_RED_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[PSNR_LED_RED_BUTTON_INDEX].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
+	Buttons[PSNR_LED_RED_BUTTON_INDEX].Visible = 0;
+	
+	Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].XOffset = -106;
+	Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].ButtonIconBox.w = Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].ButtonIcon->w;
+	Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].ButtonIconBox.h = Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].ButtonIcon->h;
+	Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].ButtonIconBox.x = (screen_w + Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].XOffset);
+	Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
+	Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].Visible = 0;
+	
+	Buttons[PSNR_LED_GREEN_BUTTON_INDEX].XOffset = -106;
+	Buttons[PSNR_LED_GREEN_BUTTON_INDEX].ButtonIconBox.w = Buttons[PSNR_LED_GREEN_BUTTON_INDEX].ButtonIcon->w;
+	Buttons[PSNR_LED_GREEN_BUTTON_INDEX].ButtonIconBox.h = Buttons[PSNR_LED_GREEN_BUTTON_INDEX].ButtonIcon->h;
+	Buttons[PSNR_LED_GREEN_BUTTON_INDEX].ButtonIconBox.x = (screen_w + Buttons[PSNR_LED_GREEN_BUTTON_INDEX].XOffset);
+	Buttons[PSNR_LED_GREEN_BUTTON_INDEX].ButtonIconBox.y = screen_h - Buttons[PSNR_LED_GREEN_BUTTON_INDEX].ButtonIconBox.h - (SCREEN_BOTTOM_PADDING/2);
+	Buttons[PSNR_LED_GREEN_BUTTON_INDEX].Visible = 1;
+	
 	// Setting up buttons events
 	Buttons[FULLSCREEN_BUTTON_INDEX].ToggledButton = &(Buttons[NO_FULLSCREEN_BUTTON_INDEX]);
 	Buttons[FULLSCREEN_BUTTON_INDEX].LButtonUpCallback = &ChunkerPlayerGUI_ToggleFullscreen;
@@ -683,6 +742,9 @@ void SetupGUI()
 	Buttons[CHANNEL_DOWN_BUTTON_INDEX].LButtonUpCallback = &ZapDown;
 	Buttons[AUDIO_OFF_BUTTON_INDEX].LButtonUpCallback = &ToggleAudio;
 	Buttons[AUDIO_ON_BUTTON_INDEX].LButtonUpCallback = &ToggleAudio;
+	Buttons[PSNR_LED_RED_BUTTON_INDEX].LButtonUpCallback = &PSNRLedCallback;
+	Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].LButtonUpCallback = &PSNRLedCallback;
+	Buttons[PSNR_LED_GREEN_BUTTON_INDEX].LButtonUpCallback = &PSNRLedCallback;
 }
 
 void ChunkerPlayerGUI_SetChannelTitle(char* title)
@@ -705,7 +767,7 @@ void ChunkerPlayerGUI_SetChannelTitle(char* title)
 	RedrawChannelName();
 }
 
-void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text)
+void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text, int ledstatus)
 {
 	if(SilentMode)
 		return;
@@ -725,7 +787,30 @@ void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text)
 	strcpy(AudioStatsText, audio_text);
 	strcpy(VideoStatsText, video_text);
 	
+	switch(ledstatus)
+    {
+    case LED_RED:
+        // PSNR LED RED
+        Buttons[PSNR_LED_RED_BUTTON_INDEX].Visible = 1;
+		Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].Visible = 0;
+		Buttons[PSNR_LED_GREEN_BUTTON_INDEX].Visible = 0;
+	    break;
+	case LED_YELLOW:
+	    // PSNR LED YELLOW
+	    Buttons[PSNR_LED_RED_BUTTON_INDEX].Visible = 0;
+		Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].Visible = 1;
+		Buttons[PSNR_LED_GREEN_BUTTON_INDEX].Visible = 0;
+	    break;
+	case LED_GREEN:
+	    // PSNR LED GREEN
+	    Buttons[PSNR_LED_RED_BUTTON_INDEX].Visible = 0;
+		Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].Visible = 0;
+		Buttons[PSNR_LED_GREEN_BUTTON_INDEX].Visible = 1;
+	    break;
+	}
+	
 	RedrawStats();
+	RedrawButtons();
 }
 
 void RedrawStats()
@@ -817,6 +902,10 @@ void ToggleAudio()
 	}
 	
 	RedrawButtons();
+}
+
+void PSNRLedCallback()
+{
 }
 
 void ChunkerPlayerGUI_ChannelSwitched()

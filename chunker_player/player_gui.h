@@ -39,7 +39,7 @@ void ChunkerPlayerGUI_HandleKey();
 void ChunkerPlayerGUI_SetupOverlayRect(SChannel* channel);
 void ChunkerPlayerGUI_ForceResize(int w, int h);
 void ChunkerPlayerGUI_SetChannelTitle(char* title);
-void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text);
+void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text, int ledstatus);
 void ChunkerPlayerGUI_ToggleFullscreen();
 void ChunkerPlayerGUI_ChannelSwitched();
 void GetScreenSizeFromOverlay(int overlayWidth, int overlayHeight, int* screenWidth, int* screenHeight);

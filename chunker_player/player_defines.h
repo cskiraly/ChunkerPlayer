@@ -22,6 +22,9 @@
 #define NOFULLSCREEN_HOVER_ICON_FILE "icons/nofullscreen32.png"
 #define AUDIO_ON_ICON_FILE "icons/audio_on.png"
 #define AUDIO_OFF_ICON_FILE "icons/audio_off.png"
+#define PSNR_LED_RED_ICON_FILE "icons/red_led.png"
+#define PSNR_LED_YELLOW_ICON_FILE "icons/yellow_led.png"
+#define PSNR_LED_GREEN_ICON_FILE "icons/green_led.png"
 
 #define CHANNEL_UP_ICON_FILE "icons/up_16.png"
 #define CHANNEL_DOWN_ICON_FILE "icons/down_16.png"
@@ -45,8 +48,18 @@
 #define CHANNEL_DOWN_BUTTON_INDEX 3
 #define AUDIO_OFF_BUTTON_INDEX 4
 #define AUDIO_ON_BUTTON_INDEX 5
+#define PSNR_LED_RED_BUTTON_INDEX 6
+#define PSNR_LED_YELLOW_BUTTON_INDEX 7
+#define PSNR_LED_GREEN_BUTTON_INDEX 8
 
-#define NBUTTONS 6
+#define LED_RED     0
+#define LED_YELLOW  1
+#define LED_GREEN   2
+
+#define LED_THRS_RED    33.0f
+#define LED_THRS_YELLOW 36.0f
+
+#define NBUTTONS 9
 #define MAIN_FONT_FILE "mainfont.ttf"
 #define MAIN_FONT_SIZE 18
 
@@ -77,11 +90,11 @@
 //#define DEBUG_QUEUE
 //#define DEBUG_QUEUE_DEEP
 //#define DEBUG_SOURCE
-#define DEBUG_STATS
-#define DEBUG_STATS_DEEP
+//#define DEBUG_STATS
+//#define DEBUG_STATS_DEEP
 //#define DEBUG_AUDIO_BUFFER
 //#define DEBUG_CHUNKER
-#define EMULATE_CHUNK_LOSS
+//#define EMULATE_CHUNK_LOSS
 
 #define VIDEO_DEINTERLACE
 
