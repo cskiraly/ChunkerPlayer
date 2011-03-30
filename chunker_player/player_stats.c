@@ -357,8 +357,8 @@ int ChunkerPlayerStats_GetMeanVideoQuality(SHistory* history, double* quality)
 			{
 				// bitrate (Kbits/sec) loss_percentage loss_burstiness est_mean_psnr
 				fprintf(tracefile, "%d %.3f %.3f %.3f\n", (int)((Channels[SelectedChannel].Bitrate) * (qoe_reference_coeff/qoe_adjust_factor) / 1000), (float)(((double)losses)/((double)counter) * 100), (float)mean_burstiness, (float)(*quality));
+				fclose(tracefile);
 			}
-			fclose(tracefile);
 		}
 		
 		history->QoEIndex = (end_index+1)%QUEUE_HISTORY_SIZE;
@@ -457,68 +457,70 @@ int ChunkerPlayerStats_PrintHistoryTrace(SHistory* history, char* tracefilename)
 #endif
 	FILE* tracefile = NULL;
 	tracefile = fopen(tracefilename, "a");
-		
-	if(history->LogIndex != history->Index)
+	if(tracefile)
 	{
-		int index;
-		int end_index;
-		int start_index;
+	    if(history->LogIndex != history->Index)
+	    {
+		    int index;
+		    int end_index;
+		    int start_index;
 
-		start_index = history->LogIndex;
-		end_index = history->Index-1;
-		if(end_index < 0)
-			end_index = QUEUE_HISTORY_SIZE-1;
-		else if(history->Index < start_index)
-			end_index += QUEUE_HISTORY_SIZE;
+		    start_index = history->LogIndex;
+		    end_index = history->Index-1;
+		    if(end_index < 0)
+			    end_index = QUEUE_HISTORY_SIZE-1;
+		    else if(history->Index < start_index)
+			    end_index += QUEUE_HISTORY_SIZE;
 		
-		for(index=start_index; (index<=end_index); index++)
-		{
-			int id = history->History[index%QUEUE_HISTORY_SIZE].ID;
-			int status = history->History[index%QUEUE_HISTORY_SIZE].Status;
-			int lossrate = -1, skiprate = -1, perc_lossrate = -1, perc_skiprate = -1, lastiframe_dist = -1;
-			int bitrate = -1;
-			char type = '?';
-			switch(history->History[index%QUEUE_HISTORY_SIZE].Type)
-			{
-				case 1:
-					type = 'I';
-					break;
-				case 2:
-					type = 'P';
-					break;
-				case 3:
-					type = 'B';
-					break;
-				case 5:
-					type = 'A';
-					break;
-			}
-			if(history->History[index%QUEUE_HISTORY_SIZE].Type != 5)
-			{
-				if((FirstLoggedVFrameNumber < 0))
-					FirstLoggedVFrameNumber = id;
-				LastLoggedVFrameNumber = id;
-				VideoFramesLogged[status]++;
-			}
-			if(status != LOST_FRAME)
-			{
-				lossrate = history->History[index%QUEUE_HISTORY_SIZE].Statistics.Lossrate;
-				skiprate = history->History[index%QUEUE_HISTORY_SIZE].Statistics.Skiprate;
-				perc_lossrate = history->History[index%QUEUE_HISTORY_SIZE].Statistics.PercLossrate;
-				perc_skiprate = history->History[index%QUEUE_HISTORY_SIZE].Statistics.PercSkiprate;
-				if(type != 'A')
-				{
-					lastiframe_dist = history->History[index%QUEUE_HISTORY_SIZE].Statistics.LastIFrameDistance;
-				}
-				bitrate = history->History[index%QUEUE_HISTORY_SIZE].Statistics.Bitrate;
-			}
-			fprintf(tracefile, "%d %d %c %d %d %d %d %d %d\n",
-				id, status, type, lossrate, skiprate, perc_lossrate, perc_skiprate, lastiframe_dist, bitrate);
-			counter++;
-		}
-		history->LogIndex = (end_index+1)%QUEUE_HISTORY_SIZE;
+		    for(index=start_index; (index<=end_index); index++)
+		    {
+			    int id = history->History[index%QUEUE_HISTORY_SIZE].ID;
+			    int status = history->History[index%QUEUE_HISTORY_SIZE].Status;
+			    int lossrate = -1, skiprate = -1, perc_lossrate = -1, perc_skiprate = -1, lastiframe_dist = -1;
+			    int bitrate = -1;
+			    char type = '?';
+			    switch(history->History[index%QUEUE_HISTORY_SIZE].Type)
+			    {
+				    case 1:
+					    type = 'I';
+					    break;
+				    case 2:
+					    type = 'P';
+					    break;
+				    case 3:
+					    type = 'B';
+					    break;
+				    case 5:
+					    type = 'A';
+					    break;
+			    }
+			    if(history->History[index%QUEUE_HISTORY_SIZE].Type != 5)
+			    {
+				    if((FirstLoggedVFrameNumber < 0))
+					    FirstLoggedVFrameNumber = id;
+				    LastLoggedVFrameNumber = id;
+				    VideoFramesLogged[status]++;
+			    }
+			    if(status != LOST_FRAME)
+			    {
+				    lossrate = history->History[index%QUEUE_HISTORY_SIZE].Statistics.Lossrate;
+				    skiprate = history->History[index%QUEUE_HISTORY_SIZE].Statistics.Skiprate;
+				    perc_lossrate = history->History[index%QUEUE_HISTORY_SIZE].Statistics.PercLossrate;
+				    perc_skiprate = history->History[index%QUEUE_HISTORY_SIZE].Statistics.PercSkiprate;
+				    if(type != 'A')
+				    {
+					    lastiframe_dist = history->History[index%QUEUE_HISTORY_SIZE].Statistics.LastIFrameDistance;
+				    }
+				    bitrate = history->History[index%QUEUE_HISTORY_SIZE].Statistics.Bitrate;
+			    }
+			    fprintf(tracefile, "%d %d %c %d %d %d %d %d %d\n",
+				    id, status, type, lossrate, skiprate, perc_lossrate, perc_skiprate, lastiframe_dist, bitrate);
+			    counter++;
+		    }
+		    history->LogIndex = (end_index+1)%QUEUE_HISTORY_SIZE;
+	    }
+	    fclose(tracefile);
 	}
-	fclose(tracefile);
 		
 	SDL_UnlockMutex(history->Mutex);
 	return counter;
