@@ -34,6 +34,7 @@ int queue_filling_threshold;
 int quit;
 short int QueueFillingMode;
 int LogTraces;
+char NetworkID[255];
 
 #ifdef EMULATE_CHUNK_LOSS
 typedef struct

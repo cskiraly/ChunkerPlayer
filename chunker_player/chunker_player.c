@@ -25,6 +25,25 @@
 #include <windows.h>
 #endif
 
+int ReadALine(FILE* fp, char* Output, int MaxOutputSize)
+{
+    int i=0;
+    int c;
+    do
+    {
+        c=getc(fp);
+        if(c=='\r' || c=='\n' || c==EOF)
+        {
+            Output[i]=0;
+            return i;
+        }
+        Output[i++]=c;
+    }
+    while(c!=EOF);
+    
+    return -1;
+}
+
 void sigproc()
 {
 	printf("you have pressed ctrl-c, terminating...\n");
@@ -491,7 +510,8 @@ int SwitchChannel(SChannel* channel)
 	if(ChunkerPlayerCore_IsRunning())
 		ChunkerPlayerCore_Stop();
 
-	KILL_PROCESS(P2PProcessHandle);
+    KILL_PROCESS(P2PProcessHandle);
+	remove("NetworkID");
 	
 	ratio = channel->Ratio;
 	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
@@ -628,6 +648,30 @@ int SwitchChannel(SChannel* channel)
 #endif
 
 	}
+	// Read the Network ID
+	int Error=true;
+	char Line1[255], Line2[255];
+	while(Error)
+	{
+	    FILE* fp=fopen("NetworkID","r");
+	    if(fp)
+	    {
+	        if(ReadALine(fp,Line1,255)!=-1)
+	            if(ReadALine(fp,Line2,255)!=-1)
+	            {
+	                if(strcmp(Line2,"IDEnd")==0)
+	                {
+	                    strcpy(NetworkID,Line1);
+	                    Error=false;
+	                }
+	            }
+	        fclose(fp);
+	    }
+	    if(Error) usleep(100000);
+	}
+	
+	printf("NetworkID = %s\n",NetworkID);
+	
 	ChunkerPlayerCore_Play();
 	ChunkerPlayerGUI_ChannelSwitched();
 	return 0;
