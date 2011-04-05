@@ -1016,7 +1016,7 @@ void AudioCallback(void *userdata, Uint8 *stream, int len)
 
 	audio_size = AudioDecodeFrame(audio_buf, sizeof(audio_buf));
 	
-	if(SilentMode != 1)
+	if(SilentMode < 2)
 		if(audio_size != len) {
 			memset(stream, 0, len);
 		} else {
@@ -1420,7 +1420,7 @@ int CollectStatisticsThread(void *params)
 				ChunkerPlayerStats_PrintHistoryTrace(&(audioq.PacketHistory), AudioTraceFilename);
 				ChunkerPlayerStats_PrintHistoryTrace(&(videoq.PacketHistory), VideoTraceFilename);
 				
-				if(SilentMode != 1 && SilentMode != 2)
+//				if(SilentMode != 1 && SilentMode != 2)
 					ChunkerPlayerStats_PrintContextFile();
 			}
 

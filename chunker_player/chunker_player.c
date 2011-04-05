@@ -61,7 +61,7 @@ static void print_usage(int argc, char *argv[])
     "\t[-p port]: player http port\n\n"
     "Other options:\n"
     "\t[-t]: log traces (WARNING: old traces will be deleted).\n"
-    "\t[-s mode]: silent mode (mode=1 no user gui and no audio, mode=2 audio only, mode=3 only gui and no P2P).\n\n"
+    "\t[-s mode]: silent mode (no GUI) (mode=1 audio ON, mode=2 audio OFF, mode=3 audio OFF; P2P OFF).\n\n"
     "=======================================================\n", argv[0]
     );
 }
@@ -214,17 +214,24 @@ int main(int argc, char *argv[])
 	}
 #endif
 
-	if(!SilentMode)
+	if(SilentMode == 0)
 	{
 		if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
-			fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
+			fprintf(stderr, "Could not initialize SDL audio/video or timer - %s\n", SDL_GetError());
+			return -1;
+		}
+	}
+	else if(SilentMode == 1)
+	{
+		if(SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
+			fprintf(stderr, "Could not initialize SDL audio or timer - %s\n", SDL_GetError());
 			return -1;
 		}
 	}
 	else
 	{
 		if(SDL_Init(SDL_INIT_TIMER)) {
-			fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
+			fprintf(stderr, "Could not initialize SDL timer - %s\n", SDL_GetError());
 			return -1;
 		}
 	}
@@ -537,7 +544,7 @@ int SwitchChannel(SChannel* channel)
 		channel->score_history[i] = -1;
 	sprintf(channel->quality, "EVALUATING...");
 	
-	if(SilentMode != 3) //mode 3 is for GUI only, no P2P peer process
+	if(SilentMode != 3) //mode 3 is without P2P peer process
 	{
 		char argv0[255], parameters_string[511];
 		sprintf(argv0, "%s", StreamerFilename);
