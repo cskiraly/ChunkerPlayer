@@ -98,4 +98,6 @@
 
 #define VIDEO_DEINTERLACE
 
+#define REPO_UPDATE_INTERVALL   10  // seconds
+
 #endif // _CHUNKER_PLAYER_DEFINES_H

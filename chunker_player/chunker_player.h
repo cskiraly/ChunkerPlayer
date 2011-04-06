@@ -4,6 +4,7 @@
 #include "player_defines.h"
 #include <SDL.h>
 #include <SDL_mutex.h>
+#include <repoclient.h>
 
 typedef struct SChannel
 {
@@ -35,6 +36,9 @@ int quit;
 short int QueueFillingMode;
 int LogTraces;
 char NetworkID[255];
+char RepoAddress[2048];
+HANDLE repoclient;
+struct timeval LastTimeRepoPublish;
 
 #ifdef EMULATE_CHUNK_LOSS
 typedef struct

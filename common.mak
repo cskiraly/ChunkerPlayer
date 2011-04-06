@@ -12,11 +12,11 @@ CFLAGS = -g -O0 -Wall
 else
 CFLAGS = -pthread -g -O0 -Wall
 LDFLAGS += -pthread
-DYNAMIC_LDLIBS += -lm
+DYNAMIC_LDLIBS += -lm -lrt
 endif
 
 CFLAGS += -DHAVE_OPENGL -Wl,--warn-common -Wl,--as-needed -Wl,-Bsymbolic
-CPPFLAGS += -I../chunk_transcoding -I../
+CPPFLAGS += -I../chunk_transcoding -I../ -I../../../NAPA-BASELIBS/include
 
 #default fmmpeg here
 LOCAL_FFMPEG_CPPFLAGS = -I$(LOCAL_FFMPEG)/include
@@ -30,4 +30,5 @@ endif
 
 LOCAL_COMMON_CPPFLAGS = -I$(LOCAL_X264)/include -I$(LOCAL_BZ2)/include -I$(LOCAL_Z)/include -I$(LOCAL_MP3LAME)/include
 #LOCAL_COMMON_LDFLAGS = -L$(LOCAL_X264)/lib -L$(LOCAL_BZ2)/lib -L$(LOCAL_MP3LAME)/lib
-LOCAL_COMMON_LDLIBS = $(LOCAL_X264)/lib/libx264.a $(LOCAL_BZ2)/lib/libbz2.a $(LOCAL_Z)/lib/libz.a $(LOCAL_MP3LAME)/lib/libmp3lame.a
+LOCAL_COMMON_LDLIBS = $(LOCAL_X264)/lib/libx264.a $(LOCAL_BZ2)/lib/libbz2.a $(LOCAL_Z)/lib/libz.a $(LOCAL_MP3LAME)/lib/libmp3lame.a ../../../NAPA-BASELIBS/rep/librep.a ../../../NAPA-BASELIBS/dclog/libdclog.a ../../../NAPA-BASELIBS/common/libcommon.a ../../../NAPA-BASELIBS/ml/libml.a
+LOCAL_COMMON_LDLIBS += ../../../3RDPARTY-LIBS/libevent/lib/libevent.a -L../../../3RDPARTY-LIBS/libconfuse/lib/libconfuse.a

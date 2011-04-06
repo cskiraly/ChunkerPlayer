@@ -17,6 +17,7 @@
 #include "player_gui.h"
 #include <time.h>
 #include <getopt.h>
+#include <napa_log.h>
 
 #define MANDATORY_PARAMS 3
 #define OPTIONAL_PARAMS 1
@@ -42,6 +43,16 @@ int ReadALine(FILE* fp, char* Output, int MaxOutputSize)
     while(c!=EOF);
     
     return -1;
+}
+
+void CheckForRepoAddress(char* Param)
+{
+    char* pch;
+    if(strncasecmp(Param,"repo_address=",13)==0)
+    {
+        pch=strtok(Param+13,",");
+        strncpy(RepoAddress,pch,2048);
+    }
 }
 
 void sigproc()
@@ -75,7 +86,14 @@ int main(int argc, char *argv[])
 	quit = 0;
 	QueueFillingMode=1;
 	LogTraces = 0;
+	repoclient=NULL;
+	LastTimeRepoPublish.tv_sec=0;
+	LastTimeRepoPublish.tv_usec=0;
+	
+	napaInitLog(LOG_DEBUG, NULL, NULL);
+    repInit("");
 
+	
 #ifndef __WIN32__
 	static pid_t fork_pid = -1;
 	P2PProcessHandle=&fork_pid;
@@ -559,7 +577,7 @@ int SwitchChannel(SChannel* channel)
 
 		printf("OFFERSTREAMER LAUNCH STRING: %s %s\n", argv0, parameters_string);
 
-#ifndef __WIN32__
+
 		char* parameters_vector[255];
 		parameters_vector[0] = argv0;
 		
@@ -572,11 +590,14 @@ int SwitchChannel(SChannel* channel)
 			// printf ("\tpch=%s\n",pch);
 			parameters_vector[par_count] = (char*) malloc(sizeof(char)*(strlen(pch)+1));
 			strcpy(parameters_vector[par_count], pch);
+			// Find repo_address
+			CheckForRepoAddress(parameters_vector[par_count]);
 			pch = strtok (NULL, " ");
 			par_count++;
 		}
 		parameters_vector[par_count] = NULL;
-
+		
+#ifndef __WIN32__
 		int d;
 		int stdoutS, stderrS;
 		FILE* stream;
@@ -654,6 +675,12 @@ int SwitchChannel(SChannel* channel)
 		}
 #endif
 
+        // Open Repository
+        if(repoclient) repClose(repoclient);
+        repoclient=NULL;
+	    
+	    repoclient = repOpen(RepoAddress,0);
+	    //if (repoclient == NULL) fatal("Unable to initialize repoclient");
 	}
 	// Read the Network ID
 	int Error=true;

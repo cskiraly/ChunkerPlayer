@@ -23,6 +23,31 @@ void ChunkerPlayerCore_Pause();
 //int lastCheckedVideoFrame = -1;
 long int last_video_frame_extracted = -1;
 
+int timeval_subtract(struct timeval* x, struct timeval* y, struct timeval* result)
+{
+  // Perform the carry for the later subtraction by updating y.
+  if (x->tv_usec < y->tv_usec)
+  {
+    int nsec = (y->tv_usec - x->tv_usec) / 1000000 + 1;
+    y->tv_usec -= 1000000 * nsec;
+    y->tv_sec += nsec;
+  }
+  if (x->tv_usec - y->tv_usec > 1000000)
+  {
+    int nsec = (x->tv_usec - y->tv_usec) / 1000000;
+    y->tv_usec += 1000000 * nsec;
+    y->tv_sec -= nsec;
+  }
+
+  // Compute the time remaining to wait. tv_usec is certainly positive.
+  result->tv_sec = x->tv_sec - y->tv_sec;
+  result->tv_usec = x->tv_usec - y->tv_usec;
+
+  // Return 1 if result is negative.
+  return x->tv_sec < y->tv_sec;
+}
+
+
 void PacketQueueInit(PacketQueue *q, short int Type)
 {
 #ifdef DEBUG_QUEUE
@@ -1420,7 +1445,7 @@ int CollectStatisticsThread(void *params)
 				ChunkerPlayerStats_PrintHistoryTrace(&(audioq.PacketHistory), AudioTraceFilename);
 				ChunkerPlayerStats_PrintHistoryTrace(&(videoq.PacketHistory), VideoTraceFilename);
 				
-//				if(SilentMode != 1 && SilentMode != 2)
+				//if(SilentMode != 1 && SilentMode != 2)
 					ChunkerPlayerStats_PrintContextFile();
 			}
 
@@ -1437,7 +1462,28 @@ int CollectStatisticsThread(void *params)
 				char est_psnr_string[255];
 				sprintf(est_psnr_string, "");
 				if(qoe)
+				{
 					sprintf(est_psnr_string, " - Est. Mean PSNR: %.1f db", (float)qoe);
+					// Publish measure into repository
+					MeasurementRecord r;
+	                strcpy(r.originator,NetworkID);
+	                strcpy(r.targetA,NetworkID);
+	                strcpy(r.targetB,"");
+	                strcpy(r.published_name,"PSNR");
+	                r.value = qoe;
+	                r.string_value = NULL;
+	                strcpy(r.channel,Channels[SelectedChannel].Title);
+	                gettimeofday(&(r.timestamp), NULL);
+	                // One update every REPO_UPDATE_INTERVALL seconds
+	                struct timeval ElapsedTime;
+	                timeval_subtract(&(r.timestamp),&LastTimeRepoPublish,&ElapsedTime);
+                    if(ElapsedTime.tv_sec>=REPO_UPDATE_INTERVALL)
+                    {
+                        LastTimeRepoPublish=r.timestamp;
+                        if(repPublish(repoclient,NULL,NULL,&r)!=NULL)
+                            printf("VALORE PUBBLICATO: %s  %e  %s\n",r.originator,qoe,r.channel);
+                    }
+				}
 
 				sprintf(video_stats_text, "[VIDEO] qdensity: %d\%% - losses: %d/sec (%ld tot) - skips: %d/sec (%ld tot)%s", (int)video_qdensity, video_statistics.Lossrate, videoq.PacketHistory.LostCount, video_statistics.Skiprate, videoq.PacketHistory.SkipCount, est_psnr_string);
 			}
