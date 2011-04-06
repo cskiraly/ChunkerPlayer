@@ -1483,10 +1483,11 @@ int CollectStatisticsThread(void *params)
                         if(ElapsedTime.tv_sec>=PSNR_REPO_UPDATE_INTERVALL)
                         {
                             LastTimeRepoPublish=r.timestamp;
-                            if(repPublish(repoclient,NULL,NULL,&r)!=NULL)
+                            if(repPublish(repoclient,NULL,NULL,&r)!=NULL) {
 #ifdef DEBUG_PSNR
                                printf("PSNR publish: %s  %e  %s\n",r.originator,qoe,r.channel);
 #endif
+														}
                         }
                    }
 #endif
