@@ -17,7 +17,10 @@
 #include "player_gui.h"
 #include <time.h>
 #include <getopt.h>
+
+#ifdef PSNR_PUBLICATION
 #include <napa_log.h>
+#endif
 
 #define MANDATORY_PARAMS 3
 #define OPTIONAL_PARAMS 1
@@ -86,13 +89,14 @@ int main(int argc, char *argv[])
 	quit = 0;
 	QueueFillingMode=1;
 	LogTraces = 0;
+
+#ifdef PSNR_PUBLICATION
 	repoclient=NULL;
 	LastTimeRepoPublish.tv_sec=0;
 	LastTimeRepoPublish.tv_usec=0;
-	
 	napaInitLog(LOG_DEBUG, NULL, NULL);
-    repInit("");
-
+	repInit("");
+#endif
 	
 #ifndef __WIN32__
 	static pid_t fork_pid = -1;
@@ -562,41 +566,41 @@ int SwitchChannel(SChannel* channel)
 		channel->score_history[i] = -1;
 	sprintf(channel->quality, "EVALUATING...");
 	
-	if(SilentMode != 3) //mode 3 is without P2P peer process
-	{
-		char argv0[255], parameters_string[511];
-		sprintf(argv0, "%s", StreamerFilename);
+	char argv0[255], parameters_string[511];
+	sprintf(argv0, "%s", StreamerFilename);
 
 #ifdef HTTPIO
-		sprintf(parameters_string, "%s %s %s %d %s %s %d", "-C", channel->Title, "-P", (HttpPort+channel->Index), channel->LaunchString, "-F", HttpPort);
+	sprintf(parameters_string, "%s %s %s %d %s %s %d", "-C", channel->Title, "-P", (HttpPort+channel->Index), channel->LaunchString, "-F", HttpPort);
 #endif
 
 #ifdef TCPIO
-		sprintf(parameters_string, "%s %s %s %d %s %s 127.0.0.1:%d", "-C", channel->Title, "-P", (TcpPort+channel->Index), channel->LaunchString, "-F", TcpPort);
+	sprintf(parameters_string, "%s %s %s %d %s %s 127.0.0.1:%d", "-C", channel->Title, "-P", (TcpPort+channel->Index), channel->LaunchString, "-F", TcpPort);
 #endif
 
-		printf("OFFERSTREAMER LAUNCH STRING: %s %s\n", argv0, parameters_string);
+	printf("OFFERSTREAMER LAUNCH STRING: %s %s\n", argv0, parameters_string);
 
+	char* parameters_vector[255];
+	parameters_vector[0] = argv0;
+	
+	// split parameters and count them
+	int par_count=1;
+	char* pch = strtok (parameters_string, " ");
+	while (pch != NULL)
+	{
+		if(par_count > 255) break;
+		// printf ("\tpch=%s\n",pch);
+		parameters_vector[par_count] = (char*) malloc(sizeof(char)*(strlen(pch)+1));
+		strcpy(parameters_vector[par_count], pch);
+		// Find repo_address
+		CheckForRepoAddress(parameters_vector[par_count]);
+		pch = strtok (NULL, " ");
+		par_count++;
+	}
+	parameters_vector[par_count] = NULL;
 
-		char* parameters_vector[255];
-		parameters_vector[0] = argv0;
-		
-		// split parameters and count them
-		int par_count=1;
-		char* pch = strtok (parameters_string, " ");
-		while (pch != NULL)
-		{
-			if(par_count > 255) break;
-			// printf ("\tpch=%s\n",pch);
-			parameters_vector[par_count] = (char*) malloc(sizeof(char)*(strlen(pch)+1));
-			strcpy(parameters_vector[par_count], pch);
-			// Find repo_address
-			CheckForRepoAddress(parameters_vector[par_count]);
-			pch = strtok (NULL, " ");
-			par_count++;
-		}
-		parameters_vector[par_count] = NULL;
-		
+	if(SilentMode != 3) //mode 3 is without P2P peer process
+	{
+
 #ifndef __WIN32__
 		int d;
 		int stdoutS, stderrS;
@@ -625,23 +629,9 @@ int SwitchChannel(SChannel* channel)
 		// restore backup descriptors in the parent process
 		dup2(stdoutS, STDOUT_FILENO);
 		dup2(stderrS, STDERR_FILENO);
-		
-		for(i=1; i<par_count; i++)
-			free(parameters_vector[i]);
-			
+
 		fclose(stream);
-
-#ifdef RESTORE_SCREEN_ON_ZAPPING
-		if(was_fullscreen)
-			ChunkerPlayerGUI_ToggleFullscreen();
-		else
-		{
-			ChunkerPlayerGUI_HandleResize(old_width, old_height);
-		}
-#endif
-	
 #else
-
 		STARTUPINFO sti;
 		SECURITY_ATTRIBUTES sats = { 0 };
 		DWORD writ, excode, read, available;
@@ -675,13 +665,33 @@ int SwitchChannel(SChannel* channel)
 		}
 #endif
 
-        // Open Repository
-        if(repoclient) repClose(repoclient);
-        repoclient=NULL;
-	    
-	    repoclient = repOpen(RepoAddress,0);
-	    //if (repoclient == NULL) fatal("Unable to initialize repoclient");
 	}
+
+#ifdef RESTORE_SCREEN_ON_ZAPPING
+	if(SilentMode == 0) {
+		if(was_fullscreen)
+			ChunkerPlayerGUI_ToggleFullscreen();
+		else
+		{
+			ChunkerPlayerGUI_HandleResize(old_width, old_height);
+		}
+	}
+#endif
+
+	for(i=1; i<par_count; i++)
+		free(parameters_vector[i]);
+
+#ifdef PSNR_PUBLICATION
+	// Open Repository
+	if(repoclient)
+		repClose(repoclient);
+	repoclient=NULL;
+
+	repoclient = repOpen(RepoAddress,0);
+	if (repoclient == NULL)
+		fatal("Unable to initialize PSNR publication in repoclient %s", RepoAddress);
+#endif
+
 	// Read the Network ID
 	int Error=true;
 	char Line1[255], Line2[255];

@@ -1464,6 +1464,7 @@ int CollectStatisticsThread(void *params)
 				if(qoe)
 				{
 					sprintf(est_psnr_string, " - Est. Mean PSNR: %.1f db", (float)qoe);
+#ifdef PSNR_PUBLICATION
 					// Publish measure into repository
 					MeasurementRecord r;
 	                strcpy(r.originator,NetworkID);
@@ -1477,12 +1478,13 @@ int CollectStatisticsThread(void *params)
 	                // One update every REPO_UPDATE_INTERVALL seconds
 	                struct timeval ElapsedTime;
 	                timeval_subtract(&(r.timestamp),&LastTimeRepoPublish,&ElapsedTime);
-                    if(ElapsedTime.tv_sec>=REPO_UPDATE_INTERVALL)
+                    if(ElapsedTime.tv_sec>=PSNR_REPO_UPDATE_INTERVALL)
                     {
                         LastTimeRepoPublish=r.timestamp;
                         if(repPublish(repoclient,NULL,NULL,&r)!=NULL)
                             printf("VALORE PUBBLICATO: %s  %e  %s\n",r.originator,qoe,r.channel);
                     }
+#endif
 				}
 
 				sprintf(video_stats_text, "[VIDEO] qdensity: %d\%% - losses: %d/sec (%ld tot) - skips: %d/sec (%ld tot)%s", (int)video_qdensity, video_statistics.Lossrate, videoq.PacketHistory.LostCount, video_statistics.Skiprate, videoq.PacketHistory.SkipCount, est_psnr_string);

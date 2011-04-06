@@ -4,7 +4,10 @@
 #include "player_defines.h"
 #include <SDL.h>
 #include <SDL_mutex.h>
+
+#ifdef PSNR_PUBLICATION
 #include <repoclient.h>
+#endif
 
 typedef struct SChannel
 {
@@ -37,8 +40,11 @@ short int QueueFillingMode;
 int LogTraces;
 char NetworkID[255];
 char RepoAddress[2048];
+
+#ifdef PSNR_PUBLICATION
 HANDLE repoclient;
 struct timeval LastTimeRepoPublish;
+#endif
 
 #ifdef EMULATE_CHUNK_LOSS
 typedef struct

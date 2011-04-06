@@ -98,6 +98,8 @@
 
 #define VIDEO_DEINTERLACE
 
-#define REPO_UPDATE_INTERVALL   10  // seconds
+//#define PSNR_PUBLICATION
+// seconds
+#define PSNR_REPO_UPDATE_INTERVALL   10
 
 #endif // _CHUNKER_PLAYER_DEFINES_H
