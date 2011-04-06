@@ -94,11 +94,12 @@
 //#define DEBUG_STATS_DEEP
 //#define DEBUG_AUDIO_BUFFER
 //#define DEBUG_CHUNKER
+#define DEBUG_PSNR
 //#define EMULATE_CHUNK_LOSS
 
 #define VIDEO_DEINTERLACE
 
-//#define PSNR_PUBLICATION
+#define PSNR_PUBLICATION
 // seconds
 #define PSNR_REPO_UPDATE_INTERVALL   10
 

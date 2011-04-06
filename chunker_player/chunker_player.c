@@ -48,14 +48,22 @@ int ReadALine(FILE* fp, char* Output, int MaxOutputSize)
     return -1;
 }
 
-void CheckForRepoAddress(char* Param)
+int CheckForRepoAddress(char* Param)
 {
+	int result = 0;
+/*
     char* pch;
     if(strncasecmp(Param,"repo_address=",13)==0)
     {
         pch=strtok(Param+13,",");
         strncpy(RepoAddress,pch,2048);
     }
+*/
+//strcpy(RepoAddress,"repo-wut.napa-wine.eu:9832");
+strcpy(RepoAddress,"repository.disi.unitn.it:9832");
+result = 1;
+
+	return result;
 }
 
 void sigproc()
@@ -94,6 +102,7 @@ int main(int argc, char *argv[])
 	repoclient=NULL;
 	LastTimeRepoPublish.tv_sec=0;
 	LastTimeRepoPublish.tv_usec=0;
+	eventbase = event_base_new();
 	napaInitLog(LOG_DEBUG, NULL, NULL);
 	repInit("");
 #endif
@@ -397,6 +406,11 @@ int main(int argc, char *argv[])
 	if(ScheduledChunkLosses)
 		free(ScheduledChunkLosses);
 #endif
+
+#ifdef PSNR_PUBLICATION
+	repClose(repoclient);
+	event_base_free(eventbase);
+#endif
 	return 0;
 }
 
@@ -591,8 +605,6 @@ int SwitchChannel(SChannel* channel)
 		// printf ("\tpch=%s\n",pch);
 		parameters_vector[par_count] = (char*) malloc(sizeof(char)*(strlen(pch)+1));
 		strcpy(parameters_vector[par_count], pch);
-		// Find repo_address
-		CheckForRepoAddress(parameters_vector[par_count]);
 		pch = strtok (NULL, " ");
 		par_count++;
 	}
@@ -678,10 +690,10 @@ int SwitchChannel(SChannel* channel)
 	}
 #endif
 
-	for(i=1; i<par_count; i++)
-		free(parameters_vector[i]);
-
 #ifdef PSNR_PUBLICATION
+	// Find repo_address
+	if(CheckForRepoAddress(parameters_vector[par_count])) {
+
 	// Open Repository
 	if(repoclient)
 		repClose(repoclient);
@@ -689,8 +701,15 @@ int SwitchChannel(SChannel* channel)
 
 	repoclient = repOpen(RepoAddress,0);
 	if (repoclient == NULL)
-		fatal("Unable to initialize PSNR publication in repoclient %s", RepoAddress);
+		printf("Unable to initialize PSNR publication in repoclient %s\n", RepoAddress);
+	}
+	else {
+		printf("Repository address not present in streames launch string. Publication disabled\n");
+	}
 #endif
+
+	for(i=1; i<par_count; i++)
+		free(parameters_vector[i]);
 
 	// Read the Network ID
 	int Error=true;

@@ -100,6 +100,7 @@ int TcpPort;
 #endif
 #endif
 
+int CheckForRepoAddress(char* Param);
 void ZapDown();
 void ZapUp();
 int ParseConf();

@@ -7,6 +7,7 @@ OUTPUTFILE = chunker_player
 endif
 
 ifeq ($(IO), httpevent)
+#TODO add: or equals httpmhd
 CPPFLAGS += -DHTTPIO
 endif
 
@@ -56,7 +57,7 @@ endif
 LOCAL_CONFUSE_CPPFLAGS = -I$(LOCAL_CONFUSE)/include
 LOCAL_CONFUSE_LDLIBS = $(LOCAL_CONFUSE)/lib/libconfuse.a
 
-#LOCAL_PSNR_LDLIBS = ../../../NAPA-BASELIBS/rep/librep.a ../../../NAPA-BASELIBS/dclog/libdclog.a ../../../NAPA-BASELIBS/common/libcommon.a ../../../NAPA-BASELIBS/ml/libml.a
+LOCAL_PSNR_LDLIBS = $(NAPA)/rep/librep.a $(NAPA)/dclog/libdclog.a $(NAPA)/common/libcommon.a $(NAPA)/ml/libml.a $(LIBEVENT_DIR)/lib/libevent.a
 
 #put them in the correct order
 CPPFLAGS += $(LOCAL_SDLTTF_CPPFLAGS) $(LOCAL_SDLIMAGE_CPPFLAGS) $(LOCAL_SDL_CPPFLAGS)
@@ -70,12 +71,12 @@ LDFLAGS += $(LOCAL_FFMPEG_LDFLAGS) $(LOCAL_COMMON_LDFLAGS)
 LDLIBS += $(LOCAL_SDLTTF_LDLIBS) $(LOCAL_SDLIMAGE_LDLIBS) $(LOCAL_SDL_LDLIBS)
 LDLIBS += $(LOCAL_MHD_LDLIBS) $(LOCAL_CONFUSE_LDLIBS) $(LOCAL_FREETYPE_LDLIBS)
 LDLIBS += $(LOCAL_FFMPEG_LDLIBS) $(LOCAL_COMMON_LDLIBS)
-#LDLIBS += $(LOCAL_PSNR_LDLIBS)
+LDLIBS += $(LOCAL_PSNR_LDLIBS)
 
 ifdef WINDOWS
 LDLIBS += $(DYNAMIC_LDLIBS) -lmingw32 $(LOCAL_ABS_SDL)/lib/libSDLmain.a $(LOCAL_ABS_SDL)/lib/libSDL.dll.a -lwinmm -lgdi32
 else
-LDLIBS += $(DYNAMIC_LDLIBS)
+LDLIBS += $(DYNAMIC_LDLIBS) -lrt
 endif
 
 LINKER = $(CC)
@@ -84,6 +85,7 @@ all: $(OUTPUTFILE)
 
 OBJS = ../chunk_transcoding/external_chunk_transcoding.o
 ifeq ($(IO), httpevent)
+#TODO add: or equals httpmhd
 OBJS += http_chunk_puller.o
 endif
 

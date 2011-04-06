@@ -13,12 +13,12 @@ else
 CFLAGS = -pthread -g -O0 -Wall
 LDFLAGS += -pthread
 DYNAMIC_LDLIBS += -lm
-#DYNAMIC_LDLIBS += -lm -lrt
 endif
 
+NAPA ?= ../../../NAPA-BASELIBS
+
 CFLAGS += -DHAVE_OPENGL -Wl,--warn-common -Wl,--as-needed -Wl,-Bsymbolic
-#CPPFLAGS += -I../chunk_transcoding -I../ -I../../../NAPA-BASELIBS/include
-CPPFLAGS += -I../chunk_transcoding -I../
+CPPFLAGS += -I../chunk_transcoding -I../ -I$(NAPA)/include
 
 #default fmmpeg here
 LOCAL_FFMPEG_CPPFLAGS = -I$(LOCAL_FFMPEG)/include

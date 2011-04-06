@@ -1467,13 +1467,13 @@ int CollectStatisticsThread(void *params)
 #ifdef PSNR_PUBLICATION
 					// Publish measure into repository
 					MeasurementRecord r;
-	                strcpy(r.originator,NetworkID);
-	                strcpy(r.targetA,NetworkID);
-	                strcpy(r.targetB,"");
-	                strcpy(r.published_name,"PSNR");
+	                r.originator = NetworkID;
+	                r.targetA = NetworkID;
+	                r.targetB = "";
+	                r.published_name = "PSNR_MEAN";
 	                r.value = qoe;
 	                r.string_value = NULL;
-	                strcpy(r.channel,Channels[SelectedChannel].Title);
+	                r.channel = Channels[SelectedChannel].Title;
 	                gettimeofday(&(r.timestamp), NULL);
 	                // One update every REPO_UPDATE_INTERVALL seconds
 	                struct timeval ElapsedTime;
@@ -1482,7 +1482,9 @@ int CollectStatisticsThread(void *params)
                     {
                         LastTimeRepoPublish=r.timestamp;
                         if(repPublish(repoclient,NULL,NULL,&r)!=NULL)
-                            printf("VALORE PUBBLICATO: %s  %e  %s\n",r.originator,qoe,r.channel);
+#ifdef DEBUG_PSNR
+                            printf("PSNR publish: %s  %e  %s\n",r.originator,qoe,r.channel);
+#endif
                     }
 #endif
 				}
