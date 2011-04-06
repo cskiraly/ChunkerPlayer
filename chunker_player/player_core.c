@@ -1466,26 +1466,29 @@ int CollectStatisticsThread(void *params)
 					sprintf(est_psnr_string, " - Est. Mean PSNR: %.1f db", (float)qoe);
 #ifdef PSNR_PUBLICATION
 					// Publish measure into repository
-					MeasurementRecord r;
-	                r.originator = NetworkID;
-	                r.targetA = NetworkID;
-	                r.targetB = "";
-	                r.published_name = "PSNR_MEAN";
-	                r.value = qoe;
-	                r.string_value = NULL;
-	                r.channel = Channels[SelectedChannel].Title;
-	                gettimeofday(&(r.timestamp), NULL);
-	                // One update every REPO_UPDATE_INTERVALL seconds
-	                struct timeval ElapsedTime;
-	                timeval_subtract(&(r.timestamp),&LastTimeRepoPublish,&ElapsedTime);
-                    if(ElapsedTime.tv_sec>=PSNR_REPO_UPDATE_INTERVALL)
-                    {
-                        LastTimeRepoPublish=r.timestamp;
-                        if(repPublish(repoclient,NULL,NULL,&r)!=NULL)
+					if(RepoAddress[0]!='\0')
+					{
+					    MeasurementRecord r;
+	                    r.originator = NetworkID;
+	                    r.targetA = NetworkID;
+	                    r.targetB = "";
+	                    r.published_name = "PSNR_MEAN";
+	                    r.value = qoe;
+	                    r.string_value = NULL;
+	                    r.channel = Channels[SelectedChannel].Title;
+	                    gettimeofday(&(r.timestamp), NULL);
+	                    // One update every REPO_UPDATE_INTERVALL seconds
+	                    struct timeval ElapsedTime;
+	                    timeval_subtract(&(r.timestamp),&LastTimeRepoPublish,&ElapsedTime);
+                        if(ElapsedTime.tv_sec>=PSNR_REPO_UPDATE_INTERVALL)
+                        {
+                            LastTimeRepoPublish=r.timestamp;
+                            if(repPublish(repoclient,NULL,NULL,&r)!=NULL)
 #ifdef DEBUG_PSNR
-                            printf("PSNR publish: %s  %e  %s\n",r.originator,qoe,r.channel);
+                               printf("PSNR publish: %s  %e  %s\n",r.originator,qoe,r.channel);
 #endif
-                    }
+                        }
+                   }
 #endif
 				}
 

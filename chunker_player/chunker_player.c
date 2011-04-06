@@ -19,6 +19,7 @@
 #include <getopt.h>
 
 #ifdef PSNR_PUBLICATION
+#include <event2/event.h>
 #include <napa_log.h>
 #endif
 
@@ -51,17 +52,30 @@ int ReadALine(FILE* fp, char* Output, int MaxOutputSize)
 int CheckForRepoAddress(char* Param)
 {
 	int result = 0;
-/*
-    char* pch;
+    int i, Found=0;
+
     if(strncasecmp(Param,"repo_address=",13)==0)
     {
-        pch=strtok(Param+13,",");
-        strncpy(RepoAddress,pch,2048);
+        result=1;
+        //find ',' in Param (if exist)
+        int len=strlen(Param);
+        char* tmp=(char*)calloc(1,len);
+        if(tmp)
+        {
+            for(i=13;i<len;i++)
+            {
+                if(Param[i]==',')
+                {
+                    Found=1;
+                    break;
+                }
+                tmp[i-13]=Param[i];
+            }
+
+            if(i==len || Found) strncpy(RepoAddress,tmp,2048);
+            free(tmp);
+        }
     }
-*/
-//strcpy(RepoAddress,"repo-wut.napa-wine.eu:9832");
-strcpy(RepoAddress,"repository.disi.unitn.it:9832");
-result = 1;
 
 	return result;
 }
@@ -314,6 +328,10 @@ int main(int argc, char *argv[])
 		}
 		else
 			SDL_WM_SetCaption("NAPA-Wine Player", NULL);
+		
+#ifdef PSNR_PUBLICATION
+		event_base_loop(eventbase, EVLOOP_ONCE);
+#endif
 
 		//listen for key and mouse
 		while(SDL_PollEvent(&event)) {
@@ -408,7 +426,7 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef PSNR_PUBLICATION
-	repClose(repoclient);
+	if(repoclient) repClose(repoclient);
 	event_base_free(eventbase);
 #endif
 	return 0;
@@ -596,6 +614,8 @@ int SwitchChannel(SChannel* channel)
 	char* parameters_vector[255];
 	parameters_vector[0] = argv0;
 	
+	RepoAddress[0]='\0';
+	
 	// split parameters and count them
 	int par_count=1;
 	char* pch = strtok (parameters_string, " ");
@@ -605,6 +625,8 @@ int SwitchChannel(SChannel* channel)
 		// printf ("\tpch=%s\n",pch);
 		parameters_vector[par_count] = (char*) malloc(sizeof(char)*(strlen(pch)+1));
 		strcpy(parameters_vector[par_count], pch);
+		// Find repo_address
+    	CheckForRepoAddress(parameters_vector[par_count]);
 		pch = strtok (NULL, " ");
 		par_count++;
 	}
@@ -691,21 +713,20 @@ int SwitchChannel(SChannel* channel)
 #endif
 
 #ifdef PSNR_PUBLICATION
-	// Find repo_address
-	if(CheckForRepoAddress(parameters_vector[par_count])) {
+	if(RepoAddress[0]!='\0')
+	{
+	    // Open Repository
+	    if(repoclient)
+		    repClose(repoclient);
+	    repoclient=NULL;
 
-	// Open Repository
-	if(repoclient)
-		repClose(repoclient);
-	repoclient=NULL;
-
-	repoclient = repOpen(RepoAddress,0);
-	if (repoclient == NULL)
-		printf("Unable to initialize PSNR publication in repoclient %s\n", RepoAddress);
-	}
-	else {
-		printf("Repository address not present in streames launch string. Publication disabled\n");
-	}
+	    repoclient = repOpen(RepoAddress,0);
+	    if (repoclient == NULL)
+		    printf("Unable to initialize PSNR publication in repoclient %s\n", RepoAddress);
+    }
+    else {
+	    printf("Repository address not present in streames launch string. Publication disabled\n");
+    }
 #endif
 
 	for(i=1; i<par_count; i++)
