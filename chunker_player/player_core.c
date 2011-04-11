@@ -1471,7 +1471,7 @@ int CollectStatisticsThread(void *params)
 					    MeasurementRecord r;
 	                    r.originator = NetworkID;
 	                    r.targetA = NetworkID;
-	                    r.targetB = "";
+	                    r.targetB = NULL;
 	                    r.published_name = "PSNR_MEAN";
 	                    r.value = qoe;
 	                    r.string_value = NULL;
