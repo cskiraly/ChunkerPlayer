@@ -714,7 +714,7 @@ restart:
 					frame->timestamp.tv_usec = newTime%1000;
 					frame->size = video_frame_size;
 					/* pict_type maybe 1 (I), 2 (P), 3 (B), 5 (AUDIO)*/
-					frame->type = (unsigned char)pFrame->pict_type;
+					frame->type = (unsigned char)pCodecCtxEnc->coded_frame->pict_type;
 
 #ifdef H264_VIDEO_ENCODER
 
