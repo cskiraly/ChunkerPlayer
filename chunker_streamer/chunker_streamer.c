@@ -643,6 +643,14 @@ restart:
 						continue;
 					}
 
+#ifdef DEBUG_VIDEO_FRAMES
+					if(pCodecCtxEnc->coded_frame) {
+						fprintf(stderr, "\n-------VIDEO FRAME intype %d%s -> outtype: %d%s\n",
+							pFrame->pict_type, pFrame->key_frame ? " (key)" : "",
+							pCodecCtxEnc->coded_frame->pict_type, pCodecCtxEnc->coded_frame->key_frame ? " (key)" : "");
+					}
+#endif
+
 					//use pts if dts is invalid
 					if(packet.dts!=AV_NOPTS_VALUE)
 						target_pts = packet.dts;
