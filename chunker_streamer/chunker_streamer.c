@@ -115,6 +115,9 @@ sendChunk(ExternalChunk *chunk) {
 #ifdef TCPIO
 						pushChunkTcp(chunk);
 #endif
+#ifdef UDPIO
+						pushChunkUDP(chunk);
+#endif
 }
 
 int main(int argc, char *argv[]) {
@@ -509,6 +512,17 @@ restart:
 	}
 	
 	initTCPPush(peer_ip, peer_port);
+#endif
+#ifdef UDPIO
+	static char peer_ip[16];
+	static int peer_port;
+	int res = sscanf(cmeta->outside_world_url, "udp://%15[0-9.]:%d", peer_ip, &peer_port);
+	if (res < 2) {
+		fprintf(stderr,"error parsing output url: %s\n", cmeta->outside_world_url);
+		return -2;
+	}
+	
+	initUDPPush(peer_ip, peer_port);
 #endif
 	
 	char videotrace_filename[255];
