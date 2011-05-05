@@ -33,3 +33,13 @@ endif
 LOCAL_COMMON_CPPFLAGS = -I$(LOCAL_X264)/include -I$(LOCAL_BZ2)/include -I$(LOCAL_Z)/include -I$(LOCAL_MP3LAME)/include
 #LOCAL_COMMON_LDFLAGS = -L$(LOCAL_X264)/lib -L$(LOCAL_BZ2)/lib -L$(LOCAL_MP3LAME)/lib
 LOCAL_COMMON_LDLIBS = $(LOCAL_X264)/lib/libx264.a $(LOCAL_BZ2)/lib/libbz2.a $(LOCAL_Z)/lib/libz.a $(LOCAL_MP3LAME)/lib/libmp3lame.a
+
+cc-option = $(shell if $(CC) $(1) -S -o /dev/null -xc /dev/null \
+              > /dev/null 2>&1; then echo "$(1)"; fi ;)
+
+ld-option = $(shell if echo "int main(){return 0;}" | \
+		$(CC) $(LDFLAGS) $(CFLAGS) $(1) -o /dev/null -xc - \
+		> /dev/null 2>&1; then echo "$(1)"; fi ;)
+
+LDLIBS += $(call ld-option, -lva)
+LDLIBS += $(call ld-option, -lvga)
