@@ -138,10 +138,10 @@ int main(int argc, char *argv[])
 	memset((void*)Channels, 0, (MAX_CHANNELS_NUM*sizeof(SChannel)));
 
 #ifdef HTTPIO
-	HttpPort = -1;
+	Port = -1;
 #endif
 #ifdef TCPIO
-	TcpPort = -1;
+	Port = -1;
 #endif
 	struct MHD_Daemon *daemon = NULL;
 	SDL_Event event;
@@ -164,10 +164,10 @@ int main(int argc, char *argv[])
 				break;
 			case 'p':
 #ifdef HTTPIO
-				sscanf(optarg, "%d", &HttpPort);
+				sscanf(optarg, "%d", &Port);
 #endif
 #ifdef TCPIO
-				sscanf(optarg, "%d", &TcpPort);
+				sscanf(optarg, "%d", &Port);
 #endif
 				mandatories++;
 				break;
@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
 
 #ifdef HTTPIO
 	//this thread fetches chunks from the network by listening to the following path, port
-	daemon = (struct MHD_Daemon*)initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, HttpPort);
+	daemon = (struct MHD_Daemon*)initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, Port);
 	if(daemon == NULL)
 	{
 		printf("CANNOT START MICROHTTPD SERVICE, EXITING...\n");
@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
 	}
 #endif
 #ifdef TCPIO
-	int fd = initChunkPuller(TcpPort);
+	int fd = initChunkPuller(Port);
 	if(! (fd > 0))
 	{
 		printf("CANNOT START TCP PULLER...\n");
@@ -602,11 +602,11 @@ int SwitchChannel(SChannel* channel)
 	sprintf(argv0, "%s", StreamerFilename);
 
 #ifdef HTTPIO
-	sprintf(parameters_string, "%s %s %s %d %s %s %d", "-C", channel->Title, "-P", (HttpPort+channel->Index), channel->LaunchString, "-F", HttpPort);
+	sprintf(parameters_string, "%s %s %s %d %s %s %d", "-C", channel->Title, "-P", (Port+channel->Index), channel->LaunchString, "-F", Port);
 #endif
 
 #ifdef TCPIO
-	sprintf(parameters_string, "%s %s %s %d %s %s 127.0.0.1:%d", "-C", channel->Title, "-P", (TcpPort+channel->Index), channel->LaunchString, "-F", TcpPort);
+	sprintf(parameters_string, "%s %s %s %d %s %s 127.0.0.1:%d", "-C", channel->Title, "-P", (Port+channel->Index), channel->LaunchString, "-F", Port);
 #endif
 
 	printf("OFFERSTREAMER LAUNCH STRING: %s %s\n", argv0, parameters_string);

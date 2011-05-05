@@ -92,13 +92,7 @@ int FullscreenMode; // fullscreen vs windowized flag
 int window_width, window_height;
 int Audio_ON;
 
-#ifdef HTTPIO
-int HttpPort;
-#else
-#ifdef TCPIO
-int TcpPort;
-#endif
-#endif
+int Port;
 
 int CheckForRepoAddress(char* Param);
 void ZapDown();
