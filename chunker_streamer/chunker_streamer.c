@@ -108,6 +108,15 @@ static void print_usage(int argc, char *argv[])
     );
   }
 
+sendChunk(ExternalChunk *chunk) {
+#ifdef HTTPIO
+						pushChunkHttp(chunk, cmeta->outside_world_url);
+#endif
+#ifdef TCPIO
+						pushChunkTcp(chunk);
+#endif
+}
+
 int main(int argc, char *argv[]) {
 	signal(SIGINT, sigproc);
 	
@@ -477,8 +486,10 @@ restart:
 	fprintf(stderr, "INIT: chunk audio %d\n", chunkaudio->seq);
 #endif
 
+#ifdef HTTPIO
 	/* initialize the HTTP chunk pusher */
 	initChunkPusher(); //TRIPLO
+#endif
 
 	long sleep=0;
 	struct timeval now_tv;
@@ -780,13 +791,8 @@ restart:
 					if(chunkFilled(chunk, VIDEO_CHUNK)) { // is chunk filled using current strategy?
 						//SAVE ON FILE
 						//saveChunkOnFile(chunk);
-						//Send the chunk via http to an external transport/player
-#ifdef HTTPIO
-						pushChunkHttp(chunk, cmeta->outside_world_url);
-#endif
-#ifdef TCPIO
-						pushChunkTcp(chunk);
-#endif
+						//Send the chunk to an external transport/player
+						sendChunk(chunk);
 #ifdef DEBUG_CHUNKER
 						fprintf(stderr, "VIDEO: sent chunk video %d\n", chunk->seq);
 #endif
@@ -966,8 +972,8 @@ restart:
 					// is chunk filled using current strategy?
 					//SAVE ON FILE
 					//saveChunkOnFile(chunkaudio);
-					//Send the chunk via http to an external transport/player
-					pushChunkHttp(chunkaudio, cmeta->outside_world_url);
+					//Send the chunk to an external transport/player
+					sendChunk(chunkaudio);
 #ifdef DEBUG_CHUNKER
 					fprintf(stderr, "AUDIO: just sent chunk audio %d\n", chunkaudio->seq);
 #endif
@@ -1029,8 +1035,8 @@ close:
 	if(chunk->seq != 0 && chunk->frames_num>0) {
 		//SAVE ON FILE
 		//saveChunkOnFile(chunk);
-		//Send the chunk via http to an external transport/player
-		pushChunkHttp(chunk, cmeta->outside_world_url);
+		//Send the chunk to an external transport/player
+		sendChunk(chunk);
 #ifdef DEBUG_CHUNKER
 		fprintf(stderr, "CHUNKER: SENDING LAST VIDEO CHUNK\n");
 #endif
@@ -1040,7 +1046,7 @@ close:
 		//SAVE ON FILE     
 		//saveChunkOnFile(chunkaudio);
 		//Send the chunk via http to an external transport/player
-		pushChunkHttp(chunkaudio, cmeta->outside_world_url);
+		sendChunk(chunkaudio);
 #ifdef DEBUG_CHUNKER
 		fprintf(stderr, "CHUNKER: SENDING LAST AUDIO CHUNK\n");
 #endif
