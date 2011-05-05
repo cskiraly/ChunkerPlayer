@@ -99,7 +99,6 @@
 
 #define VIDEO_DEINTERLACE
 
-#define PSNR_PUBLICATION
 // seconds
 #define PSNR_REPO_UPDATE_INTERVALL   10
 
