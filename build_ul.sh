@@ -58,7 +58,6 @@ else
 	#try to find libbz2 in your system
 	LOCAL_BZ2_A=/usr/lib/libbz2.a
 	if [ ! -e $LOCAL_BZ2_A ]; then
-		LOCAL_BZ2_A=`locate -l 1 libbz2.a`
 		[ X$LOCAL_BZ2_A != X ] && LOCAL_BZ2=`dirname $LOCAL_BZ2_A`/..
 		if [ ! -e "$LOCAL_BZ2/lib/libbz2.a" ]; then
 			#wrong location and/or folders structure
@@ -511,7 +510,6 @@ if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent" ]; then
 	LOCAL_EVENT="$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent"
 	echo "found LIBEVENT in $LOCAL_EVENT"
 else
-	LOCAL_EVENT_A=`locate -l 1 libevent.a`
 	if [ "$LOCAL_EVENT_A" = "" ]; then
 		if [ -f "/usr/lib/libevent.a" ]; then
 			echo "You have file libevent.a in default system"
@@ -530,7 +528,6 @@ if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse" ]; then
 	LOCAL_CONFUSE="$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse"
 	echo "found LIBCONFUSE in $LOCAL_CONFUSE"
 else
-	LOCAL_CONFUSE_A=`locate -l 1 libconfuse.a`
 	if [ "$LOCAL_CONFUSE_A" = "" ]; then
 		if [ -f "/usr/lib/libconfuse.a" ]; then
 			echo "You have file libconfuse.a in default system"
