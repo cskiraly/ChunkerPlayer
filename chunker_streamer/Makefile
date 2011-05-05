@@ -6,10 +6,17 @@ endif
 
 ifeq ($(IO), httpevent)
 CPPFLAGS += -DHTTPIO
+OBJECTS += chunk_pusher.o chunk_pusher_curl.o
 endif
 
 ifeq ($(IO), tcp)
 CPPFLAGS += -DTCPIO
+OBJECTS += chunk_pusher.o chunk_pusher_curl.o
+endif
+
+ifeq ($(IO), udp)
+CPPFLAGS += -DUDPIO
+OBJECTS += chunk_pusher_udp.o
 endif
 
 CPPFLAGS += -I$(LOCAL_CONFUSE)/include -I$(LOCAL_CURL)/include
@@ -24,7 +31,7 @@ LDLIBS += $(DYNAMIC_LDLIBS)
 
 all: chunker_streamer
 
-chunker_streamer: ../chunk_transcoding/external_chunk_transcoding.o chunker_metadata.o chunker_streamer.o chunk_pusher.o chunk_pusher_curl.o
+chunker_streamer: ../chunk_transcoding/external_chunk_transcoding.o chunker_metadata.o chunker_streamer.o $(OBJECTS)
 
 clean:
 	rm -f chunker_streamer
