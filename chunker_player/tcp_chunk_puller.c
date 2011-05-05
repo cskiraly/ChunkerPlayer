@@ -18,7 +18,7 @@
 #include <netinet/in.h>
 #include <unistd.h>
 
-#define TCP_BUF_SIZE 65536
+#define TCP_BUF_SIZE 65536*16
 
 static int listen_port = 0;
 static int accept_fd = -1;
@@ -49,8 +49,6 @@ int initChunkPuller(const int port)
 	
 	printf("listening on port %$d\n", port);
 	
-	listen(accept_fd, 10);
-	
 	if(pthread_create( &AcceptThread, NULL, &AcceptThreadProc, NULL) != 0)
 	{
 		fprintf(stderr,"TCP-INPUT-MODULE: could not start accepting thread!!\n");
@@ -67,6 +65,8 @@ static void* AcceptThreadProc(void* params)
     int fd = -1;
     
     isRunning = 1;
+
+    listen(accept_fd, 10);
     
     while(isRunning)
     {
@@ -98,23 +98,32 @@ static void* AcceptThreadProc(void* params)
 static void* RecvThreadProc(void* params)
 {
 	int ret = -1;
-	int fragment_size = 0;
+	uint32_t fragment_size = 0;
 	uint8_t* buffer = (uint8_t*) malloc(TCP_BUF_SIZE);
-	while(isReceving)
-	{
+
+	fprintf(stderr,"TCP-INPUT-MODULE: receive thread created\n");
+
+	while(isReceving) {
 		ret=recv(socket_fd, &fragment_size, sizeof(uint32_t), 0);
-		if(ret <= sizeof(uint32_t))
-			continue;
-		
+		fragment_size = ntohl(fragment_size);
+
+fprintf(stderr, "TCP-INPUT-MODULE: received %d bytes. Fragment size: %d\n", ret, fragment_size);
+		if(ret <= 0) {
+			break;
+		}
+
 		ret=recv(socket_fd, buffer, fragment_size, 0);
-		while(ret <= fragment_size)
+fprintf(stderr, "TCP-INPUT-MODULE: received %d bytes.\n", ret);
+		while(ret < fragment_size)
 			ret+=recv(socket_fd, buffer+ret, fragment_size-ret, 0);
 		
 		if(enqueueBlock(buffer, fragment_size))
 			fprintf(stderr, "TCP-INPUT-MODULE: could not enqueue a received chunk!! \n");
 	}
 	free(buffer);
-	
+	close(socket_fd);
+	socket_fd = -1;
+
 	return NULL;
 }
 

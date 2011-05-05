@@ -171,7 +171,7 @@ int pushChunkTcp(ExternalChunk *echunk)
 	return ret;
 }
 
-int sendViaTcp(Chunk gchunk, int buffer_size)
+int sendViaTcp(Chunk gchunk, uint32_t buffer_size)
 {
 	uint8_t *buffer=NULL;
 
@@ -183,15 +183,17 @@ int sendViaTcp(Chunk gchunk, int buffer_size)
 		return ret;
 	}
 
-	if( (buffer = malloc(buffer_size)) != NULL) {
+	if( (buffer = malloc(4 + buffer_size)) != NULL) {
 		/* encode the GRAPES chunk into network bytes */
-		encodeChunk(&gchunk, buffer, buffer_size);
+		encodeChunk(&gchunk, buffer + 4, buffer_size);
+		*(uint32_t*)buffer = htonl(buffer_size);
 		
-		int ret = send(tcp_fd, buffer, buffer_size, 0);
+		int ret = send(tcp_fd, buffer, 4 + buffer_size, 0);
+fprintf(stderr, "TCP IO-MODULE: sending %d bytes, %d sent\n", buffer_size, ret);
 		int tmp;
 		while(ret != buffer_size)
 		{
-			tmp = send(tcp_fd, buffer+ret, buffer_size-ret, 0);
+			tmp = send(tcp_fd, buffer+ret, 4 + buffer_size - ret, 0);
 			if(tmp > 0)
 				ret += tmp;
 			else
