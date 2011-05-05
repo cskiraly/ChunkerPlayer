@@ -509,7 +509,10 @@ fi
 if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent" ]; then
 	LOCAL_EVENT="$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent"
 	echo "found LIBEVENT in $LOCAL_EVENT"
-else
+else if [ -d "$BASE_UL_DIR/external_libs/libevent" ]; then
+	LOCAL_EVENT="$BASE_UL_DIR/external_libs/libevent"
+	echo "found LIBEVENT in $LOCAL_EVENT"
+    else
 	if [ "$LOCAL_EVENT_A" = "" ]; then
 		if [ -f "/usr/lib/libevent.a" ]; then
 			echo "You have file libevent.a in default system"
@@ -522,6 +525,7 @@ else
 	else
 		LOCAL_EVENT=`dirname $LOCAL_EVENT_A`/..
 	fi
+    fi
 fi
 
 if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse" ]; then
