@@ -17,7 +17,7 @@ WGET_OR_CURL=`which wget`
 [ -n "$WGET_OR_CURL" ] || { echo "please install wget or curl!"; exit 1; }
 
 #set some defaults
-IO=${IO:-"httpevent"}
+IO=${IO:-"tcp"}
 MONL=${MONL:-1}
 ML=${ML:-1}
 
