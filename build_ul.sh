@@ -519,8 +519,9 @@ else if [ -d "$BASE_UL_DIR/external_libs/libevent" ]; then
 			echo "setting path for it to default /usr/lib/libevent.a"
 			LOCAL_EVENT="/usr"
 		else
-			echo "you seem not to have file libevent.a. EXITING."
-			exit
+			echo "you seem not to have file libevent.a."
+			echo "you will not be able to build the libevent based version"
+			echo "(don't worry, the default version will still compile)."
 		fi
 	else
 		LOCAL_EVENT=`dirname $LOCAL_EVENT_A`/..
