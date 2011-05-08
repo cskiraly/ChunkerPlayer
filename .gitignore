@@ -1,2 +1,4 @@
 external_libs
 *.o
+chunker_player/chunker_player
+chunker_streamer/chunker_streamer
