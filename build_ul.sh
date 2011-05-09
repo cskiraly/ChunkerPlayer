@@ -509,7 +509,12 @@ fi
 if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent" ]; then
 	LOCAL_EVENT="$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent"
 	echo "found LIBEVENT in $LOCAL_EVENT"
-else if [ -d "$BASE_UL_DIR/external_libs/libevent" ]; then
+else 
+  if [ -d "$BASE_UL_DIR/../THIRDPARTY-LIBS/NAPA-BASELIBS/3RDPARTY-LIBS/libevent" ]; then
+	LOCAL_EVENT="$BASE_UL_DIR/../THIRDPARTY-LIBS/NAPA-BASELIBS/3RDPARTY-LIBS/libevent"
+	echo "found LIBEVENT in $LOCAL_EVENT"
+  else 
+    if [ -d "$BASE_UL_DIR/external_libs/libevent" ]; then
 	LOCAL_EVENT="$BASE_UL_DIR/external_libs/libevent"
 	echo "found LIBEVENT in $LOCAL_EVENT"
     else
@@ -527,12 +532,21 @@ else if [ -d "$BASE_UL_DIR/external_libs/libevent" ]; then
 		LOCAL_EVENT=`dirname $LOCAL_EVENT_A`/..
 	fi
     fi
+  fi
 fi
 
 if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse" ]; then
 	LOCAL_CONFUSE="$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse"
 	echo "found LIBCONFUSE in $LOCAL_CONFUSE"
-else
+else 
+  if [ -d "$BASE_UL_DIR/../THIRDPARTY-LIBS/NAPA-BASELIBS/3RDPARTY-LIBS/libconfuse" ]; then
+	LOCAL_CONFUSE="$BASE_UL_DIR/../THIRDPARTY-LIBS/NAPA-BASELIBS/3RDPARTY-LIBS/libconfuse"
+	echo "found LIBCONFUSE in $LOCAL_CONFUSE"
+  else 
+    if [ -d "$BASE_UL_DIR/external_libs/libconfuse" ]; then
+	LOCAL_CONFUSE="$BASE_UL_DIR/external_libs/libconfuse"
+	echo "found LIBCONFUSE in $LOCAL_CONFUSE"
+    else
 	if [ "$LOCAL_CONFUSE_A" = "" ]; then
 		if [ -f "/usr/lib/libconfuse.a" ]; then
 			echo "You have file libconfuse.a in default system"
@@ -545,6 +559,8 @@ else
 	else
 		LOCAL_CONFUSE=`dirname $LOCAL_CONFUSE_A`/..
 	fi
+    fi
+  fi
 fi
 
 #set needed paths to external libraries
