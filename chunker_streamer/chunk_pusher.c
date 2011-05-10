@@ -29,6 +29,7 @@ static char* peer_ip;
 static int peer_port;
 static bool exit_on_connect_failure = false;
 static bool connect_on_data = true;
+static bool exit_on_send_error = false;
 
 void initTCPPush(char* ip, int port)
 {
@@ -210,12 +211,21 @@ int sendViaTcp(Chunk gchunk, uint32_t buffer_size)
 		encodeChunk(&gchunk, buffer + 4, buffer_size);
 		*(uint32_t*)buffer = htonl(buffer_size);
 		
-		int ret = send(tcp_fd, buffer, 4 + buffer_size, 0);
+		int ret = send(tcp_fd, buffer, 4 + buffer_size, exit_on_send_error ? 0 : MSG_NOSIGNAL); //TODO: better handling of exit_on_send_error
 fprintf(stderr, "TCP IO-MODULE: sending %d bytes, %d sent\n", buffer_size, ret);
+		if (ret < 0) {
+			if (errno != EAGAIN && errno != EWOULDBLOCK) {
+				fprintf(stderr, "TCP IO-MODULE: closing connection\n");
+				close(tcp_fd);
+				tcp_fd = -1;
+				tcp_fd_connected = false;
+			}
+			return ret;
+		}
 		int tmp;
 		while(ret != buffer_size)
 		{
-			tmp = send(tcp_fd, buffer+ret, 4 + buffer_size - ret, 0);
+			tmp = send(tcp_fd, buffer+ret, 4 + buffer_size - ret, exit_on_send_error ? 0 : MSG_NOSIGNAL);
 			if(tmp > 0)
 				ret += tmp;
 			else
