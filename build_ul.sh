@@ -229,7 +229,7 @@ if [ -n "$MINGW" ]; then
 fi
 
 
-#libpng
+echo "building libpng"
 if [ -n "$MINGW" ]; then
 	LOCAL_LIBPNG="$BASE_UL_DIR/$EXTERN_DIR/libpng/temp_libpng_install_mingw"
 else
@@ -251,6 +251,7 @@ LIBSDLIMAGE_FLAGS="$LIBSDLIMAGE_FLAGS -I$LOCAL_LIBPNG/include"
 LIBSDLIMAGE_LDFLAGS="$LIBSDLIMAGE_LDFLAGS -L$LOCAL_LIBPNG/lib"
 
 
+echo "building x264"
 if [ -n "$MINGW" ]; then
 	TEMP_X264="$BASE_UL_DIR/$EXTERN_DIR/x264/temp_x264_install_mingw"
 else
@@ -280,6 +281,7 @@ if [ -n "$BUILD_X264" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_X264" ]; then
 fi
 
 
+echo "building mp3lame"
 if [ -n "$MINGW" ]; then
 	TEMP_MP3LAME="$BASE_UL_DIR/$EXTERN_DIR/mp3lame/temp_mp3lame_install_mingw"
 else
@@ -304,6 +306,7 @@ if [ -n "$BUILD_MP3LAME" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MP3LAME" ]; then
 fi
 
 
+echo "building ffmpeg"
 if [ -n "$MINGW" ]; then
 	TEMP_FFMPEG="$BASE_UL_DIR/$EXTERN_DIR/ffmpeg/temp_ffmpeg_install_mingw"
 else
@@ -349,6 +352,7 @@ if [ -n "$BUILD_FFMPEG" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_FFMPEG" ]; then
 fi
 
 
+echo "building libmicrohttpd"
 if [ -n "$MINGW" ]; then
 	TEMP_MHD="$BASE_UL_DIR/$EXTERN_DIR/libmicrohttpd/temp_mhd_install_mingw"
 else
@@ -381,6 +385,7 @@ if [ -n "$BUILD_MHD" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MHD" ]; then
 fi
 
 
+echo "building SDL"
 if [ -n "$MINGW" ]; then
 	TEMP_SDL="$BASE_UL_DIR/$EXTERN_DIR/sdl_mingw/temp_sdl_install"
 else
@@ -419,6 +424,7 @@ if [ -n "$BUILD_SDL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL" ]; then
 	fi
 fi
 
+echo "building SDLimage"
 if [ -n "$BUILD_SDLIMAGE" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_image.a" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	
@@ -443,6 +449,7 @@ if [ -n "$BUILD_SDLIMAGE" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_i
 	$MAKE; $MAKE install
 fi
 
+echo "building freetype"
 # SDL_ttf depends on freetype
 if [ -n "$MINGW" ]; then
 	TEMP_FREETYPE="$BASE_UL_DIR/$EXTERN_DIR/freetype/temp_freetype_install_mingw"
@@ -466,6 +473,7 @@ if [ -n "$BUILD_FREETYPE" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_FREETYPE" ]; the
 	$MAKE; $MAKE install
 fi
 
+echo "building libSDL-ttf"
 if [ -n "$BUILD_SDLTTF" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_ttf.a" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	
@@ -484,6 +492,7 @@ if [ -n "$BUILD_SDLTTF" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_ttf
 	$MAKE; $MAKE install
 fi
 
+echo "building curl"
 if [ -n "$MINGW" ]; then
 	TEMP_CURL="$BASE_UL_DIR/$EXTERN_DIR/curl/temp_curl_install_mingw"
 else
@@ -506,6 +515,7 @@ if [ -n "$BUILD_CURL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_CURL" ]; then
 	$MAKE; $MAKE install
 fi
 
+echo "looking for libevent"
 if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent" ]; then
 	LOCAL_EVENT="$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent"
 	echo "found LIBEVENT in $LOCAL_EVENT"
@@ -535,6 +545,7 @@ else
   fi
 fi
 
+echo "looking for libconfuse"
 if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse" ]; then
 	LOCAL_CONFUSE="$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse"
 	echo "found LIBCONFUSE in $LOCAL_CONFUSE"
