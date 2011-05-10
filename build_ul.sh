@@ -403,20 +403,21 @@ if [ -n "$BUILD_SDL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 
 	if [ -n "$MINGW" ]; then
-		if [ ! -e "sdl_mingw" ]; then
-			# use binaries
-			$WGET_OR_CURL $WGET_OR_CURLOPT http://www.libsdl.org/release/SDL-devel-1.2.14-mingw32.tar.gz; tar zxvf SDL-devel-1.2.14-mingw32.tar.gz; mv SDL-1.2.14 sdl_mingw;
-			rm -f SDL-devel-1.2.14-mingw32.tar.gz;
-			cd sdl_mingw
-			mkdir temp_sdl_install
-			mv bin $TEMP_SDL/; mv lib $TEMP_SDL/; mv include $TEMP_SDL/; mv share $TEMP_SDL/
-		fi
+#		if [ ! -e "sdl_mingw" ]; then
+#			# use binaries
+#			$WGET_OR_CURL $WGET_OR_CURLOPT http://www.libsdl.org/release/SDL-devel-1.2.14-mingw32.tar.gz; tar zxvf SDL-devel-1.2.14-mingw32.tar.gz; mv SDL-1.2.14 sdl_mingw;
+#			rm -f SDL-devel-1.2.14-mingw32.tar.gz;
+#			cd sdl_mingw
+#			mkdir temp_sdl_install
+#			mv bin $TEMP_SDL/; mv lib $TEMP_SDL/; mv include $TEMP_SDL/; mv share $TEMP_SDL/
 
-		# build from sources
-		#~ wget http://www.libsdl.org/release/SDL-1.2.14.tar.gz; tar xzf SDL-1.2.14.tar.gz; rm -f SDL-1.2.14.tar.gz; mv SDL-1.2.14 sdl
-		#make and install in local folder
-		#~ ./configure ${HOSTARCH:+--host=$HOSTARCH} --disable-video-directfb --prefix="$TEMP_SDL"
-		#~ $MAKE; $MAKE install
+			# build from sources
+			$WGET_OR_CURL $WGET_OR_CURLOPT http://www.libsdl.org/release/SDL-1.2.14.tar.gz; tar xzf SDL-1.2.14.tar.gz; rm -f SDL-1.2.14.tar.gz; mv SDL-1.2.14 sdl_mingw
+			cd sdl_mingw
+			#make and install in local folder
+			./configure ${HOSTARCH:+--host=$HOSTARCH} --disable-video-directfb --disable-shared --prefix="$TEMP_SDL"
+			$MAKE; $MAKE install
+#		fi
 	else
 		if [ -e "sdl" ]; then
 			cd sdl
