@@ -24,22 +24,32 @@ int pushChunkTcp(ExternalChunk *echunk);
 extern ChunkerMetadata *cmeta;
 static long long int counter = 0;
 static int tcp_fd = -1;
+static bool tcp_fd_connected = false;
+static char* peer_ip;
+static int peer_port;
+static bool connect_on_data = true;
 
-void initTCPPush(char* peer_ip, int peer_port)
+void initTCPPush(char* ip, int port)
 {
+	peer_ip = strdup(ip);
+	peer_port = port;
+
 	if(tcp_fd == -1)
 	{
 		tcp_fd=socket(AF_INET, SOCK_STREAM, 0);
-	
+	}
+	if (!tcp_fd_connected) {
 		struct sockaddr_in address;
 		address.sin_family = AF_INET; 
 		address.sin_addr.s_addr = inet_addr(peer_ip);
 		address.sin_port = htons(peer_port);
-		 
+	 
 		int result = connect(tcp_fd, (struct sockaddr *)&address, sizeof(struct sockaddr_in));
 		if(result == -1){
 			fprintf(stderr, "TCP OUTPUT MODULE: could not connect to the peer!\n");
-			exit(1);
+			tcp_fd_connected = false;
+		} else {
+			tcp_fd_connected = true;
 		}
 	}
 }
@@ -121,6 +131,14 @@ int pushChunkTcp(ExternalChunk *echunk)
 	//we need to pack 5 int32s + 2 timeval structs + 1 double
 	static size_t ExternalChunk_header_size = 5*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 1*CHUNK_TRANSCODING_INT_SIZE*2;
 	
+	//try to connect if not connected
+	if (connect_on_data && !tcp_fd_connected) {
+		initTCPPush(peer_ip, peer_port);
+		if (!tcp_fd_connected) {
+			return ret;
+		}
+	}
+
 	//update the chunk len here because here we know the external chunk header size
 	echunk->len = echunk->payload_len + ExternalChunk_header_size;
 
