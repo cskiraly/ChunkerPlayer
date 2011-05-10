@@ -27,6 +27,7 @@ static int tcp_fd = -1;
 static bool tcp_fd_connected = false;
 static char* peer_ip;
 static int peer_port;
+static bool exit_on_connect_failure = false;
 static bool connect_on_data = true;
 
 void initTCPPush(char* ip, int port)
@@ -47,6 +48,9 @@ void initTCPPush(char* ip, int port)
 		int result = connect(tcp_fd, (struct sockaddr *)&address, sizeof(struct sockaddr_in));
 		if(result == -1){
 			fprintf(stderr, "TCP OUTPUT MODULE: could not connect to the peer!\n");
+			if (exit_on_connect_failure) {
+				exit(1);
+			}
 			tcp_fd_connected = false;
 		} else {
 			tcp_fd_connected = true;
