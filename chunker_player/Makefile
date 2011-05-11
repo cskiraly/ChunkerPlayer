@@ -79,7 +79,7 @@ LDLIBS += $(LOCAL_FFMPEG_LDLIBS) $(LOCAL_COMMON_LDLIBS)
 LDLIBS += $(LOCAL_PSNR_LDLIBS)
 
 ifdef WINDOWS
-LDLIBS += $(DYNAMIC_LDLIBS) -lmingw32 $(LOCAL_ABS_SDL)/lib/libSDLmain.a $(LOCAL_ABS_SDL)/lib/libSDL.dll.a -lwinmm -lgdi32
+LDLIBS += $(DYNAMIC_LDLIBS) -lmingw32 $(LOCAL_ABS_SDL)/lib/libSDLmain.a $(LOCAL_ABS_SDL)/lib/libSDL.a -lwinmm -lgdi32
 else
 LDLIBS += $(DYNAMIC_LDLIBS) -lrt
 endif

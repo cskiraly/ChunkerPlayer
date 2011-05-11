@@ -229,7 +229,7 @@ if [ -n "$MINGW" ]; then
 fi
 
 
-#libpng
+echo "building libpng"
 if [ -n "$MINGW" ]; then
 	LOCAL_LIBPNG="$BASE_UL_DIR/$EXTERN_DIR/libpng/temp_libpng_install_mingw"
 else
@@ -251,6 +251,7 @@ LIBSDLIMAGE_FLAGS="$LIBSDLIMAGE_FLAGS -I$LOCAL_LIBPNG/include"
 LIBSDLIMAGE_LDFLAGS="$LIBSDLIMAGE_LDFLAGS -L$LOCAL_LIBPNG/lib"
 
 
+echo "building x264"
 if [ -n "$MINGW" ]; then
 	TEMP_X264="$BASE_UL_DIR/$EXTERN_DIR/x264/temp_x264_install_mingw"
 else
@@ -280,6 +281,7 @@ if [ -n "$BUILD_X264" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_X264" ]; then
 fi
 
 
+echo "building mp3lame"
 if [ -n "$MINGW" ]; then
 	TEMP_MP3LAME="$BASE_UL_DIR/$EXTERN_DIR/mp3lame/temp_mp3lame_install_mingw"
 else
@@ -304,13 +306,22 @@ if [ -n "$BUILD_MP3LAME" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MP3LAME" ]; then
 fi
 
 
+echo "building ffmpeg"
 if [ -n "$MINGW" ]; then
 	TEMP_FFMPEG="$BASE_UL_DIR/$EXTERN_DIR/ffmpeg/temp_ffmpeg_install_mingw"
 else
 	TEMP_FFMPEG="$BASE_UL_DIR/$EXTERN_DIR/ffmpeg/temp_ffmpeg_install_linux"
 fi
 if [ ! -e "$TEMP_X264/lib/libx264.a" ] || [ ! -e "$TEMP_MP3LAME/lib/libmp3lame.a" ] || [ ! -e "$LOCAL_Z/lib/libz.a" ] || [ ! -e "$LOCAL_BZ2/lib/libbz2.a" ]; then
-	echo "Compilation of ffmpeg dependancies failed. Check your internet connection and errors. Exiting."
+	echo "Compilation of some ffmpeg dependancies failed. Check your internet connection and errors."
+fi
+if [ -e "$TEMP_X264/lib/libx264.a" ]; then
+	FFMPEG_CONFIG+=" --enable-libx264"
+	FFMPEG_EXTRA_CFLAGS+=" -I$TEMP_X264/include"
+fi
+if [ -e "$TEMP_MP3LAME/lib/libmp3lame.a" ]; then
+	FFMPEG_CONFIG+=" --enable-libmp3lame"
+	FFMPEG_EXTRA_CFLAGS+=" -I$TEMP_MP3LAME/include"
 fi
 if [ -n "$BUILD_FFMPEG" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_FFMPEG" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
@@ -341,14 +352,15 @@ if [ -n "$BUILD_FFMPEG" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_FFMPEG" ]; then
 		sed -i -e 's/^SDL_CONFIG=/[ -z "$SDL_CONFIG" ] \&\& SDL_CONFIG=/g' ./configure;
 		sed -i -e 's/check_cflags \+-Werror=missing-prototypes/#\0/g' configure;
 	
-		./configure $HOSTARCH_OLDSTYLE --enable-gpl --enable-nonfree --enable-version3 --enable-libmp3lame --enable-libx264 --disable-pthreads --extra-cflags="-I$TEMP_X264/include -I$TEMP_MP3LAME/include -I$LOCAL_BZ2/include  -I$LOCAL_Z/include" --extra-ldflags="-L$TEMP_X264/lib -L$TEMP_MP3LAME/lib -L$LOCAL_BZ2/lib -L$LOCAL_Z/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$TEMP_FFMPEG"
+		./configure $HOSTARCH_OLDSTYLE --enable-gpl --enable-nonfree --enable-version3 --disable-pthreads $FFMPEG_CONFIG --extra-cflags="$FFMPEG_EXTRA_CFLAGS -I$LOCAL_BZ2/include  -I$LOCAL_Z/include" --extra-ldflags="-L$TEMP_X264/lib -L$TEMP_MP3LAME/lib -L$LOCAL_BZ2/lib -L$LOCAL_Z/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$TEMP_FFMPEG"
 	else
-		./configure --enable-gpl --enable-nonfree --enable-version3 --enable-libmp3lame --enable-libx264 --enable-pthreads --extra-cflags="-I$TEMP_X264/include -I$TEMP_MP3LAME/include -I$LOCAL_BZ2/include  -I$LOCAL_Z/include" --extra-ldflags="-L$TEMP_X264/lib -L$TEMP_MP3LAME/lib -L$LOCAL_BZ2/lib -L$LOCAL_Z/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$TEMP_FFMPEG"
+		./configure --enable-gpl --enable-nonfree --enable-version3 --enable-pthreads  $FFMPEG_CONFIG --extra-cflags="$FFMPEG_EXTRA_CFLAGS -I$LOCAL_BZ2/include  -I$LOCAL_Z/include" --extra-ldflags="-L$TEMP_X264/lib -L$TEMP_MP3LAME/lib -L$LOCAL_BZ2/lib -L$LOCAL_Z/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$TEMP_FFMPEG"
 	fi
 	$MAKE; $MAKE install
 fi
 
 
+echo "building libmicrohttpd"
 if [ -n "$MINGW" ]; then
 	TEMP_MHD="$BASE_UL_DIR/$EXTERN_DIR/libmicrohttpd/temp_mhd_install_mingw"
 else
@@ -381,6 +393,7 @@ if [ -n "$BUILD_MHD" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MHD" ]; then
 fi
 
 
+echo "building SDL"
 if [ -n "$MINGW" ]; then
 	TEMP_SDL="$BASE_UL_DIR/$EXTERN_DIR/sdl_mingw/temp_sdl_install"
 else
@@ -390,20 +403,21 @@ if [ -n "$BUILD_SDL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 
 	if [ -n "$MINGW" ]; then
-		if [ ! -e "sdl_mingw" ]; then
-			# use binaries
-			$WGET_OR_CURL $WGET_OR_CURLOPT http://www.libsdl.org/release/SDL-devel-1.2.14-mingw32.tar.gz; tar zxvf SDL-devel-1.2.14-mingw32.tar.gz; mv SDL-1.2.14 sdl_mingw;
-			rm -f SDL-devel-1.2.14-mingw32.tar.gz;
-			cd sdl_mingw
-			mkdir temp_sdl_install
-			mv bin $TEMP_SDL/; mv lib $TEMP_SDL/; mv include $TEMP_SDL/; mv share $TEMP_SDL/
-		fi
+#		if [ ! -e "sdl_mingw" ]; then
+#			# use binaries
+#			$WGET_OR_CURL $WGET_OR_CURLOPT http://www.libsdl.org/release/SDL-devel-1.2.14-mingw32.tar.gz; tar zxvf SDL-devel-1.2.14-mingw32.tar.gz; mv SDL-1.2.14 sdl_mingw;
+#			rm -f SDL-devel-1.2.14-mingw32.tar.gz;
+#			cd sdl_mingw
+#			mkdir temp_sdl_install
+#			mv bin $TEMP_SDL/; mv lib $TEMP_SDL/; mv include $TEMP_SDL/; mv share $TEMP_SDL/
 
-		# build from sources
-		#~ wget http://www.libsdl.org/release/SDL-1.2.14.tar.gz; tar xzf SDL-1.2.14.tar.gz; rm -f SDL-1.2.14.tar.gz; mv SDL-1.2.14 sdl
-		#make and install in local folder
-		#~ ./configure ${HOSTARCH:+--host=$HOSTARCH} --disable-video-directfb --prefix="$TEMP_SDL"
-		#~ $MAKE; $MAKE install
+			# build from sources
+			$WGET_OR_CURL $WGET_OR_CURLOPT http://www.libsdl.org/release/SDL-1.2.14.tar.gz; tar xzf SDL-1.2.14.tar.gz; rm -f SDL-1.2.14.tar.gz; mv SDL-1.2.14 sdl_mingw
+			cd sdl_mingw
+			#make and install in local folder
+			./configure ${HOSTARCH:+--host=$HOSTARCH} --disable-video-directfb --disable-shared --prefix="$TEMP_SDL"
+			$MAKE; $MAKE install
+#		fi
 	else
 		if [ -e "sdl" ]; then
 			cd sdl
@@ -419,6 +433,7 @@ if [ -n "$BUILD_SDL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL" ]; then
 	fi
 fi
 
+echo "building SDLimage"
 if [ -n "$BUILD_SDLIMAGE" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_image.a" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	
@@ -438,11 +453,12 @@ if [ -n "$BUILD_SDLIMAGE" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_i
 
 	echo "./configure CFLAGS=\"$CFLAGS -I$LOCAL_LIBPNG/include\" CPPFLAGS=\"$CPPFLAGS -I$LOCAL_LIBPNG/include\" LDFLAGS=\"$LDFLAGS -L$LOCAL_LIBPNG/lib\" ${HOSTARCH:+--host=$HOSTARCH} --prefix=\"$TEMP_SDL\" --with-sdl-prefix=\"$TEMP_SDL\" --disable-png-shared"
 
-	./configure CFLAGS="$CFLAGS $LIBSDLIMAGE_FLAGS -I$LOCAL_LIBPNG/include" CPPFLAGS="$CPPFLAGS -I$LOCAL_LIBPNG/include" LDFLAGS="$LDFLAGS $LIBSDLIMAGE_LDFLAGS -L$LOCAL_LIBPNG/lib" ${HOSTARCH:+--host=$HOSTARCH} --prefix="$TEMP_SDL" --with-sdl-prefix="$TEMP_SDL" --disable-png-shared
+	./configure CFLAGS="$CFLAGS $LIBSDLIMAGE_FLAGS -I$LOCAL_LIBPNG/include" CPPFLAGS="$CPPFLAGS -I$LOCAL_LIBPNG/include" LDFLAGS="$LDFLAGS $LIBSDLIMAGE_LDFLAGS -L$LOCAL_LIBPNG/lib" ${HOSTARCH:+--host=$HOSTARCH} --prefix="$TEMP_SDL" --with-sdl-prefix="$TEMP_SDL" --disable-png-shared  --disable-shared
 
 	$MAKE; $MAKE install
 fi
 
+echo "building freetype"
 # SDL_ttf depends on freetype
 if [ -n "$MINGW" ]; then
 	TEMP_FREETYPE="$BASE_UL_DIR/$EXTERN_DIR/freetype/temp_freetype_install_mingw"
@@ -466,6 +482,7 @@ if [ -n "$BUILD_FREETYPE" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_FREETYPE" ]; the
 	$MAKE; $MAKE install
 fi
 
+echo "building libSDL-ttf"
 if [ -n "$BUILD_SDLTTF" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_ttf.a" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	
@@ -480,10 +497,11 @@ if [ -n "$BUILD_SDLTTF" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_ttf
 	fi
 
 	#make and install in local SDL folder
-	./configure ${HOSTARCH:+--host=$HOSTARCH} --with-freetype-prefix="$TEMP_FREETYPE" --with-sdl-prefix="$TEMP_SDL" --prefix="$TEMP_SDL"
+	./configure ${HOSTARCH:+--host=$HOSTARCH} --with-freetype-prefix="$TEMP_FREETYPE" --with-sdl-prefix="$TEMP_SDL" --prefix="$TEMP_SDL" --disable-shared
 	$MAKE; $MAKE install
 fi
 
+echo "building curl"
 if [ -n "$MINGW" ]; then
 	TEMP_CURL="$BASE_UL_DIR/$EXTERN_DIR/curl/temp_curl_install_mingw"
 else
@@ -506,6 +524,7 @@ if [ -n "$BUILD_CURL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_CURL" ]; then
 	$MAKE; $MAKE install
 fi
 
+echo "looking for libevent"
 if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent" ]; then
 	LOCAL_EVENT="$BASE_UL_DIR/../../3RDPARTY-LIBS/libevent"
 	echo "found LIBEVENT in $LOCAL_EVENT"
@@ -535,6 +554,7 @@ else
   fi
 fi
 
+echo "looking for libconfuse"
 if [ -d "$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse" ]; then
 	LOCAL_CONFUSE="$BASE_UL_DIR/../../3RDPARTY-LIBS/libconfuse"
 	echo "found LIBCONFUSE in $LOCAL_CONFUSE"
