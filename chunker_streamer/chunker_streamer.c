@@ -98,7 +98,9 @@ static void print_usage(int argc, char *argv[])
     "Mandatory options:\n"
     "\t[-i input file]\n"
     "\t[-a audio bitrate]\n"
-    "\t[-v video bitrate]\n\n"
+    "\t[-v video bitrate]\n"
+    "\t[-A audioencoder]\n" 
+    "\t[-V videoencoder]\n\n"
     "Other options:\n"
     "\t[-s WxH]: force video size.\n"
     "\t[-l]: this is a live stream.\n"
@@ -145,6 +147,8 @@ int main(int argc, char *argv[]) {
 	//command line parameters
 	int audio_bitrate = -1;
 	int video_bitrate = -1;
+	char *audio_codec = "mp2";
+	char *video_codec = "mpeg4";
 	int live_source = 0; //tells to sleep before reading next frame in not live (i.e. file)
 	int offset_av = 0; //tells to compensate for offset between audio and video in the file
 	
@@ -187,7 +191,7 @@ int main(int argc, char *argv[]) {
 	/* `getopt_long' stores the option index here. */
 	int option_index = 0, c;
 	int mandatories = 0;
-	while ((c = getopt_long (argc, argv, "i:a:v:s:lot", long_options, &option_index)) != -1)
+	while ((c = getopt_long (argc, argv, "i:a:v:A:V:s:lot", long_options, &option_index)) != -1)
 	{
 		switch (c) {
 			case 0: //for long options
@@ -203,6 +207,12 @@ int main(int argc, char *argv[]) {
 			case 'v':
 				sscanf(optarg, "%d", &video_bitrate);
 				mandatories++;
+				break;
+			case 'A':
+				audio_codec = strdup(optarg);
+				break;
+			case 'V':
+				video_codec = strdup(optarg);
 				break;
 			case 's':
 				sscanf(optarg, "%dx%d", &dest_width, &dest_height);
@@ -305,30 +315,48 @@ restart:
 	}
 
 	//setup video output encoder
+	pCodecEnc = avcodec_find_encoder_by_name(video_codec);
+	if (pCodecEnc) {
+		fprintf(stderr, "INIT: Setting VIDEO codecID to: %d\n",pCodecEnc->id);
+	} else {
+		fprintf(stderr, "INIT: Unknown OUT VIDEO codec: %s!\n", video_codec);
+		return -1; // Codec not found
+	}
+
 	pCodecCtxEnc=avcodec_alloc_context();
-#ifdef H264_VIDEO_ENCODER
+	pCodecCtxEnc->codec_type = CODEC_TYPE_VIDEO;
+	pCodecCtxEnc->codec_id = pCodecEnc->id;
+
+	pCodecCtxEnc->bit_rate = video_bitrate;
+	//~ pCodecCtxEnc->qmin = 30;
+	//~ pCodecCtxEnc->qmax = 30;
+	//times 20 follows the defaults, was not needed in previous versions of libavcodec
+	pCodecCtxEnc->bit_rate_tolerance = video_bitrate*20;
+//	pCodecCtxEnc->crf = 20.0f;
+	// resolution must be a multiple of two 
+	pCodecCtxEnc->width = (dest_width > 0) ? dest_width : pCodecCtx->width;
+	pCodecCtxEnc->height = (dest_height > 0) ? dest_height : pCodecCtx->height;
+	// frames per second 
+	//~ pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
+	//printf("pCodecCtx->time_base=%d/%d\n", pCodecCtx->time_base.num, pCodecCtx->time_base.den);
+	pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
+	pCodecCtxEnc->gop_size = 12; // emit one intra frame every twelve frames 
+	pCodecCtxEnc->max_b_frames=1;
+	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
+	pCodecCtxEnc->flags = CODEC_FLAG_PSNR;
+	//~ pCodecCtxEnc->flags |= CODEC_FLAG_QSCALE;
+  switch (pCodecEnc->id) {
+    case CODEC_ID_H264 :
 	pCodecCtxEnc->me_range=16;
 	pCodecCtxEnc->max_qdiff=4;
 	pCodecCtxEnc->qmin=1;
 	pCodecCtxEnc->qmax=30;
 	pCodecCtxEnc->qcompress=0.6;
-	pCodecCtxEnc->codec_type = CODEC_TYPE_VIDEO;
-	pCodecCtxEnc->codec_id   = CODEC_ID_H264;//13;//pCodecCtx->codec_id;
-	pCodecCtxEnc->bit_rate = video_bitrate;///400000;
-	// resolution must be a multiple of two 
-	pCodecCtxEnc->width = (dest_width > 0) ? dest_width : pCodecCtx->width;
-	pCodecCtxEnc->height = (dest_height > 0) ? dest_height : pCodecCtx->height;
 	// frames per second 
-	pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
-	pCodecCtxEnc->gop_size = 12; // emit one intra frame every ten frames 
-	pCodecCtxEnc->max_b_frames=1;
-	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
 
-	pCodecCtxEnc->bit_rate_tolerance = video_bitrate*50;
 //	pCodecCtxEnc->rc_min_rate = 0;
 //	pCodecCtxEnc->rc_max_rate = 0;
 //	pCodecCtxEnc->rc_buffer_size = 0;
-	pCodecCtxEnc->flags |= CODEC_FLAG_PSNR;
 //	pCodecCtxEnc->partitions = X264_PART_I4X4 | X264_PART_I8X8 | X264_PART_P8X8 | X264_PART_P4X4 | X264_PART_B8X8;
 //	pCodecCtxEnc->crf = 0.0f;
 	
@@ -340,38 +368,14 @@ restart:
 	// pCodecCtxEnc->rc_min_rate = 0;
 	// pCodecCtxEnc->rc_max_rate = video_bitrate*2;
 	// pCodecCtxEnc->rc_buffer_size = 0;
-#else
-	pCodecCtxEnc->codec_type = CODEC_TYPE_VIDEO;
-	pCodecCtxEnc->codec_id   = CODEC_ID_MPEG4;
-	pCodecCtxEnc->bit_rate = video_bitrate;
-	//~ pCodecCtxEnc->qmin = 30;
-	//~ pCodecCtxEnc->qmax = 30;
-	//times 20 follows the defaults, was not needed in previous versions of libavcodec
-	pCodecCtxEnc->bit_rate_tolerance = video_bitrate*20;
-//	pCodecCtxEnc->crf = 20.0f;
-	pCodecCtxEnc->width = (dest_width > 0) ? dest_width : pCodecCtx->width;
-	pCodecCtxEnc->height = (dest_height > 0) ? dest_height : pCodecCtx->height;
-	// frames per second 
-	//~ pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
-	//printf("pCodecCtx->time_base=%d/%d\n", pCodecCtx->time_base.num, pCodecCtx->time_base.den);
-	pCodecCtxEnc->time_base= (AVRational){1,25};
-	pCodecCtxEnc->gop_size = 12; // emit one intra frame every twelve frames 
-	pCodecCtxEnc->max_b_frames=1;
-	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
-	pCodecCtxEnc->flags = CODEC_FLAG_PSNR;
-	//~ pCodecCtxEnc->flags |= CODEC_FLAG_QSCALE;
-#endif
+	break;
+    case CODEC_ID_MPEG4 :
+	break;
+    default:
+	fprintf(stderr, "INIT: Unsupported OUT VIDEO codec: %s!\n", video_codec);
+  }
 
 	fprintf(stderr, "INIT: VIDEO timebase OUT:%d %d IN: %d %d\n", pCodecCtxEnc->time_base.num, pCodecCtxEnc->time_base.den, pCodecCtx->time_base.num, pCodecCtx->time_base.den);
-
-	// Find the decoder for the video stream
-#ifdef H264_VIDEO_ENCODER
-	fprintf(stderr, "INIT: Setting VIDEO codecID to H264: %d %d\n",pCodecCtx->codec_id, CODEC_ID_H264);
-	pCodecEnc = avcodec_find_encoder(CODEC_ID_H264);//pCodecCtx->codec_id);
-#else
-	fprintf(stderr, "INIT: Setting VIDEO codecID to mpeg4: %d %d\n",pCodecCtx->codec_id, CODEC_ID_MPEG4);
-	pCodecEnc = avcodec_find_encoder(CODEC_ID_MPEG4);
-#endif
 
 	if(pCodec==NULL) {
 		fprintf(stderr, "INIT: Unsupported IN VIDEO pcodec!\n");
@@ -401,11 +405,7 @@ restart:
 
 		// Find the decoder for the audio stream
 		aCodec = avcodec_find_decoder(aCodecCtx->codec_id);
-#ifdef MP3_AUDIO_ENCODER
-		aCodecEnc = avcodec_find_encoder(CODEC_ID_MP3);
-#else
-		aCodecEnc = avcodec_find_encoder(CODEC_ID_MP2);
-#endif
+		aCodecEnc = avcodec_find_encoder_by_name(audio_codec);
 		if(aCodec==NULL) {
 			fprintf(stderr,"INIT: Unsupported acodec!\n");
 			return -1;
@@ -740,21 +740,6 @@ restart:
 					frame->size = video_frame_size;
 					/* pict_type maybe 1 (I), 2 (P), 3 (B), 5 (AUDIO)*/
 					frame->type = (unsigned char)pCodecCtxEnc->coded_frame->pict_type;
-
-#ifdef H264_VIDEO_ENCODER
-
-#ifdef STREAMER_X264_USE_SSIM
-					/*double ssim_y = x264_context->enc->stat.frame.f_ssim
-                      / (((x264_context->enc->param.i_width-6)>>2) * ((x264_context->enc->param.i_height-6)>>2));*/
-#else
-					//fprintf(psnrtrace, "%f\n", (float)x264_psnr( x264_context->enc->stat.frame.i_ssd[0], x264_context->enc->param.i_width * x264_context->enc->param.i_height ));
-					//frame->psnr = (uint16_t) ((float)(STREAMER_MIN(x264_psnr( x264_context->enc->stat.frame.i_ssd[0], x264_context->enc->param.i_width * x264_context->enc->param.i_height ),MAX_PSNR))*65536/MAX_PSNR);
-#endif
-
-#else
-					//psnr = (uint16_t) ((float)(STREAMER_MIN(GET_PSNR(pCodecCtxEnc->error[0]/(pCodecCtxEnc->width*pCodecCtxEnc->height*255.0*255.0)),MAX_PSNR))*65536/MAX_PSNR);
-					//pCodecCtxEnc->error[0] = 0;
-#endif
 
 #ifdef DEBUG_VIDEO_FRAMES
 					fprintf(stderr, "VIDEO: original codec frame number %d vs. encoded %d vs. packed %d\n", pCodecCtx->frame_number, pCodecCtxEnc->frame_number, frame->number);
