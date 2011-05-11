@@ -33,7 +33,15 @@ endif
 LOCAL_COMMON_CPPFLAGS = -I$(LOCAL_X264)/include -I$(LOCAL_BZ2)/include -I$(LOCAL_Z)/include -I$(LOCAL_MP3LAME)/include
 #LOCAL_COMMON_LDFLAGS = -L$(LOCAL_X264)/lib -L$(LOCAL_BZ2)/lib -L$(LOCAL_MP3LAME)/lib
 LOCAL_COMMON_LDLIBS = $(LOCAL_X264)/lib/libx264.a $(LOCAL_BZ2)/lib/libbz2.a $(LOCAL_Z)/lib/libz.a
-#LOCAL_COMMON_LDLIBS += $(LOCAL_MP3LAME)/lib/libmp3lame.a
+ifdef LOCAL_MP3LAME
+LOCAL_COMMON_LDLIBS += $(LOCAL_MP3LAME)/lib/libmp3lame.a
+endif
+ifdef LOCAL_LIBVORBIS
+LOCAL_COMMON_LDLIBS += $(LOCAL_LIBVORBIS)/lib/libvorbis.a $(LOCAL_LIBVORBIS)/lib/libvorbisenc.a
+endif
+ifdef LOCAL_LIBOGG
+LOCAL_COMMON_LDLIBS += $(LOCAL_LIBOGG)/lib/libogg.a
+endif
 
 cc-option = $(shell if $(CC) $(1) -S -o /dev/null -xc /dev/null \
               > /dev/null 2>&1; then echo "$(1)"; fi ;)
