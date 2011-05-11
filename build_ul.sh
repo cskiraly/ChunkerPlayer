@@ -313,7 +313,15 @@ else
 	TEMP_FFMPEG="$BASE_UL_DIR/$EXTERN_DIR/ffmpeg/temp_ffmpeg_install_linux"
 fi
 if [ ! -e "$TEMP_X264/lib/libx264.a" ] || [ ! -e "$TEMP_MP3LAME/lib/libmp3lame.a" ] || [ ! -e "$LOCAL_Z/lib/libz.a" ] || [ ! -e "$LOCAL_BZ2/lib/libbz2.a" ]; then
-	echo "Compilation of ffmpeg dependancies failed. Check your internet connection and errors. Exiting."
+	echo "Compilation of some ffmpeg dependancies failed. Check your internet connection and errors."
+fi
+if [ -e "$TEMP_X264/lib/libx264.a" ]; then
+	FFMPEG_CONFIG+=" --enable-libx264"
+	FFMPEG_EXTRA_CFLAGS+=" -I$TEMP_X264/include"
+fi
+if [ -e "$TEMP_MP3LAME/lib/libmp3lame.a" ]; then
+	FFMPEG_CONFIG+=" --enable-libmp3lame"
+	FFMPEG_EXTRA_CFLAGS+=" -I$TEMP_MP3LAME/include"
 fi
 if [ -n "$BUILD_FFMPEG" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_FFMPEG" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
@@ -344,9 +352,9 @@ if [ -n "$BUILD_FFMPEG" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_FFMPEG" ]; then
 		sed -i -e 's/^SDL_CONFIG=/[ -z "$SDL_CONFIG" ] \&\& SDL_CONFIG=/g' ./configure;
 		sed -i -e 's/check_cflags \+-Werror=missing-prototypes/#\0/g' configure;
 	
-		./configure $HOSTARCH_OLDSTYLE --enable-gpl --enable-nonfree --enable-version3 --enable-libmp3lame --enable-libx264 --disable-pthreads --extra-cflags="-I$TEMP_X264/include -I$TEMP_MP3LAME/include -I$LOCAL_BZ2/include  -I$LOCAL_Z/include" --extra-ldflags="-L$TEMP_X264/lib -L$TEMP_MP3LAME/lib -L$LOCAL_BZ2/lib -L$LOCAL_Z/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$TEMP_FFMPEG"
+		./configure $HOSTARCH_OLDSTYLE --enable-gpl --enable-nonfree --enable-version3 --disable-pthreads $FFMPEG_CONFIG --extra-cflags="$FFMPEG_EXTRA_CFLAGS -I$LOCAL_BZ2/include  -I$LOCAL_Z/include" --extra-ldflags="-L$TEMP_X264/lib -L$TEMP_MP3LAME/lib -L$LOCAL_BZ2/lib -L$LOCAL_Z/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$TEMP_FFMPEG"
 	else
-		./configure --enable-gpl --enable-nonfree --enable-version3 --enable-libmp3lame --enable-libx264 --enable-pthreads --extra-cflags="-I$TEMP_X264/include -I$TEMP_MP3LAME/include -I$LOCAL_BZ2/include  -I$LOCAL_Z/include" --extra-ldflags="-L$TEMP_X264/lib -L$TEMP_MP3LAME/lib -L$LOCAL_BZ2/lib -L$LOCAL_Z/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$TEMP_FFMPEG"
+		./configure --enable-gpl --enable-nonfree --enable-version3 --enable-pthreads  $FFMPEG_CONFIG --extra-cflags="$FFMPEG_EXTRA_CFLAGS -I$LOCAL_BZ2/include  -I$LOCAL_Z/include" --extra-ldflags="-L$TEMP_X264/lib -L$TEMP_MP3LAME/lib -L$LOCAL_BZ2/lib -L$LOCAL_Z/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$TEMP_FFMPEG"
 	fi
 	$MAKE; $MAKE install
 fi
