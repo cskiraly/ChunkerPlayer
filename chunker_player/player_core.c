@@ -13,6 +13,8 @@
 #include <assert.h>
 #include <time.h>
 
+static char *video_codec;
+
 void SaveFrame(AVFrame *pFrame, int width, int height);
 int VideoCallback(void *valthread);
 int CollectStatisticsThread(void *params);
@@ -250,8 +252,10 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 	return res;
 }
 
-int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short int audio_channels)
+int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels)
 {
+	video_codec = v_codec;
+
 	// some initializations
 	QueueStopped = 0;
 	AudioQueueOffset=0;
@@ -279,12 +283,7 @@ int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short i
 	//aCodecCtx->bit_rate = 64000;
 	aCodecCtx->sample_rate = sample_rate;
 	aCodecCtx->channels = audio_channels;
-#ifdef MP3_AUDIO_ENCODER
-	aCodec = avcodec_find_decoder(CODEC_ID_MP3); // codec audio
-#else
-	aCodec = avcodec_find_decoder(CODEC_ID_MP2);
-#endif
-	printf("MP2 codec id %d MP3 codec id %d\n",CODEC_ID_MP2,CODEC_ID_MP3);
+	aCodec = avcodec_find_decoder_by_name(audio_codec);
 	if(!aCodec) {
 		printf("Codec not found!\n");
 		return -1;
@@ -758,19 +757,20 @@ int VideoCallback(void *valthread)
 
 	//frecon = fopen("recondechunk.mpg","wb");
 
+	//setup video decoder
+	pCodec = avcodec_find_decoder_by_name(video_codec);
+	if (pCodec) {
+		fprintf(stderr, "INIT: Setting VIDEO codecID to: %d\n",pCodec->id);
+	} else {
+		fprintf(stderr, "INIT: Unknown VIDEO codec: %s!\n", video_codec);
+		return -1; // Codec not found
+	}
+
 	pCodecCtx=avcodec_alloc_context();
 	pCodecCtx->codec_type = CODEC_TYPE_VIDEO;
 	//pCodecCtx->debug = FF_DEBUG_DCT_COEFF;
-#ifdef H264_VIDEO_ENCODER
-	pCodecCtx->codec_id  = CODEC_ID_H264;
-	pCodecCtx->me_range = 16;
-	pCodecCtx->max_qdiff = 4;
-	pCodecCtx->qmin = 1;
-	pCodecCtx->qmax = 30;
-	pCodecCtx->qcompress = 0.6;
-#else
-	pCodecCtx->codec_id  = CODEC_ID_MPEG4;
-#endif
+	pCodecCtx->codec_id = pCodec->id;
+
 	//pCodecCtx->bit_rate = 400000;
 	// resolution must be a multiple of two
 	pCodecCtx->width = tval->width;//176;//352;

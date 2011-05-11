@@ -118,7 +118,7 @@ long int decoded_vframes;
 long int LastSavedVFrame;
 unsigned char LastSourceIFrameDistance;
 
-int ChunkerPlayerCore_InitCodecs(int width, int height, int sample_rate, short audio_channels);
+int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels);
 int ChunkerPlayerCore_AudioEnded();
 void ChunkerPlayerCore_Stop();
 void ChunkerPlayerCore_Play();

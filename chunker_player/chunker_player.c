@@ -30,6 +30,9 @@
 #include <windows.h>
 #endif
 
+static char *audio_codec = "mp2";
+static char *video_codec = "mpeg4";
+
 int ReadALine(FILE* fp, char* Output, int MaxOutputSize)
 {
     int i=0;
@@ -96,6 +99,8 @@ static void print_usage(int argc, char *argv[])
     "\t[-c ChannelName]: channel name (from channels.conf)\n"
     "\t[-p port]: player http port\n\n"
     "Other options:\n"
+    "\t[-A audiocodec]\n"
+    "\t[-V videocodec]\n"
     "\t[-t]: log traces (WARNING: old traces will be deleted).\n"
     "\t[-s mode]: silent mode (no GUI) (mode=1 audio ON, mode=2 audio OFF, mode=3 audio OFF; P2P OFF).\n\n"
     "=======================================================\n", argv[0]
@@ -149,7 +154,7 @@ int main(int argc, char *argv[])
 	int mandatories = 0;
 	
 	char c;
-	while ((c = getopt (argc, argv, "q:c:p:s:t")) != -1)
+	while ((c = getopt (argc, argv, "q:c:p:A:V:s:t")) != -1)
 	{
 		switch (c) {
 			case 0: //for long options
@@ -170,6 +175,12 @@ int main(int argc, char *argv[])
 				sscanf(optarg, "%d", &Port);
 #endif
 				mandatories++;
+				break;
+			case 'A':
+				audio_codec = strdup(optarg);
+				break;
+			case 'V':
+				video_codec = strdup(optarg);
 				break;
 			case 's':
 				sscanf(optarg, "%d", &SilentMode);
@@ -583,7 +594,7 @@ int SwitchChannel(SChannel* channel)
 	ChunkerPlayerCore_SetupOverlay(w, h);
 	//ChunkerPlayerGUI_SetupOverlayRect(channel);
 	
-	if(ChunkerPlayerCore_InitCodecs(channel->Width, channel->Height, channel->SampleRate, channel->AudioChannels) < 0)
+	if(ChunkerPlayerCore_InitCodecs(video_codec, channel->Width, channel->Height, audio_codec, channel->SampleRate, channel->AudioChannels) < 0)
 	{
 		printf("ERROR, COULD NOT INITIALIZE CODECS\n");
 		exit(2);
