@@ -320,7 +320,7 @@ restart:
 	pCodecCtxEnc->height = (dest_height > 0) ? dest_height : pCodecCtx->height;
 	// frames per second 
 	pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
-	pCodecCtxEnc->gop_size = 100; // emit one intra frame every ten frames 
+	pCodecCtxEnc->gop_size = 12; // emit one intra frame every ten frames 
 	//pCodecCtxEnc->max_b_frames=1;
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
 
