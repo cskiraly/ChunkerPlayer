@@ -321,7 +321,7 @@ restart:
 	// frames per second 
 	pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
 	pCodecCtxEnc->gop_size = 12; // emit one intra frame every ten frames 
-	//pCodecCtxEnc->max_b_frames=1;
+	pCodecCtxEnc->max_b_frames=1;
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
 
 	pCodecCtxEnc->bit_rate_tolerance = video_bitrate*50;
@@ -356,7 +356,7 @@ restart:
 	//printf("pCodecCtx->time_base=%d/%d\n", pCodecCtx->time_base.num, pCodecCtx->time_base.den);
 	pCodecCtxEnc->time_base= (AVRational){1,25};
 	pCodecCtxEnc->gop_size = 12; // emit one intra frame every twelve frames 
-	//pCodecCtxEnc->max_b_frames=1;
+	pCodecCtxEnc->max_b_frames=1;
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
 	pCodecCtxEnc->flags = CODEC_FLAG_PSNR;
 	//~ pCodecCtxEnc->flags |= CODEC_FLAG_QSCALE;
