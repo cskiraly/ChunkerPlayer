@@ -252,6 +252,9 @@ LIBSDLIMAGE_LDFLAGS="$LIBSDLIMAGE_LDFLAGS -L$LOCAL_LIBPNG/lib"
 
 
 echo "building x264"
+if [ -n "$LOCAL_X264" ]; then
+	TEMP_X264=$LOCAL_X264
+else
 if [ -n "$MINGW" ]; then
 	TEMP_X264="$BASE_UL_DIR/$EXTERN_DIR/x264/temp_x264_install_mingw"
 else
@@ -279,9 +282,12 @@ if [ -n "$BUILD_X264" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_X264" ]; then
 	./configure --prefix="$TEMP_X264" ${HOSTARCH:+--host=$HOSTARCH}
 	$MAKE; $MAKE install
 fi
-
+fi
 
 echo "building mp3lame"
+if [ -n "$LOCAL_X264" ]; then
+	TEMP_MP3LAME=$LOCAL_MP3LAME
+else
 if [ -n "$MINGW" ]; then
 	TEMP_MP3LAME="$BASE_UL_DIR/$EXTERN_DIR/mp3lame/temp_mp3lame_install_mingw"
 else
@@ -304,9 +310,12 @@ if [ -n "$BUILD_MP3LAME" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MP3LAME" ]; then
 	./configure --disable-gtktest --disable-frontend --prefix="$TEMP_MP3LAME" ${HOSTARCH:+--host=$HOSTARCH}
 	$MAKE; $MAKE install
 fi
-
+fi
 
 echo "building ffmpeg"
+if [ -n "$LOCAL_FFMPEG" ]; then
+	TEMP_FFMPEG=$LOCAL_FFMPEG
+else
 if [ -n "$MINGW" ]; then
 	TEMP_FFMPEG="$BASE_UL_DIR/$EXTERN_DIR/ffmpeg/temp_ffmpeg_install_mingw"
 else
@@ -358,7 +367,7 @@ if [ -n "$BUILD_FFMPEG" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_FFMPEG" ]; then
 	fi
 	$MAKE; $MAKE install
 fi
-
+fi
 
 echo "building libmicrohttpd"
 if [ -n "$MINGW" ]; then
