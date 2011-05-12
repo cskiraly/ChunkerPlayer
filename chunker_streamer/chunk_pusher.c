@@ -20,6 +20,9 @@
 
 int pushChunkHttp(ExternalChunk *echunk, char *url);
 int pushChunkTcp(ExternalChunk *echunk);
+int sendViaCurl(Chunk gchunk, int buffer_size, char *url);
+int sendViaTcp(Chunk gchunk, uint32_t buffer_size);
+
 
 extern ChunkerMetadata *cmeta;
 static long long int counter = 0;

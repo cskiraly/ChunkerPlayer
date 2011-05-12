@@ -29,10 +29,16 @@ int seq_current_chunk = 1; //chunk numbering starts from 1; HINT do i need more 
 
 void SaveFrame(AVFrame *pFrame, int width, int height);
 void SaveEncodedFrame(Frame* frame, uint8_t *video_outbuf);
+int pushChunkTcp(ExternalChunk *echunk);
+void initTCPPush(char* ip, int port);
+int update_chunk(ExternalChunk *chunk, Frame *frame, uint8_t *outbuf);
+void finalizeTCPChunkPusher();
+void bit32_encoded_push(uint32_t v, uint8_t *p);
+
 int video_record_count = 0;
 int savedVideoFrames = 0;
 long int firstSavedVideoFrame = 0;
-ChunkerStreamerTestMode = 0;
+int ChunkerStreamerTestMode = 0;
 
 int pts_anomaly_threshold = 0;
 int newtime_anomaly_threshold = 0;
@@ -114,15 +120,15 @@ static void print_usage(int argc, char *argv[])
     );
   }
 
-sendChunk(ExternalChunk *chunk) {
+int sendChunk(ExternalChunk *chunk) {
 #ifdef HTTPIO
-						pushChunkHttp(chunk, cmeta->outside_world_url);
+						return pushChunkHttp(chunk, cmeta->outside_world_url);
 #endif
 #ifdef TCPIO
-						pushChunkTcp(chunk);
+						return pushChunkTcp(chunk);
 #endif
 #ifdef UDPIO
-						pushChunkUDP(chunk);
+						return pushChunkUDP(chunk);
 #endif
 }
 
@@ -142,11 +148,11 @@ int main(int argc, char *argv[]) {
 	int videoStream = -1;
 	int audioStream = -1;
 
-	int len1;
+//	int len1;
 	int frameFinished;
 	//frame sequential counters
 	int contFrameAudio=1, contFrameVideo=0;
-	int numBytes;
+//	int numBytes;
 
 	//command line parameters
 	int audio_bitrate = -1;
@@ -296,7 +302,7 @@ restart:
 			audioStream=i;
 		}
 	}
-	fprintf(stderr, "INIT: Num streams : %d TBR: %d %d RFRAMERATE:%d %d Duration:%d\n", pFormatCtx->nb_streams, pFormatCtx->streams[videoStream]->time_base.num, pFormatCtx->streams[videoStream]->time_base.den, pFormatCtx->streams[videoStream]->r_frame_rate.num, pFormatCtx->streams[videoStream]->r_frame_rate.den, pFormatCtx->streams[videoStream]->duration);
+	fprintf(stderr, "INIT: Num streams : %d TBR: %d %d RFRAMERATE:%d %d Duration:%ld\n", pFormatCtx->nb_streams, pFormatCtx->streams[videoStream]->time_base.num, pFormatCtx->streams[videoStream]->time_base.den, pFormatCtx->streams[videoStream]->r_frame_rate.num, pFormatCtx->streams[videoStream]->r_frame_rate.den, pFormatCtx->streams[videoStream]->duration);
 
 	fprintf(stderr, "INIT: Video stream has id : %d\n",videoStream);
 	fprintf(stderr, "INIT: Audio stream has id : %d\n",audioStream);
@@ -504,7 +510,7 @@ restart:
 	long long lateTime = 0;
 	long long maxAudioInterval = 0;
 	long long maxVDecodeTime = 0;
-	unsigned char lastIFrameDistance = 0;
+//	unsigned char lastIFrameDistance = 0;
 
 #ifdef TCPIO
 	static char peer_ip[16];
@@ -587,7 +593,7 @@ restart:
 					if(timebank && (lateTime+maxVDecodeTime) >= 0)
 					{
 #ifdef DEBUG_ANOMALIES
-						fprintf(stderr, "\n\n\t\t************************* SKIPPING VIDEO FRAME ***********************************\n\n", sleep);
+						fprintf(stderr, "\n\n\t\t************************* SKIPPING VIDEO FRAME %ld ***********************************\n\n", sleep);
 #endif
 						continue;
 					}
@@ -649,7 +655,7 @@ restart:
 
 					if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width)
 					{
-						static AVPicture pict;
+//						static AVPicture pict;
 						static struct SwsContext *img_convert_ctx = NULL;
 						
 						if(img_convert_ctx == NULL)
@@ -772,7 +778,7 @@ restart:
 						FILE* tmp = fopen(tmp_filename, "w");
 						if(tmp)
 						{
-							fprintf(tmp, "width = %d\nheight = %d\ntotal_frames_saved = %d\ntotal_frames_decoded = %d\nfirst_frame_number = %d\nlast_frame_number = %d\n"
+							fprintf(tmp, "width = %d\nheight = %d\ntotal_frames_saved = %d\ntotal_frames_decoded = %d\nfirst_frame_number = %ld\nlast_frame_number = %d\n"
 								,pCodecCtxEnc->width, pCodecCtxEnc->height
 								,savedVideoFrames, savedVideoFrames, firstSavedVideoFrame, frame->number);
 							fclose(tmp);

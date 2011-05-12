@@ -9,7 +9,7 @@
 #include "codec_definitions.h"
 #include "frame.h"
 
-int ChunkerStreamerTestMode;
+//int ChunkerStreamerTestMode;
 
 #define STREAMER_MAX_VIDEO_BUFFER_SIZE 200000
 #define STREAMER_MAX_AUDIO_BUFFER_SIZE 10000
