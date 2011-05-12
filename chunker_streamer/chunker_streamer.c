@@ -36,7 +36,7 @@ ChunkerStreamerTestMode = 0;
 
 int pts_anomaly_threshold = 0;
 int newtime_anomaly_threshold = 0;
-bool timebank = true;
+bool timebank = false;
 
 // Constant number of frames per chunk
 int chunkFilledFramesStrategy(ExternalChunk *echunk, int chunkType)
