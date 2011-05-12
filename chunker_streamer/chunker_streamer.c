@@ -36,6 +36,7 @@ ChunkerStreamerTestMode = 0;
 
 int pts_anomaly_threshold = 0;
 int newtime_anomaly_threshold = 0;
+bool timebank = true;
 
 // Constant number of frames per chunk
 int chunkFilledFramesStrategy(ExternalChunk *echunk, int chunkType)
@@ -583,7 +584,7 @@ restart:
 					// lateTime < 0 means a positive time account that can be used to decode video frames
 					// if (lateTime + maxVDecodeTime) >= 0 then we may have a negative time account after video transcoding
 					// therefore, it's better to skip the frame
-					if((lateTime+maxVDecodeTime) >= 0)
+					if(timebank && (lateTime+maxVDecodeTime) >= 0)
 					{
 #ifdef DEBUG_ANOMALIES
 						fprintf(stderr, "\n\n\t\t************************* SKIPPING VIDEO FRAME ***********************************\n\n", sleep);
