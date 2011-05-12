@@ -171,8 +171,8 @@ int main(int argc, char *argv[]) {
 	AVFrame *scaledFrame = NULL;
 
 	AVFormatContext *pFormatCtx;
-	AVCodecContext  *pCodecCtx,*pCodecCtxEnc,*aCodecCtxEnc,*aCodecCtx;
-	AVCodec         *pCodec,*pCodecEnc,*aCodec,*aCodecEnc;
+	AVCodecContext  *pCodecCtx = NULL ,*pCodecCtxEnc = NULL ,*aCodecCtxEnc = NULL ,*aCodecCtx = NULL;
+	AVCodec         *pCodec = NULL ,*pCodecEnc = NULL ,*aCodec = NULL ,*aCodecEnc = NULL;
 	AVPacket         packet;
 
 	//stuff needed to compute the right timestamps
