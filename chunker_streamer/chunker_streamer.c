@@ -45,6 +45,8 @@ int newtime_anomaly_threshold = 0;
 bool timebank = false;
 char *outside_world_url = NULL;
 
+bool vcopy = false;
+
 // Constant number of frames per chunk
 int chunkFilledFramesStrategy(ExternalChunk *echunk, int chunkType)
 {
@@ -337,6 +339,9 @@ restart:
 	dest_height = (dest_height > 0) ? dest_height : pCodecCtx->height;
 
 	//setup video output encoder
+ if (strcmp(video_codec, "copy") == 0) {
+	vcopy = true;
+ } else {
 	pCodecEnc = avcodec_find_encoder_by_name(video_codec);
 	if (pCodecEnc) {
 		fprintf(stderr, "INIT: Setting VIDEO codecID to: %d\n",pCodecEnc->id);
@@ -396,14 +401,15 @@ restart:
     default:
 	fprintf(stderr, "INIT: Unsupported OUT VIDEO codec: %s!\n", video_codec);
   }
-
+ 
 	fprintf(stderr, "INIT: VIDEO timebase OUT:%d %d IN: %d %d\n", pCodecCtxEnc->time_base.num, pCodecCtxEnc->time_base.den, pCodecCtx->time_base.num, pCodecCtx->time_base.den);
+ }
 
 	if(pCodec==NULL) {
 		fprintf(stderr, "INIT: Unsupported IN VIDEO pcodec!\n");
 		return -1; // Codec not found
 	}
-	if(pCodecEnc==NULL) {
+	if(!vcopy && pCodecEnc==NULL) {
 		fprintf(stderr, "INIT: Unsupported OUT VIDEO pcodecenc!\n");
 		return -1; // Codec not found
 	}
@@ -411,11 +417,10 @@ restart:
 		fprintf(stderr, "INIT: could not open IN VIDEO codec\n");
 		return -1; // Could not open codec
 	}
-	if(avcodec_open(pCodecCtxEnc, pCodecEnc)<0) {
+	if(!vcopy && avcodec_open(pCodecCtxEnc, pCodecEnc)<0) {
 		fprintf(stderr, "INIT: could not open OUT VIDEO codecEnc\n");
 		return -1; // Could not open codec
 	}
-
 	if(audioStream!=-1) {
 		//setup audio output encoder
 		aCodecCtxEnc = avcodec_alloc_context();
@@ -628,12 +633,14 @@ restart:
 					frame->number = ++contFrameVideo;
 
 #ifdef VIDEO_DEINTERLACE
+				if (!vcopy) {
 					avpicture_deinterlace(
 						(AVPicture*) pFrame,
 						(const AVPicture*) pFrame,
 						pCodecCtxEnc->pix_fmt,
 						pCodecCtxEnc->width,
 						pCodecCtxEnc->height);
+				}
 #endif
 
 #ifdef DEBUG_VIDEO_FRAMES
@@ -665,8 +672,15 @@ restart:
 					fprintf(stderr, "VIDEO: deltavideo : %d\n", (int)delta_video);
 #endif
 
-					if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width)
-					{
+					if(vcopy) {
+						video_frame_size = packet.size;
+						if (video_frame_size > video_outbuf_size) {
+							fprintf(stderr, "VIDEO: error, outbuf too small, SKIPPING\n");;
+							continue;
+						} else {
+							memcpy(video_outbuf, packet.data, video_frame_size);
+						}
+					} else if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width) {
 //						static AVPicture pict;
 						static struct SwsContext *img_convert_ctx = NULL;
 						
@@ -691,7 +705,7 @@ restart:
 					}
 
 #ifdef DEBUG_VIDEO_FRAMES
-					if(pCodecCtxEnc->coded_frame) {
+					if(!vcopy && pCodecCtxEnc->coded_frame) {
 						fprintf(stderr, "\n-------VIDEO FRAME intype %d%s -> outtype: %d%s\n",
 							pFrame->pict_type, pFrame->key_frame ? " (key)" : "",
 							pCodecCtxEnc->coded_frame->pict_type, pCodecCtxEnc->coded_frame->key_frame ? " (key)" : "");
@@ -761,15 +775,15 @@ restart:
 					frame->timestamp.tv_usec = newTime%1000;
 					frame->size = video_frame_size;
 					/* pict_type maybe 1 (I), 2 (P), 3 (B), 5 (AUDIO)*/
-					frame->type = (unsigned char)pCodecCtxEnc->coded_frame->pict_type;
+					frame->type = vcopy ? pFrame->pict_type : (unsigned char)pCodecCtxEnc->coded_frame->pict_type;
 
 #ifdef DEBUG_VIDEO_FRAMES
-					fprintf(stderr, "VIDEO: original codec frame number %d vs. encoded %d vs. packed %d\n", pCodecCtx->frame_number, pCodecCtxEnc->frame_number, frame->number);
-					fprintf(stderr, "VIDEO: duration %d timebase %d %d container timebase %d\n", (int)packet.duration, pCodecCtxEnc->time_base.den, pCodecCtxEnc->time_base.num, pCodecCtx->time_base.den);
+					if (!vcopy) fprintf(stderr, "VIDEO: original codec frame number %d vs. encoded %d vs. packed %d\n", pCodecCtx->frame_number, pCodecCtxEnc->frame_number, frame->number);
+					if (!vcopy) fprintf(stderr, "VIDEO: duration %d timebase %d %d container timebase %d\n", (int)packet.duration, pCodecCtxEnc->time_base.den, pCodecCtxEnc->time_base.num, pCodecCtx->time_base.den);
 #endif
 
 #ifdef YUV_RECORD_ENABLED
-					if(ChunkerStreamerTestMode)
+					if(!vcopy && ChunkerStreamerTestMode)
 					{
 						if(videotrace)
 							fprintf(videotrace, "%d %d %d\n", frame->number, pFrame->pict_type, frame->size);
@@ -1095,8 +1109,8 @@ close:
 	av_free(samples);
   
 	// Close the codec
-	avcodec_close(pCodecCtx);
-	avcodec_close(pCodecCtxEnc);
+	if (!vcopy) avcodec_close(pCodecCtx);
+	if (!vcopy) avcodec_close(pCodecCtxEnc);
 
 	if(audioStream!=-1) {
 		avcodec_close(aCodecCtx);
