@@ -43,6 +43,7 @@ int ChunkerStreamerTestMode = 0;
 int pts_anomaly_threshold = 0;
 int newtime_anomaly_threshold = 0;
 bool timebank = false;
+char *outside_world_url = NULL;
 
 // Constant number of frames per chunk
 int chunkFilledFramesStrategy(ExternalChunk *echunk, int chunkType)
@@ -110,6 +111,7 @@ static void print_usage(int argc, char *argv[])
     "\t[-a audio bitrate]\n"
     "\t[-v video bitrate]\n\n"
     "Other options:\n"
+    "\t[-F output] (overrides config file)\n"
     "\t[-A audioencoder]\n"
     "\t[-V videoencoder]\n"
     "\t[-s WxH]: force video size.\n"
@@ -122,7 +124,7 @@ static void print_usage(int argc, char *argv[])
 
 int sendChunk(ExternalChunk *chunk) {
 #ifdef HTTPIO
-						return pushChunkHttp(chunk, cmeta->outside_world_url);
+						return pushChunkHttp(chunk, outside_world_url);
 #endif
 #ifdef TCPIO
 						return pushChunkTcp(chunk);
@@ -201,7 +203,7 @@ int main(int argc, char *argv[]) {
 	/* `getopt_long' stores the option index here. */
 	int option_index = 0, c;
 	int mandatories = 0;
-	while ((c = getopt_long (argc, argv, "i:a:v:A:V:s:lot", long_options, &option_index)) != -1)
+	while ((c = getopt_long (argc, argv, "i:a:v:A:V:s:lotF:", long_options, &option_index)) != -1)
 	{
 		switch (c) {
 			case 0: //for long options
@@ -236,6 +238,9 @@ int main(int argc, char *argv[]) {
 			case 't':
 				ChunkerStreamerTestMode = 1;
 				break;
+			case 'F':
+				outside_world_url = strdup(optarg);
+				break;
 			default:
 				print_usage(argc, argv);
 				return -1;
@@ -261,6 +266,9 @@ int main(int argc, char *argv[]) {
 restart:
 	// read the configuration file
 	cmeta = chunkerInit();
+	if (!outside_world_url) {
+		outside_world_url = strdup(cmeta->outside_world_url);
+	}
 	switch(cmeta->strategy)
 	{
 		case 1:
@@ -515,9 +523,9 @@ restart:
 #ifdef TCPIO
 	static char peer_ip[16];
 	static int peer_port;
-	int res = sscanf(cmeta->outside_world_url, "tcp://%15[0-9.]:%d", peer_ip, &peer_port);
+	int res = sscanf(outside_world_url, "tcp://%15[0-9.]:%d", peer_ip, &peer_port);
 	if (res < 2) {
-		fprintf(stderr,"error parsing output url: %s\n", cmeta->outside_world_url);
+		fprintf(stderr,"error parsing output url: %s\n", outside_world_url);
 		return -2;
 	}
 	
@@ -526,9 +534,9 @@ restart:
 #ifdef UDPIO
 	static char peer_ip[16];
 	static int peer_port;
-	int res = sscanf(cmeta->outside_world_url, "udp://%15[0-9.]:%d", peer_ip, &peer_port);
+	int res = sscanf(outside_world_url, "udp://%15[0-9.]:%d", peer_ip, &peer_port);
 	if (res < 2) {
-		fprintf(stderr,"error parsing output url: %s\n", cmeta->outside_world_url);
+		fprintf(stderr,"error parsing output url: %s\n", outside_world_url);
 		return -2;
 	}
 	
