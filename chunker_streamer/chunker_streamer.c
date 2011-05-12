@@ -34,8 +34,8 @@ int savedVideoFrames = 0;
 long int firstSavedVideoFrame = 0;
 ChunkerStreamerTestMode = 0;
 
-int pts_anomaly_threshold = 25;
-int newtime_anomaly_threshold = 50;
+int pts_anomaly_threshold = 0;
+int newtime_anomaly_threshold = 0;
 
 // Constant number of frames per chunk
 int chunkFilledFramesStrategy(ExternalChunk *echunk, int chunkType)
