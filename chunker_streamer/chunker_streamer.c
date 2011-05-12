@@ -332,6 +332,10 @@ restart:
 		fprintf(stderr, "INIT: AUDIO Codecid: %d channels %d samplerate %d\n", aCodecCtx->codec_id, aCodecCtx->channels, aCodecCtx->sample_rate);
 	}
 
+	// Figure out size
+	dest_width = (dest_width > 0) ? dest_width : pCodecCtx->width;
+	dest_height = (dest_height > 0) ? dest_height : pCodecCtx->height;
+
 	//setup video output encoder
 	pCodecEnc = avcodec_find_encoder_by_name(video_codec);
 	if (pCodecEnc) {
@@ -352,8 +356,8 @@ restart:
 	pCodecCtxEnc->bit_rate_tolerance = video_bitrate*20;
 //	pCodecCtxEnc->crf = 20.0f;
 	// resolution must be a multiple of two 
-	pCodecCtxEnc->width = (dest_width > 0) ? dest_width : pCodecCtx->width;
-	pCodecCtxEnc->height = (dest_height > 0) ? dest_height : pCodecCtx->height;
+	pCodecCtxEnc->width = dest_width;
+	pCodecCtxEnc->height = dest_height;
 	// frames per second 
 	//~ pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
 	//printf("pCodecCtx->time_base=%d/%d\n", pCodecCtx->time_base.num, pCodecCtx->time_base.den);
@@ -468,9 +472,9 @@ restart:
 	}
 	video_outbuf_size = STREAMER_MAX_VIDEO_BUFFER_SIZE;
 	video_outbuf = av_malloc(video_outbuf_size);
-	int scaledFrame_buf_size = avpicture_get_size( PIX_FMT_YUV420P, pCodecCtxEnc->width, pCodecCtxEnc->height);
+	int scaledFrame_buf_size = avpicture_get_size( PIX_FMT_YUV420P, dest_width, dest_height);
 	uint8_t* scaledFrame_buffer = (uint8_t *) av_malloc( scaledFrame_buf_size * sizeof( uint8_t ) );
-	avpicture_fill( (AVPicture*) scaledFrame, scaledFrame_buffer, PIX_FMT_YUV420P, pCodecCtxEnc->width, pCodecCtxEnc->height);
+	avpicture_fill( (AVPicture*) scaledFrame, scaledFrame_buffer, PIX_FMT_YUV420P, dest_width, dest_height);
 	if(!video_outbuf || !scaledFrame_buffer) {
 		fprintf(stderr, "INIT: Memory error alloc video_outbuf!!!\n");
 		return -1;
@@ -668,7 +672,7 @@ restart:
 						
 						if(img_convert_ctx == NULL)
 						{
-							img_convert_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, PIX_FMT_YUV420P, pCodecCtxEnc->width, pCodecCtxEnc->height, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
+							img_convert_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, PIX_FMT_YUV420P, dest_width, dest_height, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
 							if(img_convert_ctx == NULL) {
 								fprintf(stderr, "Cannot initialize the conversion context!\n");
 								exit(1);
@@ -771,9 +775,9 @@ restart:
 							fprintf(videotrace, "%d %d %d\n", frame->number, pFrame->pict_type, frame->size);
 
 						if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width)
-							SaveFrame(scaledFrame, pCodecCtxEnc->width, pCodecCtxEnc->height);
+							SaveFrame(scaledFrame, dest_width, dest_height);
 						else
-							SaveFrame(pFrame, pCodecCtxEnc->width, pCodecCtxEnc->height);
+							SaveFrame(pFrame, dest_width, dest_height);
 
 						++savedVideoFrames;
 						SaveEncodedFrame(frame, video_outbuf);
@@ -787,7 +791,7 @@ restart:
 						if(tmp)
 						{
 							fprintf(tmp, "width = %d\nheight = %d\ntotal_frames_saved = %d\ntotal_frames_decoded = %d\nfirst_frame_number = %ld\nlast_frame_number = %d\n"
-								,pCodecCtxEnc->width, pCodecCtxEnc->height
+								,dest_width, dest_height
 								,savedVideoFrames, savedVideoFrames, firstSavedVideoFrame, frame->number);
 							fclose(tmp);
 						}
