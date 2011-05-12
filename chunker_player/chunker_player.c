@@ -619,7 +619,7 @@ int SwitchChannel(SChannel* channel)
 #endif
 
 #ifdef TCPIO
-	sprintf(parameters_string, "%s %s %s %d %s %s 127.0.0.1:%d", "-C", channel->Title, "-P", (Port+channel->Index), channel->LaunchString, "-F", Port);
+	sprintf(parameters_string, "%s %s %s %d %s %s tcp://127.0.0.1:%d", "-C", channel->Title, "-P", (Port+channel->Index), channel->LaunchString, "-F", Port);
 #endif
 
 	printf("OFFERSTREAMER LAUNCH STRING: %s %s\n", argv0, parameters_string);
