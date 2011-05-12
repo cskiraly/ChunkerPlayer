@@ -583,7 +583,9 @@ int SwitchChannel(SChannel* channel)
 		ChunkerPlayerCore_Stop();
 
     KILL_PROCESS(P2PProcessHandle);
+#ifdef PSNR_PUBLICATION
 	remove("NetworkID");
+#endif
 	
 	ratio = channel->Ratio;
 	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
@@ -743,6 +745,7 @@ int SwitchChannel(SChannel* channel)
 	for(i=1; i<par_count; i++)
 		free(parameters_vector[i]);
 
+#ifdef PSNR_PUBLICATION
 	// Read the Network ID
 	int Error=true;
 	char Line1[255], Line2[255];
@@ -766,6 +769,7 @@ int SwitchChannel(SChannel* channel)
 	}
 	
 	printf("NetworkID = %s\n",NetworkID);
+#endif
 	
 	ChunkerPlayerCore_Play();
 	ChunkerPlayerGUI_ChannelSwitched();
