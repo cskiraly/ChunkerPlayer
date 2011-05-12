@@ -788,12 +788,15 @@ restart:
 					}
 
 					if(chunkFilled(chunk, VIDEO_CHUNK)) { // is chunk filled using current strategy?
+						//calculate priority
+						chunk->priority /= chunk->frames_num;
+
 						//SAVE ON FILE
 						//saveChunkOnFile(chunk);
 						//Send the chunk to an external transport/player
 						sendChunk(chunk);
 #ifdef DEBUG_CHUNKER
-						fprintf(stderr, "VIDEO: sent chunk video %d\n", chunk->seq);
+						fprintf(stderr, "VIDEO: sent chunk video %d, prio:%f\n", chunk->seq, chunk->priority);
 #endif
 						chunk->seq = 0; //signal that we need an increase
 						//initChunk(chunk, &seq_current_chunk);
@@ -1141,6 +1144,9 @@ int update_chunk(ExternalChunk *chunk, Frame *frame, uint8_t *outbuf) {
 	if(chunk->seq == 0) {
 		initChunk(chunk, &seq_current_chunk);
 	}
+	//add frame priority to chunk priority (to be normalized later on)
+	chunk->priority += frame->type + 1; // I:2, P:3, B:4
+
 	//HINT on malloc
 	chunk->data = (uint8_t *)realloc(chunk->data, sizeof(uint8_t)*(chunk->payload_len + frame->size + sizeFrameHeader));
 	if(!chunk->data)  {
