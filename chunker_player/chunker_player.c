@@ -23,8 +23,6 @@
 #include <napa_log.h>
 #endif
 
-#define MANDATORY_PARAMS 1
-
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -93,10 +91,8 @@ static void print_usage(int argc, char *argv[])
   fprintf (stderr,
     "\nUsage:%s [options]\n"
     "\n"
-    "Mandatory options:\n"
     "\t[-c ChannelName]: channel name (from channels.conf)\n"
-    "Other options:\n"
-    "\t[-p port]: player http port\n\n"
+    "\t[-p port]: player http port\n"
     "\t[-q q_thresh]: playout queue size\n"
     "\t[-A audiocodec]\n"
     "\t[-V videocodec]\n"
@@ -139,6 +135,7 @@ int main(int argc, char *argv[])
 	char firstChannelName[255];
 	int firstChannelIndex;
 	
+	firstChannelName[0] = 0;
 	memset((void*)Channels, 0, (MAX_CHANNELS_NUM*sizeof(SChannel)));
 
 	Port = 9876;
@@ -146,7 +143,6 @@ int main(int argc, char *argv[])
 	struct MHD_Daemon *daemon = NULL;
 	SDL_Event event;
 	OverlayMutex = SDL_CreateMutex();
-	int mandatories = 0;
 	
 	char c;
 	while ((c = getopt (argc, argv, "q:c:p:A:V:s:t")) != -1)
@@ -159,7 +155,6 @@ int main(int argc, char *argv[])
 				break;
 			case 'c':
 				sprintf(firstChannelName, "%s", optarg);
-				mandatories++;
 				break;
 			case 'p':
 				sscanf(optarg, "%d", &Port);
@@ -182,11 +177,6 @@ int main(int argc, char *argv[])
 				print_usage(argc, argv);
 				return -1;
 		}
-	}
-	if(mandatories < MANDATORY_PARAMS)
-	{
-		print_usage(argc, argv);
-		return -1;
 	}
 
 #ifdef EMULATE_CHUNK_LOSS
@@ -290,7 +280,10 @@ int main(int argc, char *argv[])
 	int it;
 	for(it = 0; it < NChannels; it++)
 	{
-		if(!strcmp(Channels[it].Title, firstChannelName))
+		if(firstChannelName[0] == 0) {
+			firstChannelIndex = 0;
+			break;
+		} else if (!strcmp(Channels[it].Title, firstChannelName))
 		{
 			firstChannelIndex = it;
 			break;
@@ -299,7 +292,7 @@ int main(int argc, char *argv[])
 	
 	if(firstChannelIndex < 0)
 	{
-		printf("Cannot find the specified channel (%s) into the configuration file (channels.conf), exiting\n", firstChannelName);
+		printf("Cannot find the specified channel (%s) in the configuration file (channels.conf), exiting\n", firstChannelName);
 		exit(0);
 	}
 	
