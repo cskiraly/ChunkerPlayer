@@ -17,15 +17,14 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #define TCP_BUF_SIZE 65536*16
 
-static int listen_port = 0;
 static int accept_fd = -1;
 static int socket_fd = -1;
 static int isRunning = 0;
 static int isReceving = 0;
-static char listen_path[256];
 static pthread_t AcceptThread;
 static pthread_t RecvThread;
 
@@ -48,12 +47,12 @@ int initChunkPuller(const int port)
 	servaddr.sin_port = htons(port);
 	r = bind(accept_fd, (struct sockaddr *)&servaddr, sizeof(servaddr));
 	
-	printf("listening on port %$d\n", port);
+	fprintf(stderr,"listening on port %d\n", port);
 	
 	if(pthread_create( &AcceptThread, NULL, &AcceptThreadProc, NULL) != 0)
 	{
 		fprintf(stderr,"TCP-INPUT-MODULE: could not start accepting thread!!\n");
-		return NULL;
+		return -1;
 	}
 	
 	return accept_fd;
