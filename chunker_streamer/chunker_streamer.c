@@ -612,6 +612,7 @@ restart:
 #ifdef DEBUG_ANOMALIES
 						fprintf(stderr, "\n\n\t\t************************* SKIPPING VIDEO FRAME %ld ***********************************\n\n", sleep);
 #endif
+						av_free_packet(&packet);
 						continue;
 					}
 				}
@@ -651,6 +652,7 @@ restart:
 						{
 							//a Dts with a noPts value is troublesome case for delta calculation based on Dts
 							contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
+							av_free_packet(&packet);
 							continue;
 						}
 						last_pkt_dts = packet.dts;
@@ -665,6 +667,7 @@ restart:
 						{
 							//a Dts with a noPts value is troublesome case for delta calculation based on Dts
 							contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
+							av_free_packet(&packet);
 							continue;
 						}
 					}
@@ -676,6 +679,7 @@ restart:
 						video_frame_size = packet.size;
 						if (video_frame_size > video_outbuf_size) {
 							fprintf(stderr, "VIDEO: error, outbuf too small, SKIPPING\n");;
+							av_free_packet(&packet);
 							continue;
 						} else {
 							memcpy(video_outbuf, packet.data, video_frame_size);
@@ -701,6 +705,7 @@ restart:
 					if(video_frame_size <= 0)
 					{
 						contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
+						av_free_packet(&packet);
 						continue;
 					}
 
@@ -720,6 +725,7 @@ restart:
 					else
 					{
 						contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
+						av_free_packet(&packet);
 						continue;
 					}
 
@@ -766,6 +772,7 @@ restart:
 						fprintf(stderr, "READLOOP: NEWTIME negative video timestamp anomaly detected number %d\n", newtime_anomalies_counter);
 #endif
 						contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
+						av_free_packet(&packet);
 						continue; //SKIP THIS FRAME, bad timestamp
 					}
 					
@@ -906,18 +913,24 @@ restart:
 					/* if a frame has been decoded, output it */
 					//fwrite(samples, 1, audio_data_size, outfileaudio);
 				}
-				else
+				else {
+					av_free_packet(&packet);
 					continue;
+				}
 	
 				audio_frame_size = avcodec_encode_audio(aCodecCtxEnc, audio_outbuf, audio_data_size, samples);
-				if(audio_frame_size <= 0)
+				if(audio_frame_size <= 0) {
+					av_free_packet(&packet);
 					continue;
+				}
 				
 				frame->number = contFrameAudio;
 
 				if(frame->number==0) {
-					if(packet.dts==AV_NOPTS_VALUE)
+					if(packet.dts==AV_NOPTS_VALUE) {
+						av_free_packet(&packet);
 						continue;
+					}
 					last_pkt_dts_audio = packet.dts;
 					newTime = 0;
 				}
@@ -926,8 +939,10 @@ restart:
 						delta_audio = packet.dts-last_pkt_dts_audio;
 						last_pkt_dts_audio = packet.dts;
 					}
-					else if(delta_audio==0)
+					else if(delta_audio==0) {
+						av_free_packet(&packet);
 						continue;
+					}
 				}
 #ifdef DEBUG_AUDIO_FRAMES
 				fprintf(stderr, "AUDIO: original codec frame number %d vs. encoded %d vs. packed %d\n", aCodecCtx->frame_number, aCodecCtxEnc->frame_number, frame->number);
@@ -935,10 +950,12 @@ restart:
 				//use pts if dts is invalid
 				if(packet.dts!=AV_NOPTS_VALUE)
 					target_pts = packet.dts;
-				else if(packet.pts!=AV_NOPTS_VALUE)
+				else if(packet.pts!=AV_NOPTS_VALUE) {
 					target_pts = packet.pts;
-				else
+				} else  {
+					av_free_packet(&packet);
 					continue;
+				}
 
 				if(!offset_av)
 				{
@@ -982,6 +999,7 @@ restart:
 #ifdef DEBUG_ANOMALIES
 					fprintf(stderr, "READLOOP: NEWTIME negative audio timestamp anomaly detected number %d\n", newtime_anomalies_counter);
 #endif
+					av_free_packet(&packet);
 					continue; //SKIP THIS FRAME, bad timestamp
 				}
 
