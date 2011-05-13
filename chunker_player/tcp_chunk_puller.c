@@ -39,7 +39,8 @@ int initChunkPuller(const int port)
 	int fd;
   
 	accept_fd = socket(AF_INET, SOCK_STREAM, 0);
-	if (fd < 0) {
+	if (accept_fd < 0) {
+		perror("cannot create socket!\n");
 		return -1;
 	}
 	servaddr.sin_family = AF_INET;
