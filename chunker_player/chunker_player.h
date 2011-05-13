@@ -27,6 +27,8 @@ typedef struct SChannel
 	int history_index;
 	char quality[255];
 	int startTime;
+	char VideoCodec[255];
+	char AudioCodec[255];
 } SChannel;
 
 SDL_mutex *OverlayMutex;

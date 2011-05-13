@@ -27,9 +27,6 @@
 #include <windows.h>
 #endif
 
-static char *audio_codec = "mp2";
-static char *video_codec = "mpeg4";
-
 int ReadALine(FILE* fp, char* Output, int MaxOutputSize)
 {
     int i=0;
@@ -145,7 +142,7 @@ int main(int argc, char *argv[])
 	OverlayMutex = SDL_CreateMutex();
 	
 	char c;
-	while ((c = getopt (argc, argv, "q:c:p:A:V:s:t")) != -1)
+	while ((c = getopt (argc, argv, "q:c:p:s:t")) != -1)
 	{
 		switch (c) {
 			case 0: //for long options
@@ -158,12 +155,6 @@ int main(int argc, char *argv[])
 				break;
 			case 'p':
 				sscanf(optarg, "%d", &Port);
-				break;
-			case 'A':
-				audio_codec = strdup(optarg);
-				break;
-			case 'V':
-				video_codec = strdup(optarg);
 				break;
 			case 's':
 				sscanf(optarg, "%d", &SilentMode);
@@ -472,6 +463,8 @@ int ParseConf()
 		CFG_INT("Width", 176, CFGF_NONE),
 		CFG_INT("Height", 144, CFGF_NONE),
 		CFG_INT("Bitrate", 0, CFGF_NONE),
+		CFG_STR("VideoCodec", "mpeg4", CFGF_NONE),
+		CFG_STR("AudioCodec", "mp3", CFGF_NONE),
 		
 		// for some reason libconfuse parsing for floating point does not work in windows
 		//~ CFG_FLOAT("Ratio", 1.22, CFGF_NONE),
@@ -524,6 +517,8 @@ int ParseConf()
 		cfg_channel = cfg_getnsec(cfg, "Channel", j);
 		sprintf(Channels[j].Title, "%s", cfg_title(cfg_channel));
 		strcpy(Channels[j].LaunchString, cfg_getstr(cfg_channel, "LaunchString"));
+		strcpy(Channels[j].VideoCodec, cfg_getstr(cfg_channel, "VideoCodec"));
+		strcpy(Channels[j].AudioCodec, cfg_getstr(cfg_channel, "AudioCodec"));
 		Channels[j].Width = cfg_getint(cfg_channel, "Width");
 		Channels[j].Height = cfg_getint(cfg_channel, "Height");
 		Channels[j].AudioChannels = cfg_getint(cfg_channel, "AudioChannels");
@@ -577,7 +572,7 @@ int SwitchChannel(SChannel* channel)
 	ChunkerPlayerCore_SetupOverlay(w, h);
 	//ChunkerPlayerGUI_SetupOverlayRect(channel);
 	
-	if(ChunkerPlayerCore_InitCodecs(video_codec, channel->Width, channel->Height, audio_codec, channel->SampleRate, channel->AudioChannels) < 0)
+	if(ChunkerPlayerCore_InitCodecs(channel->VideoCodec, channel->Width, channel->Height, channel->AudioCodec, channel->SampleRate, channel->AudioChannels) < 0)
 	{
 		printf("ERROR, COULD NOT INITIALIZE CODECS\n");
 		exit(2);
