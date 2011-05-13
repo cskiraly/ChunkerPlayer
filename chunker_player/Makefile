@@ -13,6 +13,10 @@ endif
 
 ifeq ($(IO), tcp)
 CPPFLAGS += -DTCPIO
+ifdef WINDOWS
+CPPFLAGS += -I$(LOCAL_PTHREAD)/include
+LDLIBS += $(LOCAL_PTHREAD)/lib/libpthread.a
+endif
 endif
 
 #SDL config here
