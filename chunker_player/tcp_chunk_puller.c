@@ -41,6 +41,21 @@ int initChunkPuller(const int port)
 	struct sockaddr_in servaddr;
 	int r;
 	int fd;
+
+#ifdef _WIN32
+	{
+		WORD wVersionRequested;
+		WSADATA wsaData;
+		int err;
+
+		wVersionRequested = MAKEWORD(2, 2);
+		err = WSAStartup(wVersionRequested, &wsaData);
+		if (err != 0) {
+			fprintf(stderr, "WSAStartup failed with error: %d\n", err);
+			return NULL;
+		}
+	}
+#endif
   
 	accept_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (accept_fd < 0) {
