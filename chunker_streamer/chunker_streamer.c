@@ -594,6 +594,7 @@ restart:
 #ifdef DEBUG_ANOMALIES
 				fprintf(stderr, "READLOOP: too many NEGATIVE TIMESTAMPS anomalies. Restarting.\n");
 #endif
+				av_free_packet(&packet);
 				goto close;
 			}
 		}
@@ -1071,12 +1072,10 @@ restart:
 				}
 			}
 		}
-		else {
 #ifdef DEBUG_CHUNKER
-			fprintf(stderr,"Free the packet that was allocated by av_read_frame\n");
+		fprintf(stderr,"Free the packet that was allocated by av_read_frame\n");
 #endif
-			av_free_packet(&packet);
-		}
+		av_free_packet(&packet);
 	}
 	
 	if(videotrace)
