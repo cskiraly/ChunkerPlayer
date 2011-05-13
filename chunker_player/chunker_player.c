@@ -23,8 +23,7 @@
 #include <napa_log.h>
 #endif
 
-#define MANDATORY_PARAMS 3
-#define OPTIONAL_PARAMS 1
+#define MANDATORY_PARAMS 2
 
 #ifdef _WIN32
 #include <windows.h>
@@ -95,10 +94,10 @@ static void print_usage(int argc, char *argv[])
     "\nUsage:%s [options]\n"
     "\n"
     "Mandatory options:\n"
-    "\t[-q q_thresh]: playout queue size\n"
     "\t[-c ChannelName]: channel name (from channels.conf)\n"
     "\t[-p port]: player http port\n\n"
     "Other options:\n"
+    "\t[-q q_thresh]: playout queue size\n"
     "\t[-A audiocodec]\n"
     "\t[-V videocodec]\n"
     "\t[-t]: log traces (WARNING: old traces will be deleted).\n"
@@ -112,7 +111,7 @@ int main(int argc, char *argv[])
 	srand ( time(NULL) );
 	// some initializations
 	SilentMode = 0;
-	queue_filling_threshold = 0;
+	queue_filling_threshold = 50;
 	quit = 0;
 	QueueFillingMode=1;
 	LogTraces = 0;
@@ -161,7 +160,6 @@ int main(int argc, char *argv[])
 				break;
 			case 'q':
 				sscanf(optarg, "%d", &queue_filling_threshold);
-				mandatories++;
 				break;
 			case 'c':
 				sprintf(firstChannelName, "%s", optarg);
