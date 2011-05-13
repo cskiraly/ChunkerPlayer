@@ -23,7 +23,7 @@
 #include <napa_log.h>
 #endif
 
-#define MANDATORY_PARAMS 2
+#define MANDATORY_PARAMS 1
 
 #ifdef _WIN32
 #include <windows.h>
@@ -95,8 +95,8 @@ static void print_usage(int argc, char *argv[])
     "\n"
     "Mandatory options:\n"
     "\t[-c ChannelName]: channel name (from channels.conf)\n"
-    "\t[-p port]: player http port\n\n"
     "Other options:\n"
+    "\t[-p port]: player http port\n\n"
     "\t[-q q_thresh]: playout queue size\n"
     "\t[-A audiocodec]\n"
     "\t[-V videocodec]\n"
@@ -141,12 +141,8 @@ int main(int argc, char *argv[])
 	
 	memset((void*)Channels, 0, (MAX_CHANNELS_NUM*sizeof(SChannel)));
 
-#ifdef HTTPIO
-	Port = -1;
-#endif
-#ifdef TCPIO
-	Port = -1;
-#endif
+	Port = 9876;
+
 	struct MHD_Daemon *daemon = NULL;
 	SDL_Event event;
 	OverlayMutex = SDL_CreateMutex();
@@ -166,13 +162,7 @@ int main(int argc, char *argv[])
 				mandatories++;
 				break;
 			case 'p':
-#ifdef HTTPIO
 				sscanf(optarg, "%d", &Port);
-#endif
-#ifdef TCPIO
-				sscanf(optarg, "%d", &Port);
-#endif
-				mandatories++;
 				break;
 			case 'A':
 				audio_codec = strdup(optarg);
