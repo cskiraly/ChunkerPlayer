@@ -1111,8 +1111,6 @@ close:
 #ifdef HTTPIO
 	/* finalize the HTTP chunk pusher */
 	finalizeChunkPusher();
-#elif TCPIO
-	finalizeTCPChunkPusher();
 #endif
 
 	free(chunk);
@@ -1183,6 +1181,10 @@ close:
 
 		goto restart;
 	}
+
+#ifdef TCPIO
+	finalizeTCPChunkPusher();
+#endif
 
 	return 0;
 }
