@@ -600,31 +600,32 @@ int SwitchChannel(SChannel* channel)
 
 	printf("OFFERSTREAMER LAUNCH STRING: %s %s\n", argv0, parameters_string);
 
-	char* parameters_vector[255];
-	parameters_vector[0] = argv0;
-	
-	RepoAddress[0]='\0';
-	
-	// split parameters and count them
-	int par_count=1;
-	char* pch = strtok (parameters_string, " ");
-	while (pch != NULL)
-	{
-		if(par_count > 255) break;
-		// printf ("\tpch=%s\n",pch);
-		parameters_vector[par_count] = (char*) malloc(sizeof(char)*(strlen(pch)+1));
-		strcpy(parameters_vector[par_count], pch);
-		// Find repo_address
-    	CheckForRepoAddress(parameters_vector[par_count]);
-		pch = strtok (NULL, " ");
-		par_count++;
-	}
-	parameters_vector[par_count] = NULL;
-
 	if(SilentMode != 3) //mode 3 is without P2P peer process
 	{
 
 #ifndef __WIN32__
+
+		char* parameters_vector[255];
+		parameters_vector[0] = argv0;
+
+		RepoAddress[0]='\0';
+
+		// split parameters and count them
+		int par_count=1;
+		char* pch = strtok (parameters_string, " ");
+		while (pch != NULL)
+		{
+			if(par_count > 255) break;
+			// printf ("\tpch=%s\n",pch);
+			parameters_vector[par_count] = (char*) malloc(sizeof(char)*(strlen(pch)+1));
+			strcpy(parameters_vector[par_count], pch);
+			// Find repo_address
+			CheckForRepoAddress(parameters_vector[par_count]);
+			pch = strtok (NULL, " ");
+			par_count++;
+		}
+		parameters_vector[par_count] = NULL;
+
 		int d;
 		int stdoutS, stderrS;
 		FILE* stream;
@@ -654,6 +655,10 @@ int SwitchChannel(SChannel* channel)
 		dup2(stderrS, STDERR_FILENO);
 
 		fclose(stream);
+
+		for(i=1; i<par_count; i++)
+			free(parameters_vector[i]);
+
 #else
 		STARTUPINFO sti;
 		SECURITY_ATTRIBUTES sats = { 0 };
@@ -702,7 +707,7 @@ int SwitchChannel(SChannel* channel)
 #endif
 
 #ifdef PSNR_PUBLICATION
-	if(RepoAddress[0]!='\0')
+	if(RepoAddress[0]!='\0')	// TODO: search for RepoAddress currently disabled on linux
 	{
 	    // Open Repository
 	    if(repoclient)
@@ -718,8 +723,6 @@ int SwitchChannel(SChannel* channel)
     }
 #endif
 
-	for(i=1; i<par_count; i++)
-		free(parameters_vector[i]);
 
 #ifdef PSNR_PUBLICATION
 	// Read the Network ID
