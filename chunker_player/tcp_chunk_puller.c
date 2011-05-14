@@ -80,8 +80,6 @@ int initChunkPuller(const int port)
 
 static void* AcceptThreadProc(void* params)
 {
-	struct sockaddr_storage their_addr;
-    socklen_t addr_size;
     int fd = -1;
     
     isRunning = 1;
@@ -91,7 +89,7 @@ static void* AcceptThreadProc(void* params)
     while(isRunning)
     {
 		printf("trying to accept connection...\n");
-		fd = accept(accept_fd, (struct sockaddr *)&their_addr, &addr_size);
+		fd = accept(accept_fd, NULL, NULL);
 		printf("connection requested!!!\n");
 		if(socket_fd == -1)
 		{
