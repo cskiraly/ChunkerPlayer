@@ -87,13 +87,13 @@ static void* AcceptThreadProc(void* params)
     
     while(isRunning)
     {
-		printf("trying to accept connection...\n");
+		printf("TCP-INPUT-MODULE: waiting for connection...\n");
 		fd = accept(accept_fd, NULL, NULL);
-		printf("connection requested!!!\n");
 		if (fd < 0) {
 			perror("TCP-INPUT-MODULE: accept error");
 			continue;
 		}
+		printf("TCP-INPUT-MODULE: accept: fd =%d\n", fd);
 		if(socket_fd == -1)
 		{
 			socket_fd = fd;
@@ -102,8 +102,10 @@ static void* AcceptThreadProc(void* params)
 		else
 		{
 			isReceving = 0;
+			printf("TCP-INPUT-MODULE: waiting for receive thread to terminate...\n");
 			pthread_join(RecvThread, NULL);
 			pthread_detach(RecvThread);
+			printf("TCP-INPUT-MODULE: receive thread terminated\n");
 			socket_fd = fd;
 		}
 		if(pthread_create( &RecvThread, NULL, &RecvThreadProc, NULL) != 0)
