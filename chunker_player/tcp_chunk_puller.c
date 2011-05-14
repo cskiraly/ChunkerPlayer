@@ -24,17 +24,21 @@
 #include <unistd.h>
 #include <pthread.h>
 
+//handle threads through SDL
+#include <SDL.h>
+#include <SDL_thread.h>
+
 #define TCP_BUF_SIZE 65536*16
 
 static int accept_fd = -1;
 static int socket_fd = -1;
 static int isRunning = 0;
 static int isReceving = 0;
-static pthread_t AcceptThread;
-static pthread_t RecvThread;
+static SDL_Thread *AcceptThread;
+static SDL_Thread *RecvThread;
 
-static void* RecvThreadProc(void* params);
-static void* AcceptThreadProc(void* params);
+static int RecvThreadProc(void* params);
+static int AcceptThreadProc(void* params);
 
 int initChunkPuller(const int port)
 {
@@ -68,7 +72,7 @@ int initChunkPuller(const int port)
 	
 	fprintf(stderr,"listening on port %d\n", port);
 	
-	if(pthread_create( &AcceptThread, NULL, &AcceptThreadProc, NULL) != 0)
+	if((AcceptThread = SDL_CreateThread(&AcceptThreadProc, NULL)) == 0)
 	{
 		fprintf(stderr,"TCP-INPUT-MODULE: could not start accepting thread!!\n");
 		return -1;
@@ -77,7 +81,7 @@ int initChunkPuller(const int port)
 	return accept_fd;
 }
 
-static void* AcceptThreadProc(void* params)
+static int AcceptThreadProc(void* params)
 {
     int fd = -1;
     
@@ -103,12 +107,11 @@ static void* AcceptThreadProc(void* params)
 		{
 			isReceving = 0;
 			printf("TCP-INPUT-MODULE: waiting for receive thread to terminate...\n");
-			pthread_join(RecvThread, NULL);
-			pthread_detach(RecvThread);
+			SDL_WaitThread(RecvThread, NULL);
 			printf("TCP-INPUT-MODULE: receive thread terminated\n");
 			socket_fd = fd;
 		}
-		if(pthread_create( &RecvThread, NULL, &RecvThreadProc, NULL) != 0)
+		if((RecvThread = SDL_CreateThread(&RecvThreadProc, NULL)) == 0)
 		{
 			fprintf(stderr,"TCP-INPUT-MODULE: could not start receveing thread!!\n");
 			return NULL;
@@ -118,7 +121,7 @@ static void* AcceptThreadProc(void* params)
 	return NULL;
 }
 
-static void* RecvThreadProc(void* params)
+static int RecvThreadProc(void* params)
 {
 	int ret = -1;
 	uint32_t fragment_size = 0;
@@ -173,8 +176,7 @@ static void* RecvThreadProc(void* params)
 void finalizeChunkPuller()
 {
 	isRunning = 0;
-	pthread_join(AcceptThread, NULL);
-	pthread_detach(AcceptThread);
+	SDL_WaitThread(AcceptThread, NULL);
 	
 	if(socket_fd > 0)
 		close(socket_fd);
