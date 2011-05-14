@@ -127,18 +127,38 @@ static void* RecvThreadProc(void* params)
 	fprintf(stderr,"TCP-INPUT-MODULE: receive thread created\n");
 
 	while(isReceving) {
+		int b;
+
 		ret=recv(socket_fd, &fragment_size, sizeof(uint32_t), 0);
 		fragment_size = ntohl(fragment_size);
 
-fprintf(stderr, "TCP-INPUT-MODULE: received %d bytes. Fragment size: %d\n", ret, fragment_size);
-		if(ret <= 0) {
+		if(ret < 0) {
+			perror("TCP-INPUT-MODULE: recv error:");
 			break;
+		} else if (ret == 0) {
+			fprintf(stderr, "TCP-INPUT-MODULE: connection closed\n");
+		}
+		fprintf(stderr, "TCP-INPUT-MODULE: received %d bytes. Fragment size: %u\n", ret, fragment_size);
+
+		if (fragment_size > TCP_BUF_SIZE) {
+			fprintf(stderr, "TCP-INPUT-MODULE: buffer too small or some corruption, closing connection ... "); //TODO, handle this better
+			break;
+		} else if (fragment_size == 0) {	//strange, but valid
+			continue;
 		}
 
-		ret=recv(socket_fd, buffer, fragment_size, 0);
-fprintf(stderr, "TCP-INPUT-MODULE: received %d bytes.\n", ret);
-		while(ret < fragment_size)
-			ret+=recv(socket_fd, buffer+ret, fragment_size-ret, 0);
+		b = 0;
+		while(b < fragment_size) {
+			ret = recv(socket_fd, buffer + b, fragment_size - b, 0);
+			if (ret <= 0) {
+				break;
+			}
+			b += ret;
+		}
+		if (ret <= 0) {
+			fprintf(stderr, "TCP-INPUT-MODULE: error or close during chunk receive, closing connection ...");
+		}
+		fprintf(stderr, "TCP-INPUT-MODULE: received %d bytes.\n", ret);
 		
 		if(enqueueBlock(buffer, fragment_size))
 			fprintf(stderr, "TCP-INPUT-MODULE: could not enqueue a received chunk!! \n");
