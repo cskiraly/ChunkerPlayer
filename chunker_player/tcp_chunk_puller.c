@@ -90,6 +90,10 @@ static void* AcceptThreadProc(void* params)
 		printf("trying to accept connection...\n");
 		fd = accept(accept_fd, NULL, NULL);
 		printf("connection requested!!!\n");
+		if (fd < 0) {
+			perror("TCP-INPUT-MODULE: accept error");
+			continue;
+		}
 		if(socket_fd == -1)
 		{
 			socket_fd = fd;
