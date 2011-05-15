@@ -40,8 +40,8 @@ int savedVideoFrames = 0;
 long int firstSavedVideoFrame = 0;
 int ChunkerStreamerTestMode = 0;
 
-int pts_anomaly_threshold = 0;
-int newtime_anomaly_threshold = 0;
+int pts_anomaly_threshold = -1;
+int newtime_anomaly_threshold = -1;
 bool timebank = false;
 char *outside_world_url = NULL;
 
