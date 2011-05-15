@@ -568,7 +568,7 @@ restart:
 #ifdef DEBUG_ANOMALIES
 			fprintf(stderr, "READLOOP: pts BASE anomaly detected number %d\n", pts_anomalies_counter);
 #endif
-			if(live_source) { //reset just in case of live source
+			if(pts_anomaly_threshold >=0 && live_source) { //reset just in case of live source
 				if(pts_anomalies_counter > pts_anomaly_threshold) {
 					pts_anomalies_counter = 0;
 					FirstTimeVideo = 1;
@@ -589,7 +589,7 @@ restart:
 #endif
 		}
 
-		if(newtime_anomalies_counter > newtime_anomaly_threshold) {
+		if(pts_anomaly_threshold >=0 && newtime_anomalies_counter > newtime_anomaly_threshold) {
 			if(live_source) { //restart just in case of live source
 #ifdef DEBUG_ANOMALIES
 				fprintf(stderr, "READLOOP: too many NEGATIVE TIMESTAMPS anomalies. Restarting.\n");
