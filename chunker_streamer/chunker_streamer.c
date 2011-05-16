@@ -121,6 +121,8 @@ static void print_usage(int argc, char *argv[])
     "\t[-s WxH]: force video size.\n"
     "\t[-l]: this is a live stream.\n"
     "\t[-o]: adjust av frames timestamps.\n"
+    "\t[-p]: pts anomaly threshold (default: -1=off).\n"
+    "\t[-q]: sync anomaly threshold ((default: -1=off).\n"
     "\t[-t]: QoE test mode\n\n"
     "Codec options:\n"
     "\t[-g GOP]: gop size\n"
@@ -210,7 +212,7 @@ int main(int argc, char *argv[]) {
 	/* `getopt_long' stores the option index here. */
 	int option_index = 0, c;
 	int mandatories = 0;
-	while ((c = getopt_long (argc, argv, "i:a:v:A:V:s:lotF:g:b:", long_options, &option_index)) != -1)
+	while ((c = getopt_long (argc, argv, "i:a:v:A:V:s:lop:q:tF:g:b:", long_options, &option_index)) != -1)
 	{
 		switch (c) {
 			case 0: //for long options
@@ -244,6 +246,12 @@ int main(int argc, char *argv[]) {
 				break;
 			case 't':
 				ChunkerStreamerTestMode = 1;
+				break;
+			case 'p':
+				sscanf(optarg, "%d", &pts_anomaly_threshold);
+				break;
+			case 'q':
+				sscanf(optarg, "%d", &newtime_anomaly_threshold);
 				break;
 			case 'F':
 				outside_world_url = strdup(optarg);
