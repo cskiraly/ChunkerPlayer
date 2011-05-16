@@ -45,6 +45,8 @@ int newtime_anomaly_threshold = -1;
 bool timebank = false;
 char *outside_world_url = NULL;
 
+int gop_size = 12;
+int max_b_frames = 1;
 bool vcopy = false;
 
 // Constant number of frames per chunk
@@ -120,6 +122,9 @@ static void print_usage(int argc, char *argv[])
     "\t[-l]: this is a live stream.\n"
     "\t[-o]: adjust av frames timestamps.\n"
     "\t[-t]: QoE test mode\n\n"
+    "Codec options:\n"
+    "\t[-g GOP]: gop size\n"
+    "\t[-b frames]: max number of consecutive b frames\n\n"
     "=======================================================\n", argv[0]
     );
   }
@@ -205,7 +210,7 @@ int main(int argc, char *argv[]) {
 	/* `getopt_long' stores the option index here. */
 	int option_index = 0, c;
 	int mandatories = 0;
-	while ((c = getopt_long (argc, argv, "i:a:v:A:V:s:lotF:", long_options, &option_index)) != -1)
+	while ((c = getopt_long (argc, argv, "i:a:v:A:V:s:lotF:g:b:", long_options, &option_index)) != -1)
 	{
 		switch (c) {
 			case 0: //for long options
@@ -242,6 +247,12 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'F':
 				outside_world_url = strdup(optarg);
+				break;
+			case 'g':
+				sscanf(optarg, "%d", &gop_size);
+				break;
+			case 'b':
+				sscanf(optarg, "%d", &max_b_frames);
 				break;
 			default:
 				print_usage(argc, argv);
@@ -367,8 +378,8 @@ restart:
 	//~ pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
 	//printf("pCodecCtx->time_base=%d/%d\n", pCodecCtx->time_base.num, pCodecCtx->time_base.den);
 	pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
-	pCodecCtxEnc->gop_size = 12; // emit one intra frame every twelve frames 
-	pCodecCtxEnc->max_b_frames=1;
+	pCodecCtxEnc->gop_size = gop_size; // emit one intra frame every gop_size frames 
+	pCodecCtxEnc->max_b_frames = max_b_frames;
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
 	pCodecCtxEnc->flags = CODEC_FLAG_PSNR;
 	//~ pCodecCtxEnc->flags |= CODEC_FLAG_QSCALE;
