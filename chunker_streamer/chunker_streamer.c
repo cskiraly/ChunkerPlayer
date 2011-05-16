@@ -626,7 +626,7 @@ restart:
 			{
 				// usleep(5000);
 #ifdef DEBUG_VIDEO_FRAMES
-				fprintf(stderr, "\n-------VIDEO FRAME type %d\n", pFrame->pict_type);
+				fprintf(stderr, "\n-------VIDEO FRAME intype %d%s\n", pFrame->pict_type, pFrame->key_frame ? " (key)" : "");
 				fprintf(stderr, "VIDEO: dts %lld pts %lld\n", packet.dts, packet.pts);
 #endif
 				if(frameFinished)
@@ -689,6 +689,7 @@ restart:
 //						static AVPicture pict;
 						static struct SwsContext *img_convert_ctx = NULL;
 						
+						pFrame->pict_type = 0;
 						if(img_convert_ctx == NULL)
 						{
 							img_convert_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, PIX_FMT_YUV420P, dest_width, dest_height, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
@@ -699,10 +700,11 @@ restart:
 						}
 						sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, pCodecCtx->height, scaledFrame->data, scaledFrame->linesize);
 						video_frame_size = avcodec_encode_video(pCodecCtxEnc, video_outbuf, video_outbuf_size, scaledFrame);
-					}
-					else
+					} else {
+						pFrame->pict_type = 0;
 						video_frame_size = avcodec_encode_video(pCodecCtxEnc, video_outbuf, video_outbuf_size, pFrame);
-					
+					}
+
 					if(video_frame_size <= 0)
 					{
 						contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
@@ -712,8 +714,7 @@ restart:
 
 #ifdef DEBUG_VIDEO_FRAMES
 					if(!vcopy && pCodecCtxEnc->coded_frame) {
-						fprintf(stderr, "\n-------VIDEO FRAME intype %d%s -> outtype: %d%s\n",
-							pFrame->pict_type, pFrame->key_frame ? " (key)" : "",
+						fprintf(stderr, "\n-------VIDEO FRAME outtype: %d%s\n",
 							pCodecCtxEnc->coded_frame->pict_type, pCodecCtxEnc->coded_frame->key_frame ? " (key)" : "");
 					}
 #endif
