@@ -587,7 +587,7 @@ restart:
 #ifdef DEBUG_ANOMALIES
 			fprintf(stderr, "READLOOP: pts BASE anomaly detected number %d\n", pts_anomalies_counter);
 #endif
-			if(pts_anomaly_threshold >=0 && live_source) { //reset just in case of live source
+			if(newtime_anomaly_threshold >=0 && live_source) { //reset just in case of live source
 				if(pts_anomalies_counter > pts_anomaly_threshold) {
 					pts_anomalies_counter = 0;
 					FirstTimeVideo = 1;
