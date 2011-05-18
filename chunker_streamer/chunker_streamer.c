@@ -391,6 +391,10 @@ restart:
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
 	pCodecCtxEnc->flags = CODEC_FLAG_PSNR;
 	//~ pCodecCtxEnc->flags |= CODEC_FLAG_QSCALE;
+
+	//some generic quality tuning
+	pCodecCtxEnc->mb_decision = FF_MB_DECISION_RD;
+
   switch (pCodecEnc->id) {
     case CODEC_ID_H264 :
 	pCodecCtxEnc->me_range=16;
