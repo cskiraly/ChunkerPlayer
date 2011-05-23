@@ -430,8 +430,10 @@ AVPacketList *RemoveFromQueue(PacketQueue *q, AVPacketList *p)
 	{
 		av_free_packet(&p->pkt);
 	}
-	if(p)
+	if(p) {
 		av_free(p);
+	}
+
 	return retpk;
 }
 
