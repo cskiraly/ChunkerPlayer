@@ -49,6 +49,8 @@ int gop_size = 12;
 int max_b_frames = 1;
 bool vcopy = false;
 
+long delay_audio = 0; //delay audio by x millisec
+
 // Constant number of frames per chunk
 int chunkFilledFramesStrategy(ExternalChunk *echunk, int chunkType)
 {
@@ -212,7 +214,7 @@ int main(int argc, char *argv[]) {
 	/* `getopt_long' stores the option index here. */
 	int option_index = 0, c;
 	int mandatories = 0;
-	while ((c = getopt_long (argc, argv, "i:a:v:A:V:s:lop:q:tF:g:b:", long_options, &option_index)) != -1)
+	while ((c = getopt_long (argc, argv, "i:a:v:A:V:s:lop:q:tF:g:b:d:", long_options, &option_index)) != -1)
 	{
 		switch (c) {
 			case 0: //for long options
@@ -261,6 +263,9 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'b':
 				sscanf(optarg, "%d", &max_b_frames);
+				break;
+			case 'd':
+				sscanf(optarg, "%d", &delay_audio);
 				break;
 			default:
 				print_usage(argc, argv);
@@ -1031,12 +1036,12 @@ restart:
 					continue; //SKIP THIS FRAME, bad timestamp
 				}
 
-				frame->timestamp.tv_sec = (unsigned int)newTime/1000;
-				frame->timestamp.tv_usec = newTime%1000;
+				frame->timestamp.tv_sec = (unsigned int)(newTime + delay_audio)/1000;
+				frame->timestamp.tv_usec = (newTime + delay_audio)%1000;
 				frame->size = audio_frame_size;
 				frame->type = 5; // 5 is audio type
 #ifdef DEBUG_AUDIO_FRAMES
-				fprintf(stderr, "AUDIO: pts %d duration %d timebase %d %d dts %d\n", (int)packet.pts, (int)packet.duration, pFormatCtx->streams[audioStream]->time_base.num, pFormatCtx->streams[audioStream]->time_base.den, (int)packet.dts);
+				fprintf(stderr, "AUDIO: pts %lld duration %d timebase %d %lld dts %d\n", packet.pts, (int)packet.duration, pFormatCtx->streams[audioStream]->time_base.num, pFormatCtx->streams[audioStream]->time_base.den, packet.dts);
 				fprintf(stderr, "AUDIO: timestamp sec:%d usec:%d\n", frame->timestamp.tv_sec, frame->timestamp.tv_usec);
 				fprintf(stderr, "AUDIO: deltaaudio %lld\n", delta_audio);	
 #endif
