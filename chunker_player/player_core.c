@@ -167,13 +167,13 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 	
 	static time_t last_auto_switch = 0;
 
-	// file streaming loop detected => re-tune channel and start grabbing statistics
 	if(
 		(pkt->stream_index < last_video_frame_extracted)
 		&& (pkt->stream_index <= RESTART_FRAME_NUMBER_THRESHOLD)
 		&& ((time(NULL) - last_auto_switch) > 10)
 	)
 	{
+		printf("file streaming loop detected => re-tune channel and start grabbing statistics\n");
 		last_auto_switch = time(NULL);
 		SDL_LockMutex(q->mutex);
 		ReTune(&(Channels[SelectedChannel]));
