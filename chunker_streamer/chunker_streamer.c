@@ -654,9 +654,11 @@ restart:
 			{
 				// usleep(5000);
 #ifdef DEBUG_VIDEO_FRAMES
-				fprintf(stderr, "\n-------VIDEO FRAME intype %d%s\n", pFrame->pict_type, pFrame->key_frame ? " (key)" : "");
-				fprintf(stderr, "VIDEO: dts %lld pts %lld\n", packet.dts, packet.pts);
+				fprintf(stderr, "VIDEOin pkt: dts %lld pts %lld\n", packet.dts, packet.pts);
+				fprintf(stderr, "VIDEOdecode: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pFrame->pkt_dts, pFrame->pkt_pts, pFrame->pts);
+				fprintf(stderr, "VIDEOdecode intype %d%s\n", pFrame->pict_type, pFrame->key_frame ? " (key)" : "");
 #endif
+pFrame->pts = pFrame->pkt_pts;
 				if(frameFinished)
 				{ // it must be true all the time else error
 				
@@ -742,27 +744,25 @@ restart:
 
 #ifdef DEBUG_VIDEO_FRAMES
 					if(!vcopy && pCodecCtxEnc->coded_frame) {
-						fprintf(stderr, "\n-------VIDEO FRAME outtype: %d%s\n",
+						fprintf(stderr, "VIDEOout: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pCodecCtxEnc->coded_frame->pkt_dts, pCodecCtxEnc->coded_frame->pkt_pts, pCodecCtxEnc->coded_frame->pts);
+						fprintf(stderr, "VIDEOout: outtype: %d%s\n",
 							pCodecCtxEnc->coded_frame->pict_type, pCodecCtxEnc->coded_frame->key_frame ? " (key)" : "");
 					}
 #endif
 
 					//use pts if dts is invalid
-					if(packet.dts!=AV_NOPTS_VALUE)
-						target_pts = packet.dts;
-					else if(packet.pts!=AV_NOPTS_VALUE)
-						target_pts = packet.pts;
+					if(pCodecCtxEnc->coded_frame->pts!=AV_NOPTS_VALUE)
+						target_pts = pCodecCtxEnc->coded_frame->pts;
 					else
 					{
-						contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
-						av_free_packet(&packet);
-						continue;
+						fprintf(stderr, "VIDEOout: pts error\n");
+						exit(1);
 					}
 
 					if(!offset_av)
 					{
-						if(FirstTimeVideo && packet.dts>0) {
-							ptsvideo1 = (double)packet.dts;
+						if(FirstTimeVideo && target_pts>0) {
+							ptsvideo1 = (double)target_pts;
 							FirstTimeVideo = 0;
 #ifdef DEBUG_VIDEO_FRAMES
 							fprintf(stderr, "VIDEO: SET PTS BASE OFFSET %f\n", ptsvideo1);
@@ -771,13 +771,13 @@ restart:
 					}
 					else //we want to compensate audio and video offset for this source
 					{
-						if(FirstTimeVideo && packet.dts>0) {
+						if(FirstTimeVideo && target_pts>0) {
 							//maintain the offset between audio pts and video pts
 							//because in case of live source they have the same numbering
 							if(ptsaudio1 > 0) //if we have already seen some audio frames...
 								ptsvideo1 = ptsaudio1;
 							else
-								ptsvideo1 = (double)packet.dts;
+								ptsvideo1 = (double)target_pts;
 							FirstTimeVideo = 0;
 #ifdef DEBUG_VIDEO_FRAMES
 							fprintf(stderr, "VIDEO LIVE: SET PTS BASE OFFSET %f\n", ptsvideo1);
