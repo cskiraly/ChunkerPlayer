@@ -416,6 +416,12 @@ int DecodeEnqueuedAudio(AVPacket *pkt, PacketQueue *q, int* size)
  * */
 AVPacketList *RemoveFromQueue(PacketQueue *q, AVPacketList *p)
 {
+	AVPacketList *p1;
+
+	if (q->first_pkt == p) {
+		q->first_pkt = p->next;
+	}
+
 	AVPacketList *retpk = p->next;
 	q->nb_packets--;
 	//adjust size here and not in the various cases of the dequeue
@@ -543,7 +549,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 				}
 #endif
 				//HINT SEE before q->size -= SizeToCopy;
-				q->first_pkt = RemoveFromQueue(q, pkt1);
+				RemoveFromQueue(q, pkt1);
 
 				// Adjust timestamps
 				pkt1 = q->first_pkt;
@@ -592,7 +598,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 				memcpy(pkt->data, pkt1->pkt.data, pkt1->pkt.size);
 				
 			//HINT SEE BEFORE q->size -= pkt1->pkt.size;
-			q->first_pkt = RemoveFromQueue(q, pkt1);
+			RemoveFromQueue(q, pkt1);
 
 			ret = 1;
 			
