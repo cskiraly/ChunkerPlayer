@@ -59,6 +59,7 @@ typedef struct SHistory
 
 typedef struct PacketQueue {
 	AVPacketList *first_pkt;
+	AVPacket *minpts_pkt;
 	AVPacketList *last_pkt;
 	int nb_packets;
 	int size;

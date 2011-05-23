@@ -61,6 +61,7 @@ void PacketQueueInit(PacketQueue *q, short int Type)
 	q->queueType=Type;
 	q->last_frame_extracted = -1;
 	q->first_pkt= NULL;
+	q->minpts_pkt= NULL;
 	//q->last_pkt = NULL;
 	q->nb_packets = 0;
 	q->size = 0;
@@ -107,6 +108,7 @@ void PacketQueueReset(PacketQueue *q)
 	// (loss count reset is done on queue init, ie channel switch)
 	q->density=0.0;
 	q->first_pkt= NULL;
+	q->minpts_pkt= NULL;
 	//q->last_pkt = NULL;
 	q->nb_packets = 0;
 	q->size = 0;
@@ -235,6 +237,10 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 #ifdef DEBUG_QUEUE
 					printf("QUEUE: PUT: FillingMode set to zero\n");
 #endif
+				}
+				//set min
+				if (!q->minpts_pkt || (pkt1->pkt.pts < q->minpts_pkt->pts)) {
+					q->minpts_pkt = &(pkt1->pkt);
 				}
 			}
 		}
@@ -421,6 +427,9 @@ AVPacketList *RemoveFromQueue(PacketQueue *q, AVPacketList *p)
 	if (q->first_pkt == p) {
 		q->first_pkt = p->next;
 	}
+	if (&(p->pkt) == q->minpts_pkt) {
+		q->minpts_pkt = NULL;
+	}
 
 	AVPacketList *retpk = p->next;
 	q->nb_packets--;
@@ -432,6 +441,13 @@ AVPacketList *RemoveFromQueue(PacketQueue *q, AVPacketList *p)
 	}
 	if(p) {
 		av_free(p);
+	}
+
+	//updating min info
+	for (p1 = q->first_pkt; p1; p1 = p1->next) {
+		if (!q->minpts_pkt || p1->pkt.pts < q->minpts_pkt->pts) {
+			q->minpts_pkt = &(p1->pkt);
+		}
 	}
 
 	return retpk;
