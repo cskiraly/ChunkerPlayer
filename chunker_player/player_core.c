@@ -760,6 +760,7 @@ int VideoCallback(void *valthread)
 	AVPicture pict;
 	long long Now;
 	short int SkipVideo, DecodeVideo;
+	uint64_t last_pts = 0;
 	
 #ifdef SAVE_YUV
 	static AVFrame* lastSavedFrameBuffer = NULL;
@@ -871,8 +872,9 @@ int VideoCallback(void *valthread)
 				DecodeVideo = 0;
 			}
 			else 
-				if(((long long)videoq.minpts_pkt->pts+DeltaTime)>=Now-(long long)MAX_TOLLERANCE &&
-				   ((long long)videoq.minpts_pkt->pts+DeltaTime)<=Now+(long long)MAX_TOLLERANCE) {
+				if((((long long)videoq.minpts_pkt->pts+DeltaTime)>=Now-(long long)MAX_TOLLERANCE &&
+				   ((long long)videoq.minpts_pkt->pts+DeltaTime)<=Now)
+				  || last_pts+DeltaTime<Now+MAX_TOLLERANCE) {
 					SkipVideo = 0;
 					DecodeVideo = 1;
 				}
@@ -908,8 +910,9 @@ int VideoCallback(void *valthread)
 					SkipVideo = 1;
 					DecodeVideo = 0;
 				}
-				else if((long long)videoq.minpts_pkt->pts+DeltaTime>=Now-(long long)MAX_TOLLERANCE &&
-								(long long)videoq.minpts_pkt->pts+DeltaTime<=Now+(long long)MAX_TOLLERANCE) {
+				else if(((long long)videoq.minpts_pkt->pts+DeltaTime>=Now-(long long)MAX_TOLLERANCE &&
+								(long long)videoq.minpts_pkt->pts+DeltaTime<=Now)
+				  || last_pts+DeltaTime<Now+MAX_TOLLERANCE) {
 					SkipVideo = 0;
 					DecodeVideo = 1;
 				}
@@ -933,7 +936,8 @@ int VideoCallback(void *valthread)
 		while (DecodeVideo==1) {
 			if(PacketQueueGet(&videoq,&VideoPkt,0, NULL) > 0) {
 				avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &VideoPkt);
-				if (pFrame->pkt_pts > Now - DeltaTime) {
+				last_pts = pFrame->pkt_pts;
+				if (!videoq.minpts_pkt || videoq.minpts_pkt->pts > Now - DeltaTime) {
 					DecodeVideo = 0;
 				}
 
@@ -1031,6 +1035,7 @@ int VideoCallback(void *valthread)
 					if(SDL_MUSTLOCK(MainScreen)) {
 						SDL_UnlockSurface(MainScreen);
 					}
+					usleep(5000);
 				} //if FrameFinished
 				else
 				{
