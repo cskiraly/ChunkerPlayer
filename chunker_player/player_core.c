@@ -865,19 +865,19 @@ int VideoCallback(void *valthread)
 #endif
 
 		if(videoq.nb_packets>0) {
-			if(((long long)videoq.first_pkt->pkt.pts+DeltaTime)<Now-(long long)MAX_TOLLERANCE)
+			if(((long long)videoq.minpts_pkt->pts+DeltaTime)<Now-(long long)MAX_TOLLERANCE)
 			{
 				SkipVideo = 1;
 				DecodeVideo = 0;
 			}
 			else 
-				if(((long long)videoq.first_pkt->pkt.pts+DeltaTime)>=Now-(long long)MAX_TOLLERANCE &&
-				   ((long long)videoq.first_pkt->pkt.pts+DeltaTime)<=Now+(long long)MAX_TOLLERANCE) {
+				if(((long long)videoq.minpts_pkt->pts+DeltaTime)>=Now-(long long)MAX_TOLLERANCE &&
+				   ((long long)videoq.minpts_pkt->pts+DeltaTime)<=Now+(long long)MAX_TOLLERANCE) {
 					SkipVideo = 0;
 					DecodeVideo = 1;
 				}
 				
-				// else (i.e. videoq.first_pkt->pkt.pts+DeltaTime>Now+MAX_TOLLERANCE)
+				// else (i.e. videoq.minpts_pkt->pts+DeltaTime>Now+MAX_TOLLERANCE)
 				// do nothing and continue
 		}
 #ifdef DEBUG_VIDEO
@@ -903,13 +903,13 @@ int VideoCallback(void *valthread)
 
 			if(videoq.first_pkt)
 			{
-				if((long long)videoq.first_pkt->pkt.pts+DeltaTime<Now-(long long)MAX_TOLLERANCE)
+				if((long long)videoq.minpts_pkt->pts+DeltaTime<Now-(long long)MAX_TOLLERANCE)
 				{
 					SkipVideo = 1;
 					DecodeVideo = 0;
 				}
-				else if((long long)videoq.first_pkt->pkt.pts+DeltaTime>=Now-(long long)MAX_TOLLERANCE &&
-								(long long)videoq.first_pkt->pkt.pts+DeltaTime<=Now+(long long)MAX_TOLLERANCE) {
+				else if((long long)videoq.minpts_pkt->pts+DeltaTime>=Now-(long long)MAX_TOLLERANCE &&
+								(long long)videoq.minpts_pkt->pts+DeltaTime<=Now+(long long)MAX_TOLLERANCE) {
 					SkipVideo = 0;
 					DecodeVideo = 1;
 				}
