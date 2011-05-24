@@ -930,9 +930,12 @@ int VideoCallback(void *valthread)
 			//ChunkerPlayerStats_UpdateVideoPlayedHistory(&(videoq.PacketHistory), VideoPkt.stream_index, pFrame->pict_type, VideoPkt.size);
 		}
 
-		if(DecodeVideo==1) {
+		while (DecodeVideo==1) {
 			if(PacketQueueGet(&videoq,&VideoPkt,0, NULL) > 0) {
 				avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &VideoPkt);
+				if (pFrame->pkt_pts > Now - DeltaTime) {
+					DecodeVideo = 0;
+				}
 
 				if(frameFinished)
 				{ // it must be true all the time else error
@@ -1033,7 +1036,9 @@ int VideoCallback(void *valthread)
 				{
 					ChunkerPlayerStats_UpdateVideoLossHistory(&(videoq.PacketHistory), VideoPkt.stream_index+1, videoq.last_frame_extracted-1);
 				}
-			} // if packet_queue_get
+			} else { // if packet_queue_get
+				DecodeVideo = 0;
+			}
 		} //if DecodeVideo=1
 
 		usleep(5000);
