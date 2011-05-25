@@ -866,28 +866,27 @@ int VideoCallback(void *valthread)
 #endif
 
 		if(videoq.nb_packets>0) {
-			if(((long long)videoq.minpts_pkt->pts+DeltaTime)<Now-(long long)MAX_TOLLERANCE)
-			{
+			long long target_ts = videoq.minpts_pkt->pts + DeltaTime;
+			long long frame_timespan = MAX_TOLLERANCE;
+			if(target_ts<Now-(long long)MAX_TOLLERANCE) {
 				SkipVideo = 1;
 				DecodeVideo = 0;
+			} else if(target_ts>=Now-(long long)MAX_TOLLERANCE && target_ts<=Now) {
+				SkipVideo = 0;
+				DecodeVideo = 1;
+			} else if (last_pts+frame_timespan+DeltaTime<=Now) {
+				SkipVideo = 0;
+				DecodeVideo = 1;
 			}
-			else 
-				if((((long long)videoq.minpts_pkt->pts+DeltaTime)>=Now-(long long)MAX_TOLLERANCE &&
-				   ((long long)videoq.minpts_pkt->pts+DeltaTime)<=Now)
-				  || last_pts+DeltaTime<Now+MAX_TOLLERANCE) {
-					SkipVideo = 0;
-					DecodeVideo = 1;
-				}
-				
-				// else (i.e. videoq.minpts_pkt->pts+DeltaTime>Now+MAX_TOLLERANCE)
-				// do nothing and continue
 		}
+		// else (i.e. videoq.minpts_pkt->pts+DeltaTime>Now+MAX_TOLLERANCE)
+		// do nothing and continue
 #ifdef DEBUG_VIDEO
 		printf("VIDEO: skipvideo:%d decodevideo:%d\n",SkipVideo,DecodeVideo);
 #endif
 		gettimeofday(&now_tv, NULL);
 		
-		while(SkipVideo==1 && videoq.size>0)
+		if(SkipVideo==1 && videoq.size>0)
 		{
 			SkipVideo = 0;
 #ifdef DEBUG_VIDEO 
@@ -903,20 +902,6 @@ int VideoCallback(void *valthread)
 			//~ if(LastSourceIFrameDistance == 0)
 				//~ assert(pFrame->pict_type == 1);
 
-			if(videoq.first_pkt)
-			{
-				if((long long)videoq.minpts_pkt->pts+DeltaTime<Now-(long long)MAX_TOLLERANCE)
-				{
-					SkipVideo = 1;
-					DecodeVideo = 0;
-				}
-				else if(((long long)videoq.minpts_pkt->pts+DeltaTime>=Now-(long long)MAX_TOLLERANCE &&
-								(long long)videoq.minpts_pkt->pts+DeltaTime<=Now)
-				  || last_pts+DeltaTime<Now+MAX_TOLLERANCE) {
-					SkipVideo = 0;
-					DecodeVideo = 1;
-				}
-			}
 			
 			ChunkerPlayerStats_UpdateVideoSkipHistory(&(videoq.PacketHistory), VideoPkt.stream_index, pFrame->pict_type, VideoPkt.size, pFrame);
 			
@@ -931,6 +916,7 @@ int VideoCallback(void *valthread)
 			}*/
 			
 			//ChunkerPlayerStats_UpdateVideoPlayedHistory(&(videoq.PacketHistory), VideoPkt.stream_index, pFrame->pict_type, VideoPkt.size);
+			continue;
 		}
 
 		while (DecodeVideo==1) {
