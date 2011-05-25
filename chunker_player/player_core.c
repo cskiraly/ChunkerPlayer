@@ -919,7 +919,7 @@ int VideoCallback(void *valthread)
 			continue;
 		}
 
-		while (DecodeVideo==1) {
+		if (DecodeVideo==1) {
 			if(PacketQueueGet(&videoq,&VideoPkt,0, NULL) > 0) {
 				avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &VideoPkt);
 				last_pts = pFrame->pkt_pts;
@@ -1021,7 +1021,6 @@ int VideoCallback(void *valthread)
 					if(SDL_MUSTLOCK(MainScreen)) {
 						SDL_UnlockSurface(MainScreen);
 					}
-					usleep(5000);
 				} //if FrameFinished
 				else
 				{
