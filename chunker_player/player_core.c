@@ -273,7 +273,7 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	InitRect = NULL;
 	img_convert_ctx = NULL;
 	
-	SDL_AudioSpec wanted_spec;
+	SDL_AudioSpec *wanted_spec;
 	AVCodec         *aCodec;
 	
 	memset(&VideoCallbackThreadParams, 0, sizeof(ThreadVal));
@@ -301,28 +301,50 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	printf("using audio Codecid: %d ",aCodecCtx->codec_id);
 	printf("samplerate: %d ",aCodecCtx->sample_rate);
 	printf("channels: %d\n",aCodecCtx->channels);
-	CurrentAudioFreq = wanted_spec.freq = aCodecCtx->sample_rate;
-	wanted_spec.format = AUDIO_S16SYS;
-	wanted_spec.channels = aCodecCtx->channels;
-	wanted_spec.silence = 0;
-	CurrentAudioSamples = wanted_spec.samples = SDL_AUDIO_BUFFER_SIZE;
-	wanted_spec.callback = AudioCallback;
-	wanted_spec.userdata = aCodecCtx;
-	if(SDL_OpenAudio(&wanted_spec,&AudioSpecification)<0)
+
+	if (! (wanted_spec = malloc(sizeof(*wanted_spec)))) {
+		perror("error initializing audio");
+		return -1;
+	}
+	wanted_spec->freq = aCodecCtx->sample_rate;
+	wanted_spec->format = AUDIO_S16SYS;
+	wanted_spec->channels = aCodecCtx->channels;
+	wanted_spec->silence = 0;
+	wanted_spec->samples = SDL_AUDIO_BUFFER_SIZE;
+	wanted_spec->callback = AudioCallback;
+	wanted_spec->userdata = aCodecCtx;
+
+#ifdef DEBUG_AUDIO
+	printf("wanted freq:%d\n",wanted_spec->freq);
+	printf("wanted format:%d\n",wanted_spec->format);
+	printf("wanted channels:%d\n",wanted_spec->channels);
+	printf("wanted silence:%d\n",wanted_spec->silence);
+	printf("wanted samples:%d\n",wanted_spec->samples);
+#endif
+
+	if(SDL_OpenAudio(wanted_spec,AudioSpecification)<0)
 	{
 		fprintf(stderr,"SDL_OpenAudio: %s\n", SDL_GetError());
 		return -1;
 	}
-	dimAudioQ = AudioSpecification.size;
-	deltaAudioQ = (float)((float)AudioSpecification.samples)*1000/AudioSpecification.freq;
+	if (!AudioSpecification) {
+		AudioSpecification = wanted_spec;
+	} else {
+		free(wanted_spec);
+	}
+
+	CurrentAudioFreq = AudioSpecification->freq;
+	CurrentAudioSamples = AudioSpecification->samples;
+	dimAudioQ = AudioSpecification->size;
+	deltaAudioQ = (float)((float)AudioSpecification->samples)*1000/AudioSpecification->freq;	//in ms
 
 #ifdef DEBUG_AUDIO
-	printf("freq:%d\n",AudioSpecification.freq);
-	printf("format:%d\n",AudioSpecification.format);
-	printf("channels:%d\n",AudioSpecification.channels);
-	printf("silence:%d\n",AudioSpecification.silence);
-	printf("samples:%d\n",AudioSpecification.samples);
-	printf("size:%d\n",AudioSpecification.size);
+	printf("freq:%d\n",AudioSpecification->freq);
+	printf("format:%d\n",AudioSpecification->format);
+	printf("channels:%d\n",AudioSpecification->channels);
+	printf("silence:%d\n",AudioSpecification->silence);
+	printf("samples:%d\n",AudioSpecification->samples);
+	printf("size:%d\n",AudioSpecification->size);
 	printf("deltaAudioQ: %f\n",deltaAudioQ);
 #endif
 
@@ -572,7 +594,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 				// Adjust timestamps
 				pkt1 = q->first_pkt;
 				if(pkt1) {
-					int Offset=(dimAudioQ-SizeToCopy)*1000/(AudioSpecification.freq*2*AudioSpecification.channels);
+					int Offset=(dimAudioQ-SizeToCopy)*1000/(AudioSpecification->freq*2*AudioSpecification->channels);
 					int64_t LastDts=pkt1->pkt.dts;
 					pkt1->pkt.dts += Offset + deltaAudioQError;
 					pkt1->pkt.pts += Offset + deltaAudioQError;

@@ -92,7 +92,7 @@ int CurrentAudioFreq;
 int CurrentAudioSamples;
 
 SDL_Rect *InitRect;
-SDL_AudioSpec AudioSpecification;
+SDL_AudioSpec *AudioSpecification;
 
 struct SwsContext *img_convert_ctx;
 int GotSigInt;
