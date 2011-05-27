@@ -69,6 +69,10 @@ int initChunkPuller(const int port)
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port = htons(port);
 	r = bind(accept_fd, (struct sockaddr *)&servaddr, sizeof(servaddr));
+	if (r < 0) {
+		perror("cannot bind to port!\n");
+		return -1;
+	}
 	
 	fprintf(stderr,"listening on port %d\n", port);
 	
