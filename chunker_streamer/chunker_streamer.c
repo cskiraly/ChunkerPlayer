@@ -598,12 +598,11 @@ restart:
 #endif
 			if(pts_anomaly_threshold >=0 && live_source) { //reset just in case of live source
 				if(pts_anomalies_counter > pts_anomaly_threshold) {
-					pts_anomalies_counter = 0;
-					FirstTimeVideo = 1;
-					FirstTimeAudio = 1;
 #ifdef DEBUG_ANOMALIES
 					fprintf(stderr, "READLOOP: too many pts BASE anomalies. resetting pts base\n");
 #endif
+					av_free_packet(&packet);
+					goto close;
 				}
 			}
 		}
