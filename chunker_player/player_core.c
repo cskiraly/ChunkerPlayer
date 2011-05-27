@@ -1494,7 +1494,7 @@ int CollectStatisticsThread(void *params)
 			if(!Audio_ON)
 				sprintf(audio_stats_text, "AUDIO MUTED");
 			else if(audio_stats_changed)
-				sprintf(audio_stats_text, "[AUDIO] qdensity: %d\%% - losses: %d/sec (%ld tot) - skips: %d/sec (%ld tot)", (int)audio_qdensity, (int)audio_statistics.Lossrate, audioq.PacketHistory.LostCount, audio_statistics.Skiprate, audioq.PacketHistory.SkipCount);
+				sprintf(audio_stats_text, "[AUDIO] qsize: %d qdensity: %d\%% - losses: %d/sec (%ld tot) - skips: %d/sec (%ld tot)", (int)audioq.nb_packets, (int)audio_qdensity, (int)audio_statistics.Lossrate, audioq.PacketHistory.LostCount, audio_statistics.Skiprate, audioq.PacketHistory.SkipCount);
 			else
 				sprintf(audio_stats_text, "waiting for incoming audio packets...");
 
@@ -1534,7 +1534,7 @@ int CollectStatisticsThread(void *params)
 #endif
 				}
 
-				sprintf(video_stats_text, "[VIDEO] qdensity: %d\%% - losses: %d/sec (%ld tot) - skips: %d/sec (%ld tot)%s", (int)video_qdensity, video_statistics.Lossrate, videoq.PacketHistory.LostCount, video_statistics.Skiprate, videoq.PacketHistory.SkipCount, est_psnr_string);
+				sprintf(video_stats_text, "[VIDEO] qsize: %d qdensity: %d\%% - losses: %d/sec (%ld tot) - skips: %d/sec (%ld tot)%s", (int)videoq.nb_packets, (int)video_qdensity, video_statistics.Lossrate, videoq.PacketHistory.LostCount, video_statistics.Skiprate, videoq.PacketHistory.SkipCount, est_psnr_string);
 			}
 			else
 				sprintf(video_stats_text, "waiting for incoming video packets...");
