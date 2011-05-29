@@ -889,7 +889,7 @@ int VideoCallback(void *valthread)
 
 		if(videoq.nb_packets>0) {
 			long long target_ts = videoq.minpts_pkt->pts + DeltaTime;
-			long long frame_timespan = MAX_TOLLERANCE;
+			long long frame_timespan = MAX_TOLLERANCE;	//TODO: calculate real value
 			if(target_ts<Now-(long long)MAX_TOLLERANCE) {
 				SkipVideo = 1;
 				DecodeVideo = 0;
