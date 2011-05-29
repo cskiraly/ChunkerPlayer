@@ -285,7 +285,7 @@ fi
 fi
 
 echo "building mp3lame"
-if [ -n "$LOCAL_X264" ]; then
+if [ -n "$LOCAL_MP3LAME" ]; then
 	TEMP_MP3LAME=$LOCAL_MP3LAME
 else
 if [ -n "$MINGW" ]; then
