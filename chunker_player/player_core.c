@@ -1337,8 +1337,13 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 			packet.dts = frame->timestamp.tv_sec*(unsigned long long)1000+frame->timestamp.tv_usec;
 			packet.stream_index = frame->number; // use of stream_index for number frame
 			//packet.duration = frame->timestamp.tv_sec;
-			if(packet.size > 0)
-				ChunkerPlayerCore_PacketQueuePut(&videoq, &packet); //the _put makes a copy of the packet
+			if(packet.size > 0) {
+				int ret = ChunkerPlayerCore_PacketQueuePut(&videoq, &packet); //the _put makes a copy of the packet
+				if (ret == 1) {	//TODO: check and correct return values
+					fprintf(stderr, "late chunk received, increasing delay\n");
+					DeltaTime += 40;	//TODO: handle audio skip; verify this value
+				}
+			}
 
 #ifdef DEBUG_SOURCE
 			printf("SOURCE: Insert video in queue pts=%lld %d %d sindex:%d\n",packet.pts,(int)frame->timestamp.tv_sec,(int)frame->timestamp.tv_usec,packet.stream_index);
@@ -1359,8 +1364,13 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 			packetaudio.convergence_duration = 0;
 
 			// insert the audio frame into the queue
-			if(packetaudio.size > 0)
-				ChunkerPlayerCore_PacketQueuePut(&audioq, &packetaudio);//makes a copy of the packet so i can free here
+			if(packetaudio.size > 0) {
+				int ret = ChunkerPlayerCore_PacketQueuePut(&audioq, &packetaudio);//makes a copy of the packet so i can free here
+				if (ret == 1) {	//TODO: check and correct return values
+					fprintf(stderr, "late chunk received, increasing delay\n");
+					DeltaTime += 40;	//TODO: handle audio skip; verify this value
+				}
+			}
 
 #ifdef DEBUG_SOURCE
 			printf("SOURCE: Insert audio in queue pts=%lld sindex:%d\n", packetaudio.pts, packetaudio.stream_index);
