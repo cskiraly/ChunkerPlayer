@@ -638,7 +638,7 @@ int SwitchChannel(SChannel* channel)
 		
 		// redirect child output to /dev/null
 		dup2(d, STDOUT_FILENO);
-		dup2(d, STDERR_FILENO);
+		//dup2(d, STDERR_FILENO);
 
 		int pid = fork();
 		if(pid == 0)
