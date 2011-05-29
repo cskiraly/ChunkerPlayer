@@ -180,7 +180,7 @@ static int RecvThreadProc(void* params)
 void finalizeChunkPuller()
 {
 	isRunning = 0;
-	SDL_WaitThread(AcceptThread, NULL);
+	SDL_KillThread(AcceptThread);
 	
 	if(socket_fd > 0)
 		close(socket_fd);
