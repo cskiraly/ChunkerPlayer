@@ -45,7 +45,7 @@ int newtime_anomaly_threshold = -1;
 bool timebank = false;
 char *outside_world_url = NULL;
 
-int gop_size = 12;
+int gop_size = 25;
 int max_b_frames = 1;
 bool vcopy = false;
 
