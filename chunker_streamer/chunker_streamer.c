@@ -46,7 +46,7 @@ bool timebank = false;
 char *outside_world_url = NULL;
 
 int gop_size = 25;
-int max_b_frames = 1;
+int max_b_frames = 3;
 bool vcopy = false;
 
 long delay_audio = 0; //delay audio by x millisec
