@@ -122,7 +122,7 @@ static void print_usage(int argc, char *argv[])
     "\t[-V videoencoder]\n"
     "\t[-s WxH]: force video size.\n"
     "\t[-l]: this is a live stream.\n"
-    "\t[-o]: adjust av frames timestamps.\n"
+    "\t[-o]: adjust A/V frame timestamps (deafault off, use it only with flawed containers)\n"
     "\t[-p]: pts anomaly threshold (default: -1=off).\n"
     "\t[-q]: sync anomaly threshold ((default: -1=off).\n"
     "\t[-t]: QoE test mode\n\n"
@@ -758,7 +758,7 @@ restart:
 						exit(1);
 					}
 
-					if(!offset_av)
+					if(offset_av)
 					{
 						if(FirstTimeVideo && target_pts>0) {
 							ptsvideo1 = (double)target_pts;
@@ -989,7 +989,7 @@ restart:
 					continue;
 				}
 
-				if(!offset_av)
+				if(offset_av)
 				{
 					if(FirstTimeAudio && packet.dts>0) {
 						ptsaudio1 = (double)packet.dts;
