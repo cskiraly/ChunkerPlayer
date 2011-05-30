@@ -144,6 +144,7 @@ static int RecvThreadProc(void* params)
 			break;
 		} else if (ret == 0) {
 			fprintf(stderr, "TCP-INPUT-MODULE: connection closed\n");
+			break;
 		}
 		//fprintf(stderr, "TCP-INPUT-MODULE: received %d bytes. Fragment size: %u\n", ret, fragment_size);
 
