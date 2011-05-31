@@ -728,6 +728,8 @@ restart:
 							}
 						}
 						sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, pCodecCtx->height, scaledFrame->data, scaledFrame->linesize);
+						scaledFrame->pts = pFrame->pts;
+						scaledFrame->pict_type = 0;
 						video_frame_size = avcodec_encode_video(pCodecCtxEnc, video_outbuf, video_outbuf_size, scaledFrame);
 					} else {
 						pFrame->pict_type = 0;
