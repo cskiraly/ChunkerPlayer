@@ -402,24 +402,42 @@ restart:
 
   switch (pCodecEnc->id) {
     case CODEC_ID_H264 :
-	pCodecCtxEnc->me_range=16;
-	pCodecCtxEnc->max_qdiff=4;
-	pCodecCtxEnc->qmin=1;
-	pCodecCtxEnc->qmax=30;
-	pCodecCtxEnc->qcompress=0.6;
-	// frames per second 
+	// Fast Profile
+	// libx264-fast.ffpreset preset 
+	pCodecCtxEnc->coder_type = FF_CODER_TYPE_AC; // coder = 1 -> enable CABAC
+	pCodecCtxEnc->flags |= CODEC_FLAG_LOOP_FILTER; // flags=+loop -> deblock
+	pCodecCtxEnc->me_cmp|= 1; // cmp=+chroma, where CHROMA = 1
+        pCodecCtxEnc->partitions |= X264_PART_I8X8|X264_PART_I4X4|X264_PART_P8X8|X264_PART_B8X8;	// partitions=+parti8x8+parti4x4+partp8x8+partb8x8
+	pCodecCtxEnc->me_method=ME_HEX; // me_method=hex
+	pCodecCtxEnc->me_subpel_quality = 6; // subq=7
+	pCodecCtxEnc->me_range = 16; // me_range=16
+	//pCodecCtxEnc->gop_size = 250; // g=250
+	//pCodecCtxEnc->keyint_min = 25; // keyint_min=25
+	pCodecCtxEnc->scenechange_threshold = 40; // sc_threshold=40
+	pCodecCtxEnc->i_quant_factor = 0.71; // i_qfactor=0.71
+	pCodecCtxEnc->b_frame_strategy = 1; // b_strategy=1
+	pCodecCtxEnc->qcompress = 0.6; // qcomp=0.6
+	pCodecCtxEnc->qmin = 10; // qmin=10
+	pCodecCtxEnc->qmax = 51; // qmax=51
+	pCodecCtxEnc->max_qdiff = 4; // qdiff=4
+	//pCodecCtxEnc->max_b_frames = 3; // bf=3
+	pCodecCtxEnc->refs = 2; // refs=3
+	//pCodecCtxEnc->directpred = 1; // directpred=1
+	pCodecCtxEnc->directpred = 3; // directpred=1 in preset -> "directpred", "direct mv prediction mode - 0 (none), 1 (spatial), 2 (temporal), 3 (auto)"
+	//pCodecCtxEnc->trellis = 1; // trellis=1
+	pCodecCtxEnc->flags2 |= CODEC_FLAG2_BPYRAMID|CODEC_FLAG2_MIXED_REFS|CODEC_FLAG2_WPRED|CODEC_FLAG2_8X8DCT|CODEC_FLAG2_FASTPSKIP;	// flags2=+bpyramid+mixed_refs+wpred+dct8x8+fastpskip
+	pCodecCtxEnc->weighted_p_pred = 2; // wpredp=2
 
-//	pCodecCtxEnc->rc_min_rate = 0;
-//	pCodecCtxEnc->rc_max_rate = 0;
-//	pCodecCtxEnc->rc_buffer_size = 0;
-//	pCodecCtxEnc->partitions = X264_PART_I4X4 | X264_PART_I8X8 | X264_PART_P8X8 | X264_PART_P4X4 | X264_PART_B8X8;
-//	pCodecCtxEnc->crf = 0.0f;
-	
+	// libx264-main.ffpreset preset
+	//pCodecCtxEnc->flags2|=CODEC_FLAG2_8X8DCT;
+	//pCodecCtxEnc->flags2^=CODEC_FLAG2_8X8DCT; // flags2=-dct8x8
+	//pCodecCtxEnc->crf = 22;
+
 #ifdef STREAMER_X264_USE_SSIM
 	pCodecCtxEnc->flags2 |= CODEC_FLAG2_SSIM;
 #endif
 
-	pCodecCtxEnc->weighted_p_pred=2; //maps wpredp=2; weighted prediction analysis method
+	//pCodecCtxEnc->weighted_p_pred=2; //maps wpredp=2; weighted prediction analysis method
 	// pCodecCtxEnc->rc_min_rate = 0;
 	// pCodecCtxEnc->rc_max_rate = video_bitrate*2;
 	// pCodecCtxEnc->rc_buffer_size = 0;
