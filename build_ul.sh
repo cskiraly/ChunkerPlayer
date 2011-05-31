@@ -256,10 +256,10 @@ if [ -n "$LOCAL_X264" ]; then
 	TEMP_X264=$LOCAL_X264
 else
 if [ -n "$MINGW" ]; then
-	TEMP_X264="$BASE_UL_DIR/$EXTERN_DIR/x264/temp_x264_install_mingw"
+	#TEMP_X264="$BASE_UL_DIR/$EXTERN_DIR/x264/temp_x264_install_mingw"	#would be needed only for the encoding by the chunker, so we disable it
+	echo "mingw: libx264 not required for player"
 else
 	TEMP_X264="$BASE_UL_DIR/$EXTERN_DIR/x264/temp_x264_install_linux"
-fi
 if [ -n "$BUILD_X264" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_X264" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	if [ -e "x264" ]; then
@@ -283,16 +283,17 @@ if [ -n "$BUILD_X264" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_X264" ]; then
 	$MAKE; $MAKE install
 fi
 fi
+fi
 
 echo "building mp3lame"
 if [ -n "$LOCAL_MP3LAME" ]; then
 	TEMP_MP3LAME=$LOCAL_MP3LAME
 else
 if [ -n "$MINGW" ]; then
-	TEMP_MP3LAME="$BASE_UL_DIR/$EXTERN_DIR/mp3lame/temp_mp3lame_install_mingw"
+	#TEMP_MP3LAME="$BASE_UL_DIR/$EXTERN_DIR/mp3lame/temp_mp3lame_install_mingw"	#would be needed only for the encoding by the chunker, so we disable it
+	echo "mingw: libmp3lame not required for player"
 else
 	TEMP_MP3LAME="$BASE_UL_DIR/$EXTERN_DIR/mp3lame/temp_mp3lame_install_linux"
-fi
 if [ -n "$BUILD_MP3LAME" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MP3LAME" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	
@@ -309,6 +310,7 @@ if [ -n "$BUILD_MP3LAME" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MP3LAME" ]; then
 	#make and install in local folder
 	./configure --disable-gtktest --disable-frontend --prefix="$TEMP_MP3LAME" ${HOSTARCH:+--host=$HOSTARCH}
 	$MAKE; $MAKE install
+fi
 fi
 fi
 
