@@ -32,7 +32,10 @@ endif
 
 LOCAL_COMMON_CPPFLAGS = -I$(LOCAL_X264)/include -I$(LOCAL_BZ2)/include -I$(LOCAL_Z)/include -I$(LOCAL_MP3LAME)/include
 #LOCAL_COMMON_LDFLAGS = -L$(LOCAL_X264)/lib -L$(LOCAL_BZ2)/lib -L$(LOCAL_MP3LAME)/lib
-LOCAL_COMMON_LDLIBS = $(LOCAL_X264)/lib/libx264.a $(LOCAL_BZ2)/lib/libbz2.a $(LOCAL_Z)/lib/libz.a
+LOCAL_COMMON_LDLIBS = $(LOCAL_BZ2)/lib/libbz2.a $(LOCAL_Z)/lib/libz.a
+ifdef LOCAL_X264
+LOCAL_COMMON_LDLIBS += $(LOCAL_X264)/lib/libx264.a
+endif
 ifdef LOCAL_MP3LAME
 LOCAL_COMMON_LDLIBS += $(LOCAL_MP3LAME)/lib/libmp3lame.a
 endif
