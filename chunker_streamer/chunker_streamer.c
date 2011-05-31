@@ -394,7 +394,7 @@ restart:
 	pCodecCtxEnc->gop_size = gop_size; // emit one intra frame every gop_size frames 
 	pCodecCtxEnc->max_b_frames = max_b_frames;
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
-	pCodecCtxEnc->flags = CODEC_FLAG_PSNR;
+	//pCodecCtxEnc->flags = CODEC_FLAG_PSNR;
 	//~ pCodecCtxEnc->flags |= CODEC_FLAG_QSCALE;
 
 	//some generic quality tuning
