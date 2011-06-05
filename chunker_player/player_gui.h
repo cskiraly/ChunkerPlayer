@@ -25,7 +25,6 @@ typedef struct SButton
 int FullscreenWidth;
 int FullscreenHeight;
 
-float ratio;
 SDL_Cursor *defaultCursor;
 SDL_Cursor *handCursor;
 
@@ -39,6 +38,7 @@ void ChunkerPlayerGUI_HandleKey();
 void ChunkerPlayerGUI_SetupOverlayRect(SChannel* channel);
 void ChunkerPlayerGUI_ForceResize(int w, int h);
 void ChunkerPlayerGUI_SetChannelTitle(char* title);
+void ChunkerPlayerGUI_SetChannelRatio(float ratio);
 void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text, int ledstatus);
 void ChunkerPlayerGUI_ToggleFullscreen();
 void ChunkerPlayerGUI_ChannelSwitched();

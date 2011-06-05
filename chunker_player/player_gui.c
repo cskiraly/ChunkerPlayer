@@ -26,6 +26,10 @@ static char VideoStatsText[255];
 static Uint32 last_mousemotion;
 #define MOUSE_HIDE_DELAY 2000
 
+static float ratio;
+static float ratios[] = {DEFAULT_RATIO, 4.0/3.0, 16.0/9.0};
+static int ratios_index;
+
 SDL_Surface *ChannelTitleSurface = NULL;
 //SDL_Surface *AudioStatisticsSurface = NULL, *VideoStatisticsSurface = NULL;
 SDL_Rect ChannelTitleRect, AudioStatisticsRect, VideoStatisticsRect, tmpRect;
@@ -940,4 +944,24 @@ void ChunkerPlayerGUI_ChannelSwitched()
 	}
 	
 	RedrawButtons();
+}
+
+void ChunkerPlayerGUI_SetChannelRatio(float r)
+{
+  ratios[0] = r;
+  ratios_index = 0;
+  ratio = ratios[ratios_index];
+}
+
+void ChunkerPlayerGUI_ChangeRatio()
+{
+	ratios_index = (ratios_index + 1) % (sizeof(ratios) / sizeof(ratios[0]));
+	ratio = ratios[ratios_index];
+
+fprintf(stderr, "resizing to %f\n", ratio);
+	if (!FullscreenMode) {
+		UpdateOverlaySize(ratio, window_width, window_height);
+	} else {
+		UpdateOverlaySize(ratio, FullscreenWidth, FullscreenHeight);
+	}
 }

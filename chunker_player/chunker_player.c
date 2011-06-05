@@ -386,6 +386,11 @@ int main(int argc, char *argv[])
 								ChunkerPlayerGUI_ToggleFullscreen();
 							}
 						break;
+						case SDLK_r:
+							ChunkerPlayerGUI_ChangeRatio();
+						break;
+						default:
+						break;
 					}
 				break;
 			}
@@ -572,7 +577,7 @@ int SwitchChannel(SChannel* channel)
 	remove("NetworkID");
 #endif
 	
-	ratio = channel->Ratio;
+	ChunkerPlayerGUI_SetChannelRatio(channel->Ratio);
 	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
 	ChunkerPlayerGUI_ForceResize(channel->Width, channel->Height);
 	
