@@ -379,6 +379,15 @@ int main(int argc, char *argv[])
 
 					ChunkerPlayerGUI_HandleLButton(event.motion.x, event.motion.y);
 				break;
+				case SDL_KEYDOWN:  /* Handle a KEYDOWN event */
+					switch( event.key.keysym.sym ){
+						case SDLK_ESCAPE:
+							if(FullscreenMode) {
+								ChunkerPlayerGUI_ToggleFullscreen();
+							}
+						break;
+					}
+				break;
 			}
 			ChunkerPlayerGUI_HandleKey();
 		}
