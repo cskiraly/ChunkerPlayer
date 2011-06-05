@@ -32,7 +32,11 @@ static char* peer_ip;
 static int peer_port;
 static bool exit_on_connect_failure = false;
 static bool connect_on_data = true;
+#ifdef MSG_NOSIGNAL
 static bool exit_on_send_error = false;
+#else
+static bool exit_on_send_error = true;
+#endif
 
 void initTCPPush(char* ip, int port)
 {
