@@ -23,6 +23,9 @@ void PSNRLedCallback();
 static char AudioStatsText[255];
 static char VideoStatsText[255];
 
+static Uint32 last_mousemotion;
+#define MOUSE_HIDE_DELAY 2000
+
 SDL_Surface *ChannelTitleSurface = NULL;
 //SDL_Surface *AudioStatisticsSurface = NULL, *VideoStatisticsSurface = NULL;
 SDL_Rect ChannelTitleRect, AudioStatisticsRect, VideoStatisticsRect, tmpRect;
@@ -183,12 +186,31 @@ void ChunkerPlayerGUI_HandleGetFocus()
 	RedrawStats();
 }
 
+Uint32 DisableCursor(Uint32 interval, void *param)
+{
+	Uint32 time = SDL_GetTicks();
+	if (time >= last_mousemotion + MOUSE_HIDE_DELAY) {
+		SDL_ShowCursor(SDL_DISABLE);
+	}
+
+	return interval;
+}
+
 void ChunkerPlayerGUI_HandleMouseMotion(int x, int y)
 {
+	static SDL_TimerID cursor_cb;
+
 	if(SilentMode)
 		return;
 		
 	int i;
+
+	if (!cursor_cb) {
+		cursor_cb = SDL_AddTimer(MOUSE_HIDE_DELAY/2, DisableCursor, NULL);
+	}
+	SDL_ShowCursor(SDL_ENABLE);
+	last_mousemotion = SDL_GetTicks();
+
 	for(i=0; i<NBUTTONS; i++)
 	{
 		//If the mouse is over the button
