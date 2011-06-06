@@ -5,6 +5,16 @@ EXTERN_DIR="external_libs"
 MAKE="make -j 4"
 cd "$BASE_UL_DIR"
 
+#check the architecture
+if [ "$OSTYPE" == "linux-gnu" ]; then
+   # do something Linux-y
+   echo "Building on Linux"
+elif [ "$OSTYPE" == "darwin10.0" ]; then
+   # do something OSX-y
+   echo "Building on OSX"
+   MAC_OS=1
+fi
+
 which svn >/dev/null || { echo "CANNOT build UL Applications: svn missing. Please install subversion, then retry!"; exit 1; }
 #which libtoolize >/dev/null || { echo "CANNOT build UL Applications: libtool missing. Please install libtool, then retry!"; exit 1; }
 which yasm >/dev/null || { echo "CANNOT build UL Applications: yasm missing. Please install yasm, then retry!"; exit 1; }
