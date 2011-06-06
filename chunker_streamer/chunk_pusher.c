@@ -32,11 +32,7 @@ static char* peer_ip;
 static int peer_port;
 static bool exit_on_connect_failure = false;
 static bool connect_on_data = true;
-#ifdef MSG_NOSIGNAL
-static bool exit_on_send_error = false;
-#else
-static bool exit_on_send_error = true;
-#endif
+static bool exit_on_send_error = false;	//TODO: handle this on Mac
 
 void initTCPPush(char* ip, int port)
 {
@@ -217,8 +213,12 @@ int sendViaTcp(Chunk gchunk, uint32_t buffer_size)
 		/* encode the GRAPES chunk into network bytes */
 		encodeChunk(&gchunk, buffer + 4, buffer_size);
 		*(uint32_t*)buffer = htonl(buffer_size);
-		
+
+#ifdef MSG_NOSIGNAL
 		int ret = send(tcp_fd, buffer, 4 + buffer_size, exit_on_send_error ? 0 : MSG_NOSIGNAL); //TODO: better handling of exit_on_send_error
+#else
+		int ret = send(tcp_fd, buffer, 4 + buffer_size, 0); //TODO: better handling of exit_on_send_error
+#endif
 		//fprintf(stderr, "TCP IO-MODULE: sending %d bytes, %d sent\n", buffer_size, ret);
 		if (ret < 0) {
 			if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -232,7 +232,11 @@ int sendViaTcp(Chunk gchunk, uint32_t buffer_size)
 		int tmp;
 		while(ret != buffer_size)
 		{
+#ifdef MSG_NOSIGNAL
 			tmp = send(tcp_fd, buffer+ret, 4 + buffer_size - ret, exit_on_send_error ? 0 : MSG_NOSIGNAL);
+#else
+			tmp = send(tcp_fd, buffer+ret, 4 + buffer_size - ret, 0);
+#endif
 			if(tmp > 0)
 				ret += tmp;
 			else
