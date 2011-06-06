@@ -85,7 +85,8 @@ LDLIBS += $(LOCAL_PSNR_LDLIBS)
 ifdef WINDOWS
 LDLIBS += $(DYNAMIC_LDLIBS) -lmingw32 $(LOCAL_ABS_SDL)/lib/libSDLmain.a $(LOCAL_ABS_SDL)/lib/libSDL.a -lwinmm -lgdi32
 else
-LDLIBS += $(DYNAMIC_LDLIBS) -lrt
+LDLIBS += $(DYNAMIC_LDLIBS)
+LDLIBS += $(call ld-option, -lrt)
 endif
 
 LINKER = $(CC)

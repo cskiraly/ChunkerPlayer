@@ -1,8 +1,6 @@
 include ../common.mak
 
-ifndef MAC_OS
-LIBRT=-lrt
-endif
+LDLIBS += $(call ld-option, -lrt)
 
 ifeq ($(IO), httpevent)
 CPPFLAGS += -DHTTPIO
