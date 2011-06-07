@@ -805,7 +805,7 @@ restart:
 					}
 					//compute the new video timestamp in milliseconds
 					if(frame->number>0) {
-						newTime = ((double)target_pts-ptsvideo1)*1000.0/((double)delta_video*(double)av_q2d(pFormatCtx->streams[videoStream]->r_frame_rate));
+						newTime = (target_pts - ptsvideo1) * 1000 * pFormatCtx->streams[videoStream]->time_base.num / pFormatCtx->streams[videoStream]->time_base.den;
 						// store timestamp in useconds for next frame sleep
 						newTime_video = newTime*1000;
 					}
