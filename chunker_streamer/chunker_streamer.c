@@ -192,8 +192,8 @@ int main(int argc, char *argv[]) {
 	short int newtime_anomalies_counter=0;
 	long long newTime=0, newTime_audio=0, newTime_video=0, newTime_prev=0;
 	struct timeval lastAudioSent = {0, 0};
-	double ptsvideo1=0.0;
-	double ptsaudio1=0.0;
+	int64_t ptsvideo1=0;
+	int64_t ptsaudio1=0;
 	int64_t last_pkt_dts=0, delta_video=0, delta_audio=0, last_pkt_dts_audio=0, target_pts=0;
 
 	//Napa-Wine specific Frame and Chunk structures for transport
@@ -781,10 +781,10 @@ restart:
 					if(offset_av)
 					{
 						if(FirstTimeVideo && target_pts>0) {
-							ptsvideo1 = (double)target_pts;
+							ptsvideo1 = target_pts;
 							FirstTimeVideo = 0;
 #ifdef DEBUG_VIDEO_FRAMES
-							fprintf(stderr, "VIDEO: SET PTS BASE OFFSET %f\n", ptsvideo1);
+							fprintf(stderr, "VIDEO: SET PTS BASE OFFSET %lld\n", ptsvideo1);
 #endif
 						}
 					}
@@ -796,10 +796,10 @@ restart:
 							if(ptsaudio1 > 0) //if we have already seen some audio frames...
 								ptsvideo1 = ptsaudio1;
 							else
-								ptsvideo1 = (double)target_pts;
+								ptsvideo1 = target_pts;
 							FirstTimeVideo = 0;
 #ifdef DEBUG_VIDEO_FRAMES
-							fprintf(stderr, "VIDEO LIVE: SET PTS BASE OFFSET %f\n", ptsvideo1);
+							fprintf(stderr, "VIDEO LIVE: SET PTS BASE OFFSET %lld\n", ptsvideo1);
 #endif
 						}
 					}
@@ -1012,10 +1012,10 @@ restart:
 				if(offset_av)
 				{
 					if(FirstTimeAudio && packet.dts>0) {
-						ptsaudio1 = (double)packet.dts;
+						ptsaudio1 = packet.dts;
 						FirstTimeAudio = 0;
 #ifdef DEBUG_AUDIO_FRAMES
-						fprintf(stderr, "AUDIO: SET PTS BASE OFFSET %f\n", ptsaudio1);
+						fprintf(stderr, "AUDIO: SET PTS BASE OFFSET %lld\n", ptsaudio1);
 #endif
 					}
 				}
@@ -1027,7 +1027,7 @@ restart:
 						if(ptsvideo1 > 0) //if we have already seen some video frames...
 							ptsaudio1 = ptsvideo1;
 						else
-							ptsaudio1 = (double)packet.dts;
+							ptsaudio1 = packet.dts;
 						FirstTimeAudio = 0;
 #ifdef DEBUG_AUDIO_FRAMES
 						fprintf(stderr, "AUDIO LIVE: SET PTS BASE OFFSET %f\n", ptsaudio1);
@@ -1036,7 +1036,7 @@ restart:
 				}
 				//compute the new audio timestamps in milliseconds
 				if(frame->number>0) {
-					newTime = (((double)target_pts-ptsaudio1)*1000.0*((double)av_q2d(pFormatCtx->streams[audioStream]->time_base)));//*(double)delta_audio;
+					newTime = ((target_pts-ptsaudio1)*1000.0*((double)av_q2d(pFormatCtx->streams[audioStream]->time_base)));//*(double)delta_audio;
 					// store timestamp in useconds for next frame sleep
 					newTime_audio = newTime*1000;
 				}
@@ -1202,8 +1202,8 @@ close:
 		newTime=0;
 		newTime_audio=0;
 		newTime_prev=0;
-		ptsvideo1=0.0;
-		ptsaudio1=0.0;
+		ptsvideo1=0;
+		ptsaudio1=0;
 		last_pkt_dts=0;
 		delta_video=0;
 		delta_audio=0;
