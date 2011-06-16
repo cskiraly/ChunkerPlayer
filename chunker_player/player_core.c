@@ -655,13 +655,13 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 	gettimeofday(&now_tv, NULL);
 	if(audioq.nb_packets>0)
 	{
-		if((long long)audioq.first_pkt->pkt.pts+DeltaTime<Now-(long long)MAX_TOLLERANCE*10)	//TODO: figure out the right number
+		if((double)audioq.first_pkt->pkt.pts+DeltaTime<Now+deltaAudioQ)	//too late ... TODO: figure out the right number
 		{
 			SkipAudio = 1;
 			DecodeAudio = 0;
 		}
-		else if((long long)audioq.first_pkt->pkt.pts+DeltaTime>=Now-(long long)MAX_TOLLERANCE*10 &&	//TODO: figure out the right number
-			(long long)audioq.first_pkt->pkt.pts+DeltaTime<=Now+(long long)MAX_TOLLERANCE) {	//TODO: why future?
+		else if((double)audioq.first_pkt->pkt.pts+DeltaTime>=Now+deltaAudioQ &&	//TODO: figure out the right number
+			(double)audioq.first_pkt->pkt.pts+DeltaTime<=Now+deltaAudioQ+3*deltaAudioQ) {	//TODO: how much in future? On some systems, SDL asks for more buffers in a raw
 				SkipAudio = 0;
 				DecodeAudio = 1;
 		}
@@ -680,13 +680,13 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 		{
 			ChunkerPlayerStats_UpdateAudioSkipHistory(&(audioq.PacketHistory), AudioPkt.stream_index, compressed_size);
 			
-			if((long long)audioq.first_pkt->pkt.pts+DeltaTime<Now-(long long)MAX_TOLLERANCE*10)	//TODO: figure out the right number
+			if((double)audioq.first_pkt->pkt.pts+DeltaTime<Now+deltaAudioQ)	//TODO: figure out the right number
 			{
 				SkipAudio = 1;
 				DecodeAudio = 0;
 			}
-			else if((long long)audioq.first_pkt->pkt.pts+DeltaTime>=Now-(long long)MAX_TOLLERANCE*10 &&	//TODO: figure out the right number
-				(long long)audioq.first_pkt->pkt.pts+DeltaTime<=Now+(long long)MAX_TOLLERANCE) {	//TODO: why future?
+			else if((double)audioq.first_pkt->pkt.pts+DeltaTime>=Now+deltaAudioQ &&	//TODO: figure out the right number
+				(double)audioq.first_pkt->pkt.pts+DeltaTime<=Now+deltaAudioQ+3*deltaAudioQ) {	//TODO: how much in future?
 					SkipAudio = 0;
 					DecodeAudio = 1;
 			}
