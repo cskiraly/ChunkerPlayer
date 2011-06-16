@@ -547,7 +547,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 #endif
 
 			//update index of last frame extracted
-			ChunkerPlayerStats_UpdateAudioLossHistory(&(q->PacketHistory), pkt->stream_index, q->last_frame_extracted);
+			//ChunkerPlayerStats_UpdateAudioLossHistory(&(q->PacketHistory), pkt->stream_index, q->last_frame_extracted);
 			q->last_frame_extracted = pkt->stream_index;
 
 			pkt1 = pkt1->next;
