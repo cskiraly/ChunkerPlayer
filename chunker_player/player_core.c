@@ -523,6 +523,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 		//try to dequeue the first packet of the audio queue
 		pkt1 = q->first_pkt;
 		while (pkt->size < reqsize && pkt1 && SeekAndDecodePacketStartingFrom(pkt1, q, size)) {
+			AVPacketList *next = pkt1->next;	//save it here since we could delete pkt1 later
 			if (!pkt->dts) pkt->dts = pkt1->pkt.dts;
 			if (!pkt->pts) pkt->pts = pkt1->pkt.pts;
 			pkt->stream_index = pkt1->pkt.stream_index;
@@ -552,7 +553,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 			//ChunkerPlayerStats_UpdateAudioLossHistory(&(q->PacketHistory), pkt->stream_index, q->last_frame_extracted);
 			q->last_frame_extracted = pkt->stream_index;
 
-			pkt1 = pkt1->next;
+			pkt1 = next;
 		}
 		ret = 1; //TODO: check some conditions
 	} else { //somebody requested a video packet, q is the video queue
