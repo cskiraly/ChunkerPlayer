@@ -540,6 +540,8 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 				memcpy(pkt->data + pkt->size, pkt1->pkt.data + AudioQueueOffset, SizeToCopy);
 				pkt->size += SizeToCopy;
 				AudioQueueOffset += SizeToCopy;
+				pkt1->pkt.dts += SizeToCopy/(dimAudioQ/CurrentAudioSamples)/(CurrentAudioFreq/1000);
+				pkt1->pkt.pts += SizeToCopy/(dimAudioQ/CurrentAudioSamples)/(CurrentAudioFreq/1000);
 			}
 
 #ifdef DEBUG_AUDIO_BUFFER
