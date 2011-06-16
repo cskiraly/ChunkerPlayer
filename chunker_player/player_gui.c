@@ -213,7 +213,7 @@ void ChunkerPlayerGUI_HandleMouseMotion(int x, int y)
 	if (!cursor_cb) {
 		cursor_cb = SDL_AddTimer(MOUSE_HIDE_DELAY/2, DisableCursor, NULL);
 	}
-	SDL_ShowCursor(SDL_ENABLE);
+	if (SDL_ShowCursor(SDL_QUERY) == SDL_DISABLE) SDL_ShowCursor(SDL_ENABLE);
 	last_mousemotion = SDL_GetTicks();
 #endif
 
