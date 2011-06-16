@@ -501,6 +501,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 	int ret=-1;
 	int SizeToCopy=0;
 	struct timeval now_tv;
+	int reqsize;
 
 	SDL_LockMutex(q->mutex);
 
@@ -515,111 +516,44 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 	}
 
 	if(av==1) { //somebody requested an audio packet, q is the audio queue
+		reqsize = dimAudioQ; //TODO pass this as parameter, not garanteed by SDL to be exactly dimAudioQ
+		pkt->size = 0;
+		pkt->dts = 0;
+		pkt->pts = 0;
 		//try to dequeue the first packet of the audio queue
-		pkt1 = SeekAndDecodePacketStartingFrom(q->first_pkt, q, size);
-		if(pkt1) { //yes we have them!
-			if(pkt1->pkt.size-AudioQueueOffset > dimAudioQ) {
-				//one packet is enough to give us the requested number of bytes by the audio_callback
-#ifdef DEBUG_QUEUE_DEEP
-				printf("  AV=1 and Extract from the same packet\n");
-#endif
-				pkt->size = dimAudioQ;
-				memcpy(pkt->data,pkt1->pkt.data+AudioQueueOffset,dimAudioQ);
-				pkt->dts = pkt1->pkt.dts;
-				pkt->pts = pkt1->pkt.pts;
-				pkt->stream_index = pkt1->pkt.stream_index;//1;
-				pkt->flags = 1;
-				pkt->pos = -1;
-				pkt->convergence_duration = -1;
-#ifdef DEBUG_QUEUE_DEEP
-				printf("   Adjust timestamps Old = %lld New = %lld\n", pkt1->pkt.dts, (int64_t)(pkt1->pkt.dts + deltaAudioQ + deltaAudioQError));
-#endif
-				int64_t Olddts=pkt1->pkt.dts;
-				pkt1->pkt.dts += deltaAudioQ + deltaAudioQError;
-				pkt1->pkt.pts += deltaAudioQ + deltaAudioQError;
-				deltaAudioQError=(float)Olddts + deltaAudioQ + deltaAudioQError - (float)pkt1->pkt.dts;
-				AudioQueueOffset += dimAudioQ;
-#ifdef DEBUG_QUEUE_DEEP
-				printf("   deltaAudioQError = %f\n",deltaAudioQError);
-#endif
-
-				ChunkerPlayerStats_UpdateAudioLossHistory(&(q->PacketHistory), pkt->stream_index, q->last_frame_extracted);
-				
-				//update index of last frame extracted
-				q->last_frame_extracted = pkt->stream_index;
-#ifdef DEBUG_AUDIO_BUFFER
-				printf("1: idx %d    \taqo %d    \tstc %d    \taqe %f    \tpsz %d\n", pkt1->pkt.stream_index, AudioQueueOffset, SizeToCopy, deltaAudioQError, pkt1->pkt.size);
-#endif
-				ret = 1; //OK
-			}
-			else {
-				//we need bytes from two consecutive packets to satisfy the audio_callback
-#ifdef DEBUG_QUEUE_DEEP
-				printf("  AV = 1 and Extract from 2 packets\n");
-#endif
-				//check for a valid next packet since we will finish the current packet
-				//and also take some bytes from the next one
-				pkt1->next = SeekAndDecodePacketStartingFrom(pkt1->next, q, size);
-				if(pkt1->next) {
-#ifdef DEBUG_QUEUE_DEEP
-					printf("   we have a next...\n");
-#endif
-					pkt->size = dimAudioQ;
-					pkt->dts = pkt1->pkt.dts;
-					pkt->pts = pkt1->pkt.pts;
-					pkt->stream_index = pkt1->pkt.stream_index;//1;
-					pkt->flags = 1;
-					pkt->pos = -1;
-					pkt->convergence_duration = -1;
-					{
-						SizeToCopy=pkt1->pkt.size-AudioQueueOffset;
-#ifdef DEBUG_QUEUE_DEEP
-						printf("      SizeToCopy=%d\n",SizeToCopy);
-#endif
-						memcpy(pkt->data, pkt1->pkt.data+AudioQueueOffset, SizeToCopy);
-						memcpy(pkt->data+SizeToCopy, pkt1->next->pkt.data, (dimAudioQ-SizeToCopy)*sizeof(uint8_t));
-					}
-#ifdef DEBUG_AUDIO_BUFFER
-					printf("2: idx %d    \taqo %d    \tstc %d    \taqe %f    \tpsz %d\n", pkt1->pkt.stream_index, AudioQueueOffset, SizeToCopy, deltaAudioQError, pkt1->pkt.size);
-#endif
-				}
-#ifdef DEBUG_AUDIO_BUFFER
-				else {
-					printf("2: NONEXT\n");
-				}
-#endif
-				//HINT SEE before q->size -= SizeToCopy;
+		pkt1 = q->first_pkt;
+		while (pkt->size < reqsize && pkt1 && SeekAndDecodePacketStartingFrom(pkt1, q, size)) {
+			if (!pkt->dts) pkt->dts = pkt1->pkt.dts;
+			if (!pkt->pts) pkt->pts = pkt1->pkt.pts;
+			pkt->stream_index = pkt1->pkt.stream_index;
+			pkt->flags = 1;
+			pkt->pos = -1;
+			pkt->convergence_duration = -1;
+			if (pkt1->pkt.size - AudioQueueOffset <= reqsize - pkt->size) { //we need the whole packet
+				SizeToCopy = pkt1->pkt.size - AudioQueueOffset;	//packet might be partial
+				memcpy(pkt->data + pkt->size, pkt1->pkt.data + AudioQueueOffset, SizeToCopy);
+				pkt->size += SizeToCopy;
+				AudioQueueOffset = 0;
 				RemoveFromQueue(q, pkt1);
-
-				// Adjust timestamps
-				pkt1 = q->first_pkt;
-				if(pkt1) {
-					int Offset=(dimAudioQ-SizeToCopy)*1000/(AudioSpecification->freq*2*AudioSpecification->channels);
-					int64_t LastDts=pkt1->pkt.dts;
-					pkt1->pkt.dts += Offset + deltaAudioQError;
-					pkt1->pkt.pts += Offset + deltaAudioQError;
-					deltaAudioQError = (float)LastDts + (float)Offset + deltaAudioQError - (float)pkt1->pkt.dts;
-#ifdef DEBUG_QUEUE_DEEP
-					printf("   Adjust timestamps Old = %lld New = %lld\n", LastDts, pkt1->pkt.dts);
-#endif
-					AudioQueueOffset = dimAudioQ - SizeToCopy;
-					//SEE BEFORE HINT q->size -= AudioQueueOffset;
-					ret = 1;
-					
-					ChunkerPlayerStats_UpdateAudioLossHistory(&(q->PacketHistory), pkt->stream_index, q->last_frame_extracted);
-				}
-				else {
-					AudioQueueOffset=0;
-				}
-#ifdef DEBUG_QUEUE_DEEP
-				printf("   deltaAudioQError = %f\n",deltaAudioQError);
-#endif
-				//update index of last frame extracted
-				q->last_frame_extracted = pkt->stream_index;
+			} else {
+				SizeToCopy = reqsize - pkt->size;	//partial packet remains
+				memcpy(pkt->data + pkt->size, pkt1->pkt.data + AudioQueueOffset, SizeToCopy);
+				pkt->size += SizeToCopy;
+				AudioQueueOffset += SizeToCopy;
 			}
+
+#ifdef DEBUG_AUDIO_BUFFER
+			printf("2: idx %d    \taqo %d    \tstc %d    \taqe %f    \tpsz %d\n", pkt1->pkt.stream_index, AudioQueueOffset, SizeToCopy, deltaAudioQError, pkt1->pkt.size);
+#endif
+
+			//update index of last frame extracted
+			ChunkerPlayerStats_UpdateAudioLossHistory(&(q->PacketHistory), pkt->stream_index, q->last_frame_extracted);
+			q->last_frame_extracted = pkt->stream_index;
+
+			pkt1 = pkt1->next;
 		}
-	}
-	else { //somebody requested a video packet, q is the video queue
+		ret = 1; //TODO: check some conditions
+	} else { //somebody requested a video packet, q is the video queue
 		pkt1 = q->first_pkt;
 		if(pkt1) {
 #ifdef DEBUG_QUEUE_DEEP
