@@ -194,7 +194,11 @@ Uint32 DisableCursor(Uint32 interval, void *param)
 {
 	Uint32 time = SDL_GetTicks();
 	if (time >= last_mousemotion + MOUSE_HIDE_DELAY) {
-		SDL_ShowCursor(SDL_DISABLE);
+		if (SDL_ShowCursor(SDL_QUERY) == SDL_ENABLE) {
+			SDL_LockMutex(OverlayMutex);
+			SDL_ShowCursor(SDL_DISABLE);
+			SDL_UnlockMutex(OverlayMutex);
+		}
 	}
 
 	return interval;
@@ -213,7 +217,11 @@ void ChunkerPlayerGUI_HandleMouseMotion(int x, int y)
 	if (!cursor_cb) {
 		cursor_cb = SDL_AddTimer(MOUSE_HIDE_DELAY/2, DisableCursor, NULL);
 	}
-	if (SDL_ShowCursor(SDL_QUERY) == SDL_DISABLE) SDL_ShowCursor(SDL_ENABLE);
+	if (SDL_ShowCursor(SDL_QUERY) == SDL_DISABLE) {
+		SDL_LockMutex(OverlayMutex);
+		SDL_ShowCursor(SDL_ENABLE);
+		SDL_UnlockMutex(OverlayMutex);
+	}
 	last_mousemotion = SDL_GetTicks();
 #endif
 
