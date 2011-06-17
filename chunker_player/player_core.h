@@ -90,6 +90,7 @@ AVPacket AudioPkt, VideoPkt;
 int AVPlaying;
 int CurrentAudioFreq;
 int CurrentAudioSamples;
+uint8_t CurrentAudioSilence;
 
 SDL_Rect *InitRect;
 SDL_AudioSpec *AudioSpecification;

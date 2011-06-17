@@ -337,6 +337,7 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	CurrentAudioSamples = AudioSpecification->samples;
 	dimAudioQ = AudioSpecification->size;
 	deltaAudioQ = (float)((float)AudioSpecification->samples)*1000/AudioSpecification->freq;	//in ms
+	CurrentAudioSilence = AudioSpecification->silence;
 
 #ifdef DEBUG_AUDIO
 	printf("freq:%d\n",AudioSpecification->freq);
@@ -1017,11 +1018,12 @@ void AudioCallback(void *userdata, Uint8 *stream, int len)
 
 	static uint8_t audio_buf[AVCODEC_MAX_AUDIO_FRAME_SIZE];
 
+	memset(audio_buf, CurrentAudioSilence, sizeof(audio_buf));
 	audio_size = AudioDecodeFrame(audio_buf, sizeof(audio_buf));
 	
 	if(SilentMode < 2)
 		if(audio_size != len) {
-			memset(stream, 0, len);
+			memset(stream, CurrentAudioSilence, len);
 		} else {
 			memcpy(stream, (uint8_t *)audio_buf, len);
 		}
