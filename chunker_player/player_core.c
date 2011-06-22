@@ -1395,6 +1395,8 @@ int CollectStatisticsThread(void *params)
 	SStats audio_statistics, video_statistics;
 	double qoe = 0;
 	int sleep_time = STATS_THREAD_GRANULARITY*1000;
+	int audio_avg_bitrate = 0;
+	int video_avg_bitrate = 0;
 	
 	while(AVPlaying && !quit)
 	{
@@ -1409,6 +1411,14 @@ int CollectStatisticsThread(void *params)
 			
 			// estimate video queue stats
 			int video_stats_changed = ChunkerPlayerStats_GetStats(&(videoq.PacketHistory), &video_statistics);
+
+			// compute avg bitrate up to now
+			audioq.cumulative_bitrate += audio_statistics.Bitrate;
+			audioq.cumulative_samples++;
+			audio_avg_bitrate = (int)( ((double)audioq.cumulative_bitrate) / ((double)audioq.cumulative_samples) );
+			videoq.cumulative_bitrate += video_statistics.Bitrate;
+			videoq.cumulative_samples++;
+			video_avg_bitrate = (int)( ((double)videoq.cumulative_bitrate) / ((double)videoq.cumulative_samples) );
 
 #ifdef DEBUG_STATS
 			printf("VIDEO: %d Kbit/sec; ", video_statistics.Bitrate);
@@ -1443,7 +1453,8 @@ int CollectStatisticsThread(void *params)
 			if(!Audio_ON)
 				sprintf(audio_stats_text, "AUDIO MUTED");
 			else if(audio_stats_changed)
-				sprintf(audio_stats_text, "[AUDIO] qsize: %d qdensity: %d\%% - losses: %d/sec (%ld tot) - skips: %d/sec (%ld tot)", (int)audioq.nb_packets, (int)audio_qdensity, (int)audio_statistics.Lossrate, audioq.PacketHistory.LostCount, audio_statistics.Skiprate, audioq.PacketHistory.SkipCount);
+//				sprintf(audio_stats_text, "[AUDIO] qsize: %d qdensity: %d\%% - losses: %d/sec (%ld tot) - skips: %d/sec (%ld tot)", (int)audioq.nb_packets, (int)audio_qdensity, (int)audio_statistics.Lossrate, audioq.PacketHistory.LostCount, audio_statistics.Skiprate, audioq.PacketHistory.SkipCount);
+				sprintf(audio_stats_text, "[AUDIO] qsize: %d qdensity: %d\%% - losses: %d/sec (%ld tot) - rate: %d kbits/sec (avg: %d)", (int)audioq.nb_packets, (int)audio_qdensity, (int)audio_statistics.Lossrate, audioq.PacketHistory.LostCount, audio_statistics.Bitrate, audio_avg_bitrate);
 			else
 				sprintf(audio_stats_text, "waiting for incoming audio packets...");
 
@@ -1483,7 +1494,8 @@ int CollectStatisticsThread(void *params)
 #endif
 				}
 
-				sprintf(video_stats_text, "[VIDEO] qsize: %d qdensity: %d\%% - losses: %d/sec (%ld tot) - skips: %d/sec (%ld tot)%s", (int)videoq.nb_packets, (int)video_qdensity, video_statistics.Lossrate, videoq.PacketHistory.LostCount, video_statistics.Skiprate, videoq.PacketHistory.SkipCount, est_psnr_string);
+//				sprintf(video_stats_text, "[VIDEO] qsize: %d qdensity: %d\%% - losses: %d/sec (%ld tot) - skips: %d/sec (%ld tot)%s", (int)videoq.nb_packets, (int)video_qdensity, video_statistics.Lossrate, videoq.PacketHistory.LostCount, video_statistics.Skiprate, videoq.PacketHistory.SkipCount, est_psnr_string);
+				sprintf(video_stats_text, "[VIDEO] qsize: %d qdensity: %d\%% - losses: %d/sec (%ld tot) - rate: %d kbits/sec (avg: %d) %s", (int)videoq.nb_packets, (int)video_qdensity, video_statistics.Lossrate, videoq.PacketHistory.LostCount, video_statistics.Bitrate, video_avg_bitrate, est_psnr_string);
 			}
 			else
 				sprintf(video_stats_text, "waiting for incoming video packets...");
@@ -1500,10 +1512,21 @@ int CollectStatisticsThread(void *params)
 		if((((now.tv_sec*1000)+(now.tv_usec/1000)) - ((last_qoe_evaluation.tv_sec*1000)+(last_qoe_evaluation.tv_usec/1000))) > EVAL_QOE_INTERVAL)
 		{
 			// ESTIMATE QoE
-			ChunkerPlayerStats_GetMeanVideoQuality(&(videoq.PacketHistory), &qoe);
-			
+			//ChunkerPlayerStats_GetMeanVideoQuality(&(videoq.PacketHistory), &qoe);
+			// ESTIMATE QoE using real-time computed cumulative average bitrate
+			// (plus a diminshing contribution of the instantaneous bitrate, until the cumulative avg stabilizes)
+			int input_bitrate = 0;
+			// stabilize after circa 30 seconds
+			if(videoq.cumulative_samples < 30*(1000/GUI_PRINTSTATS_INTERVAL))
+				input_bitrate = video_statistics.Bitrate;
+			else
+				input_bitrate = video_avg_bitrate;
+			//double a = 1 / ((double)videoq.cumulative_samples);
+			//double b = 1-a;
+			//double input_bitrate = a*((double)video_statistics.Bitrate) + b*((double)video_avg_bitrate);
+			ChunkerPlayerStats_GetMeanVideoQuality(&(videoq.PacketHistory), input_bitrate, &qoe);
 #ifdef DEBUG_STATS
-			printf("QoE index: %f\n", (float) qoe);
+			printf("rate %d avg %d wghtd %d cum_samp %d PSNR %f\n", video_statistics.Bitrate, video_avg_bitrate, (int)input_bitrate, videoq.cumulative_samples, (float)qoe);
 #endif
 			last_qoe_evaluation = now;
 		}

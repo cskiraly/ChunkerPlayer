@@ -68,7 +68,9 @@ typedef struct PacketQueue {
 	int last_frame_extracted; //HINT THIS SHOULD BE MORE THAN 4 BYTES
 	//total frames lost, as seen from the queue, since last queue init
 	int total_lost_frames;
-	
+	long cumulative_bitrate;
+	long cumulative_samples;
+
 	SHistory PacketHistory;
 	
 	double density;

@@ -265,7 +265,7 @@ void ChunkerPlayerStats_UpdateVideoPlayedHistory(SHistory* history, long int fra
 	SDL_UnlockMutex(history->Mutex);
 }
 
-int ChunkerPlayerStats_GetMeanVideoQuality(SHistory* history, double* quality)
+int ChunkerPlayerStats_GetMeanVideoQuality(SHistory* history, int real_bitrate, double* quality)
 {
 	static double qoe_reference_coeff = sqrt(QOE_REFERENCE_FRAME_WIDTH*QOE_REFERENCE_FRAME_HEIGHT);
 	
@@ -339,8 +339,12 @@ int ChunkerPlayerStats_GetMeanVideoQuality(SHistory* history, double* quality)
 		if(burst_count > 0)
 			mean_burstiness /= ((double)burst_count);
 
+		double input_bitrate = (double)real_bitrate;
+//		double input_bitrate = ((double)Channels[SelectedChannel].Bitrate) / 1000;
 		// adjust bitrate with respect to the qoe reference resolution/bitrate ratio
-		NN_inputs[0] = ((double)Channels[SelectedChannel].Bitrate) * (qoe_reference_coeff/qoe_adjust_factor) / 1000;
+		input_bitrate *= (qoe_reference_coeff/qoe_adjust_factor);
+		//feed the NN
+		NN_inputs[0] = input_bitrate;
 		NN_inputs[1] = ((double)losses)/((double)counter) * 100;
 		NN_inputs[2] = mean_burstiness;
 		
@@ -356,7 +360,7 @@ int ChunkerPlayerStats_GetMeanVideoQuality(SHistory* history, double* quality)
 			if(tracefile)
 			{
 				// bitrate (Kbits/sec) loss_percentage loss_burstiness est_mean_psnr
-				fprintf(tracefile, "%d %.3f %.3f %.3f\n", (int)((Channels[SelectedChannel].Bitrate) * (qoe_reference_coeff/qoe_adjust_factor) / 1000), (float)(((double)losses)/((double)counter) * 100), (float)mean_burstiness, (float)(*quality));
+				fprintf(tracefile, "%d %.3f %.3f %.3f\n", (int)(input_bitrate), (float)(((double)losses)/((double)counter) * 100), (float)mean_burstiness, (float)(*quality));
 				fclose(tracefile);
 			}
 		}
