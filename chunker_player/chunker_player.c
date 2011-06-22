@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
 	firstChannelName[0] = 0;
 	memset((void*)Channels, 0, (MAX_CHANNELS_NUM*sizeof(SChannel)));
 
-	Port = 9876;
+	Port = 6100;
 
 	struct MHD_Daemon *daemon = NULL;
 	SDL_Event event;
