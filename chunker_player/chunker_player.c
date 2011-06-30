@@ -617,8 +617,6 @@ int SwitchChannel(SChannel* channel)
 	if(SilentMode != 3) //mode 3 is without P2P peer process
 	{
 
-#ifndef __WIN32__
-
 		char* parameters_vector[255];
 		parameters_vector[0] = argv0;
 
@@ -640,6 +638,7 @@ int SwitchChannel(SChannel* channel)
 		}
 		parameters_vector[par_count] = NULL;
 
+#ifndef __WIN32__
 		int d;
 		int stdoutS, stderrS;
 		FILE* stream;
@@ -669,10 +668,6 @@ int SwitchChannel(SChannel* channel)
 		dup2(stderrS, STDERR_FILENO);
 
 		fclose(stream);
-
-		for(i=1; i<par_count; i++)
-			free(parameters_vector[i]);
-
 #else
 		STARTUPINFO sti;
 		SECURITY_ATTRIBUTES sats = { 0 };
@@ -707,6 +702,8 @@ int SwitchChannel(SChannel* channel)
 		}
 #endif
 
+		for(i=1; i<par_count; i++)
+			free(parameters_vector[i]);
 	}
 
 #ifdef RESTORE_SCREEN_ON_ZAPPING
