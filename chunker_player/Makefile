@@ -61,11 +61,11 @@ endif
 LOCAL_CONFUSE_CPPFLAGS = -I$(LOCAL_CONFUSE)/include
 LOCAL_CONFUSE_LDLIBS = $(LOCAL_CONFUSE)/lib/libconfuse.a
 
-ifdef PSNR_PUBLICATION
+#ifdef PSNR_PUBLICATION
 CPPFLAGS += -DPSNR_PUBLICATION
 LOCAL_PSNR_CPPFLAGS = -I$(LIBEVENT_DIR)/include -I$(NAPA)/include
 LOCAL_PSNR_LDLIBS = $(NAPA)/rep/librep.a $(NAPA)/dclog/libdclog.a $(NAPA)/common/libcommon.a $(NAPA)/ml/libml.a $(LIBEVENT_DIR)/lib/libevent.a
-endif
+#endif
 
 #put them in the correct order
 CPPFLAGS += $(LOCAL_SDLTTF_CPPFLAGS) $(LOCAL_SDLIMAGE_CPPFLAGS) $(LOCAL_SDL_CPPFLAGS)
