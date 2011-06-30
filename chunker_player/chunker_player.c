@@ -137,7 +137,6 @@ int main(int argc, char *argv[])
 
 	Port = 6100;
 
-	struct MHD_Daemon *daemon = NULL;
 	SDL_Event event;
 	OverlayMutex = SDL_CreateMutex();
 	
@@ -222,6 +221,7 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef HTTPIO
+	struct MHD_Daemon *daemon = NULL;
 	//this thread fetches chunks from the network by listening to the following path, port
 	daemon = (struct MHD_Daemon*)initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, Port);
 	if(daemon == NULL)
@@ -506,7 +506,7 @@ int ParseConf()
 	}
 	
 	FILE * tmp_file;
-	if(tmp_file = fopen(DEFAULT_PEEREXECNAME_FILENAME, "r")) {
+	if( (tmp_file = fopen(DEFAULT_PEEREXECNAME_FILENAME, "r")) ) {
 		if(fscanf(tmp_file, "%s", StreamerFilename) != 1) {
 			printf("Wrong format of conf file %s containing peer application exec name. Assuming default: %s.\n\n", DEFAULT_PEEREXECNAME_FILENAME, DEFAULT_PEER_EXEC_NAME);
 		}
@@ -516,7 +516,7 @@ int ParseConf()
 		printf("Could not find conf file %s containing peer application exec name. Exiting.\n\n", DEFAULT_PEEREXECNAME_FILENAME);
 		exit(1);
 	}
-	if(tmp_file = fopen(StreamerFilename, "r"))
+	if( (tmp_file = fopen(StreamerFilename, "r")) )
     {
         fclose(tmp_file);
     }

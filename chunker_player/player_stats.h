@@ -34,6 +34,8 @@ void ChunkerPlayerStats_UpdateVideoSkipHistory(SHistory* history, long int frame
 void ChunkerPlayerStats_UpdateAudioPlayedHistory(SHistory* history, long int frame_id, int size);
 void ChunkerPlayerStats_UpdateVideoPlayedHistory(SHistory* history, long int frame_id, short int Type, int Size, AVFrame* frame);
 
+int ChunkerPlayerStats_PrintHistoryTrace(SHistory* history, char* tracefilename);
+
 int ChunkerPlayerStats_GetMeanVideoQuality(SHistory* history, int real_bitrate ,double* quality);
 
 int ChunkerPlayerStats_GetStats(SHistory* history, SStats* statistics);

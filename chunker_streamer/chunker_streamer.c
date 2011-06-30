@@ -265,7 +265,7 @@ int main(int argc, char *argv[]) {
 				sscanf(optarg, "%d", &max_b_frames);
 				break;
 			case 'd':
-				sscanf(optarg, "%d", &delay_audio);
+				sscanf(optarg, "%ld", &delay_audio);
 				break;
 			default:
 				print_usage(argc, argv);
@@ -325,7 +325,7 @@ restart:
 	}
 
 	// Dump information about file onto standard error
-	dump_format(pFormatCtx, 0, av_input, 0);
+	av_dump_format(pFormatCtx, 0, av_input, 0);
 
 	// Find the video and audio stream numbers
 	for(i=0; i<pFormatCtx->nb_streams; i++) {
@@ -336,7 +336,7 @@ restart:
 			audioStream=i;
 		}
 	}
-	fprintf(stderr, "INIT: Num streams : %d TBR: %d %d RFRAMERATE:%d %d Duration:%ld\n", pFormatCtx->nb_streams, pFormatCtx->streams[videoStream]->time_base.num, pFormatCtx->streams[videoStream]->time_base.den, pFormatCtx->streams[videoStream]->r_frame_rate.num, pFormatCtx->streams[videoStream]->r_frame_rate.den, pFormatCtx->streams[videoStream]->duration);
+	fprintf(stderr, "INIT: Num streams : %d TBR: %d %d RFRAMERATE:%d %d Duration:%ld\n", pFormatCtx->nb_streams, pFormatCtx->streams[videoStream]->time_base.num, pFormatCtx->streams[videoStream]->time_base.den, pFormatCtx->streams[videoStream]->r_frame_rate.num, pFormatCtx->streams[videoStream]->r_frame_rate.den, (long int)pFormatCtx->streams[videoStream]->duration);
 
 	fprintf(stderr, "INIT: Video stream has id : %d\n",videoStream);
 	fprintf(stderr, "INIT: Audio stream has id : %d\n",audioStream);

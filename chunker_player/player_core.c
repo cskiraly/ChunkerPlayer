@@ -20,7 +20,6 @@ int VideoCallback(void *valthread);
 int CollectStatisticsThread(void *params);
 void AudioCallback(void *userdata, Uint8 *stream, int len);
 void PacketQueueClearStats(PacketQueue *q);
-void ChunkerPlayerCore_Pause();
 
 //int lastCheckedVideoFrame = -1;
 long int last_video_frame_extracted = -1;
@@ -413,7 +412,7 @@ int DecodeEnqueuedAudio(AVPacket *pkt, PacketQueue *q, int* size)
 				//subtract them from queue size
 				q->size -= pkt->size;
 				*size = pkt->size;
-				pkt->data = (int8_t *)dataQ;
+				pkt->data = (uint8_t *)dataQ;
 				pkt->size = data_sizeQ;
 				//add new size to queue size
 				q->size += pkt->size;
@@ -501,7 +500,6 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 	AVPacketList *pkt1 = NULL;
 	int ret=-1;
 	int SizeToCopy=0;
-	struct timeval now_tv;
 	int reqsize;
 
 	SDL_LockMutex(q->mutex);
@@ -1021,12 +1019,13 @@ void AudioCallback(void *userdata, Uint8 *stream, int len)
 	memset(audio_buf, CurrentAudioSilence, sizeof(audio_buf));
 	audio_size = AudioDecodeFrame(audio_buf, sizeof(audio_buf));
 	
-	if(SilentMode < 2)
+	if(SilentMode < 2) {
 		if(audio_size != len) {
 			memset(stream, CurrentAudioSilence, len);
 		} else {
 			memcpy(stream, (uint8_t *)audio_buf, len);
 		}
+	}
 }
 
 void SaveFrame(AVFrame *pFrame, int width, int height)
@@ -1198,7 +1197,8 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 
 	//the frame.h gets encoded into 5 slots of 32bits (3 ints plus 2 more for the timeval struct
 	static int sizeFrameHeader = 5*sizeof(int32_t);
-	static int ExternalChunk_header_size = 5*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 1*CHUNK_TRANSCODING_INT_SIZE*2;
+	//the following we dont need anymore
+	//static int ExternalChunk_header_size = 5*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 2*CHUNK_TRANSCODING_INT_SIZE + 1*CHUNK_TRANSCODING_INT_SIZE*2;
 
 	static int chunks_out_of_order = 0;
 	static int last_chunk_id = -1;
@@ -1390,8 +1390,6 @@ int CollectStatisticsThread(void *params)
 	double audio_qdensity;
 	char audio_stats_text[255];
 	char video_stats_text[255];
-	int loss_changed = 0;
-	int density_changed = 0;
 	SStats audio_statistics, video_statistics;
 	double qoe = 0;
 	int sleep_time = STATS_THREAD_GRANULARITY*1000;
@@ -1461,7 +1459,7 @@ int CollectStatisticsThread(void *params)
 			if(video_stats_changed)
 			{
 				char est_psnr_string[255];
-				sprintf(est_psnr_string, "");
+				sprintf(est_psnr_string, ".");
 				if(qoe)
 				{
 					sprintf(est_psnr_string, " - Est. Mean PSNR: %.1f db", (float)qoe);
@@ -1531,4 +1529,5 @@ int CollectStatisticsThread(void *params)
 			last_qoe_evaluation = now;
 		}
 	}
+	return 0;
 }

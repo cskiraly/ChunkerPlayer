@@ -102,5 +102,14 @@ void ZapUp();
 int ParseConf();
 int SwitchChannel(SChannel* channel);
 int ReTune(SChannel* channel);
+int enqueueBlock(const uint8_t *block, const int block_size);
+#ifdef HTTPIO
+struct MHD_Daemon *initChunkPuller(const char *path, const int port);
+void finalizeChunkPuller(struct MHD_Daemon *daemon);
+#endif
+#ifdef TCPIO
+int initChunkPuller(const int port);
+void finalizeChunkPuller(void);
+#endif
 
 #endif // _CHUNKER_PLAYER_H

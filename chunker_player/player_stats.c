@@ -12,6 +12,8 @@
 #include <time.h>
 #include <assert.h>
 
+void QoE_Estimator(double * inputs, double * outputs);
+
 void ChunkerPlayerStats_Init()
 {
 	LastIFrameNumber = -1;
@@ -267,7 +269,9 @@ void ChunkerPlayerStats_UpdateVideoPlayedHistory(SHistory* history, long int fra
 
 int ChunkerPlayerStats_GetMeanVideoQuality(SHistory* history, int real_bitrate, double* quality)
 {
-	static double qoe_reference_coeff = sqrt(QOE_REFERENCE_FRAME_WIDTH*QOE_REFERENCE_FRAME_HEIGHT);
+	static double qoe_reference_coeff = 0;
+	if(qoe_reference_coeff == 0)
+		qoe_reference_coeff = sqrt(QOE_REFERENCE_FRAME_WIDTH*QOE_REFERENCE_FRAME_HEIGHT);
 	
 	int counter = 0;
 	SDL_LockMutex(history->Mutex);

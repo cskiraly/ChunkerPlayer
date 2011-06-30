@@ -34,5 +34,8 @@ void *packExternalChunkToAttributes(ExternalChunk *echunk, size_t attr_size);
  * theese are copied from GRAPES
  */
 int encodeChunk(const struct chunk *c, uint8_t *buff, int buff_len);
+int decodeChunk(struct chunk *c, const uint8_t *buff, int buff_len);
+int bit32_encoded_pull(uint8_t *p);
+void bit32_encoded_push(uint32_t v, uint8_t *p);
 
 #endif
