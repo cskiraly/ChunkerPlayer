@@ -128,7 +128,9 @@ static void print_usage(int argc, char *argv[])
     "\t[-t]: QoE test mode\n\n"
     "Codec options:\n"
     "\t[-g GOP]: gop size\n"
-    "\t[-b frames]: max number of consecutive b frames\n\n"
+    "\t[-b frames]: max number of consecutive b frames\n"
+    "\t[-x extas]: extra video codec options (e.g. -x me_method=hex,flags2=+dct8x8+wpred+bpyrami+mixed_refs)\n"
+    "\n"
     "=======================================================\n", argv[0]
     );
   }
@@ -172,6 +174,7 @@ int main(int argc, char *argv[]) {
 	int video_bitrate = -1;
 	char *audio_codec = "mp2";
 	char *video_codec = "mpeg4";
+	char *codec_options = "";
 	int live_source = 0; //tells to sleep before reading next frame in not live (i.e. file)
 	int offset_av = 0; //tells to compensate for offset between audio and video in the file
 	
@@ -214,7 +217,7 @@ int main(int argc, char *argv[]) {
 	/* `getopt_long' stores the option index here. */
 	int option_index = 0, c;
 	int mandatories = 0;
-	while ((c = getopt_long (argc, argv, "i:a:v:A:V:s:lop:q:tF:g:b:d:", long_options, &option_index)) != -1)
+	while ((c = getopt_long (argc, argv, "i:a:v:A:V:s:lop:q:tF:g:b:d:x:", long_options, &option_index)) != -1)
 	{
 		switch (c) {
 			case 0: //for long options
@@ -266,6 +269,9 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'd':
 				sscanf(optarg, "%d", &delay_audio);
+				break;
+			case 'x':
+				codec_options = strdup(optarg);
 				break;
 			default:
 				print_usage(argc, argv);
@@ -447,7 +453,12 @@ restart:
     default:
 	fprintf(stderr, "INIT: Unsupported OUT VIDEO codec: %s!\n", video_codec);
   }
- 
+
+  if ((av_set_options_string(pCodecCtxEnc, codec_options, "=", ",")) < 0) {
+    fprintf(stderr, "Error parsing options string: '%s'\n", codec_options);
+    exit(1);
+  }
+
 	fprintf(stderr, "INIT: VIDEO timebase OUT:%d %d IN: %d %d\n", pCodecCtxEnc->time_base.num, pCodecCtxEnc->time_base.den, pCodecCtx->time_base.num, pCodecCtx->time_base.den);
  }
 
