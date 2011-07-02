@@ -66,6 +66,11 @@ LOCAL_CONFUSE_LDLIBS = $(LOCAL_CONFUSE)/lib/libconfuse.a
 CPPFLAGS += -DPSNR_PUBLICATION
 LOCAL_PSNR_CPPFLAGS = -I$(LIBEVENT_DIR)/include -I$(NAPA)/include
 LOCAL_PSNR_LDLIBS = $(NAPA)/rep/librep.a $(NAPA)/dclog/libdclog.a $(NAPA)/common/libcommon.a $(NAPA)/ml/libml.a $(LIBEVENT_DIR)/lib/libevent.a
+
+ifdef WINDOWS
+LOCAL_PSNR_LDLIBS += -lmsvcrt -lwsock32 -lws2_32 -liberty
+endif
+
 #endif
 
 #put them in the correct order

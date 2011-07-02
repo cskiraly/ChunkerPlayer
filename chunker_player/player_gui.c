@@ -553,7 +553,7 @@ void SetupGUI()
 	}
 	
 	// init SDL_image
-	int flags=IMG_INIT_JPG|IMG_INIT_PNG;
+	int flags=IMG_INIT_PNG;
 	int initted=IMG_Init(flags);
 	if((initted&flags) != flags)
 	{
