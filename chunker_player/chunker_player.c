@@ -655,7 +655,7 @@ int SwitchChannel(SChannel* channel)
 		int pid = fork();
 		if(pid == 0)
 		{
-			_execv(argv0, parameters_vector);
+			execv(argv0, parameters_vector);
 			printf("ERROR, COULD NOT LAUNCH OFFERSTREAMER\n");
 			exit(2);
 		}
