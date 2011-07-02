@@ -2,7 +2,7 @@ include ../common.mak
 
 ifdef WINDOWS
 OUTPUTFILE = chunker_player.exe
-LDLIBS += -lmsvcrt -lwsock32 -lws2_32 -liberty
+#LDLIBS += -lmsvcrt -lwsock32 -lws2_32 -liberty
 else
 OUTPUTFILE = chunker_player
 endif
