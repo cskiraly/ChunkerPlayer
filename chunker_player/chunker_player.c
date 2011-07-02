@@ -109,6 +109,14 @@ int main(int argc, char *argv[])
 	QueueFillingMode=1;
 	LogTraces = 0;
 
+#ifdef PSNR_PUBLICATION
+	repoclient=NULL;
+	LastTimeRepoPublish.tv_sec=0;
+	LastTimeRepoPublish.tv_usec=0;
+	eventbase = event_base_new();
+	napaInitLog(LOG_DEBUG, NULL, NULL);
+	repInit("");
+#endif
 	
 #ifndef __WIN32__
 	static pid_t fork_pid = -1;
@@ -229,14 +237,6 @@ int main(int argc, char *argv[])
 		printf("CANNOT START TCP PULLER...\n");
 		exit(2);
 	}
-#endif
-#ifdef PSNR_PUBLICATION
-	repoclient=NULL;
-	LastTimeRepoPublish.tv_sec=0;
-	LastTimeRepoPublish.tv_usec=0;
-	eventbase = event_base_new();
-	napaInitLog(LOG_DEBUG, NULL, NULL);
-	repInit("");
 #endif
 
 	if(SilentMode == 0)
@@ -617,7 +617,6 @@ int SwitchChannel(SChannel* channel)
 	if(SilentMode != 3) //mode 3 is without P2P peer process
 	{
 
-#ifndef __WIN32__
 		char* parameters_vector[255];
 		parameters_vector[0] = argv0;
 
@@ -629,8 +628,9 @@ int SwitchChannel(SChannel* channel)
 		while (pch != NULL)
 		{
 			if(par_count > 255) break;
-			//printf ("\tpch=%s\n",pch);
-			parameters_vector[par_count] = strdup(pch);
+			// printf ("\tpch=%s\n",pch);
+			parameters_vector[par_count] = (char*) malloc(sizeof(char)*(strlen(pch)+1));
+			strcpy(parameters_vector[par_count], pch);
 			// Find repo_address
 			CheckForRepoAddress(parameters_vector[par_count]);
 			pch = strtok (NULL, " ");
@@ -638,6 +638,7 @@ int SwitchChannel(SChannel* channel)
 		}
 		parameters_vector[par_count] = NULL;
 
+#ifndef __WIN32__
 		int d;
 		int stdoutS, stderrS;
 		FILE* stream;
@@ -667,12 +668,10 @@ int SwitchChannel(SChannel* channel)
 		dup2(stderrS, STDERR_FILENO);
 
 		fclose(stream);
-		for(i=1; i<par_count; i++)
-			free(parameters_vector[i]);
-
 #else
 		STARTUPINFO sti;
 		SECURITY_ATTRIBUTES sats = { 0 };
+		DWORD writ, excode, read, available;
 		int ret = 0;
 
 		//set SECURITY_ATTRIBUTES struct fields
@@ -703,6 +702,8 @@ int SwitchChannel(SChannel* channel)
 		}
 #endif
 
+		for(i=1; i<par_count; i++)
+			free(parameters_vector[i]);
 	}
 
 #ifdef RESTORE_SCREEN_ON_ZAPPING
