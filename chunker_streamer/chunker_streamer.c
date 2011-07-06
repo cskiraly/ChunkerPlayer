@@ -17,6 +17,7 @@
 //#define DEBUG_AUDIO_FRAMES
 //#define DEBUG_VIDEO_FRAMES
 //#define DEBUG_CHUNKER
+//#define DISPLAY_PSNR
 #define DEBUG_ANOMALIES
 //~ #define DEBUG_TIMESTAMPING
 #define GET_PSNR(x) ((x==0) ? 0 : (-10.0*log(x)/log(10)))
@@ -394,7 +395,7 @@ restart:
 	pCodecCtxEnc->gop_size = gop_size; // emit one intra frame every gop_size frames 
 	pCodecCtxEnc->max_b_frames = max_b_frames;
 	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
-	//pCodecCtxEnc->flags = CODEC_FLAG_PSNR;
+	pCodecCtxEnc->flags |= CODEC_FLAG_PSNR;
 	//~ pCodecCtxEnc->flags |= CODEC_FLAG_QSCALE;
 
 	//some generic quality tuning
@@ -443,6 +444,8 @@ restart:
 	// pCodecCtxEnc->rc_buffer_size = 0;
 	break;
     case CODEC_ID_MPEG4 :
+	pCodecCtxEnc->qmin = 10; // qmin=10
+	pCodecCtxEnc->qmax = 51; // qmax=51
 	break;
     default:
 	fprintf(stderr, "INIT: Unsupported OUT VIDEO codec: %s!\n", video_codec);
@@ -764,8 +767,20 @@ restart:
 #ifdef DEBUG_VIDEO_FRAMES
 					if(!vcopy && pCodecCtxEnc->coded_frame) {
 						fprintf(stderr, "VIDEOout: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pCodecCtxEnc->coded_frame->pkt_dts, pCodecCtxEnc->coded_frame->pkt_pts, pCodecCtxEnc->coded_frame->pts);
-						fprintf(stderr, "VIDEOout: outtype: %d%s\n",
-							pCodecCtxEnc->coded_frame->pict_type, pCodecCtxEnc->coded_frame->key_frame ? " (key)" : "");
+						fprintf(stderr, "VIDEOout: outtype: %d%s\n", pCodecCtxEnc->coded_frame->pict_type, pCodecCtxEnc->coded_frame->key_frame ? " (key)" : "");
+					}
+#endif
+#ifdef DISPLAY_PSNR
+					static double ist_psnr = 0;
+					static double cum_psnr = 0;
+					static int psnr_samples = 0;
+					if(!vcopy && pCodecCtxEnc->coded_frame) {
+						if(pCodecCtxEnc->flags&CODEC_FLAG_PSNR) {
+							ist_psnr = GET_PSNR(pCodecCtxEnc->coded_frame->error[0]/(pCodecCtxEnc->width*pCodecCtxEnc->height*255.0*255.0));
+							psnr_samples++;
+							cum_psnr += ist_psnr;
+							fprintf(stderr, "PSNR: ist %.4f avg: %.4f\n", ist_psnr, cum_psnr / (double)psnr_samples);
+						}
 					}
 #endif
 
