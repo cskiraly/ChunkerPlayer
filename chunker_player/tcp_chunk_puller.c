@@ -28,6 +28,8 @@
 #include <SDL.h>
 #include <SDL_thread.h>
 
+#include "chunker_player.h"
+
 #define TCP_BUF_SIZE 65536*16
 
 static int accept_fd = -1;
@@ -118,11 +120,11 @@ static int AcceptThreadProc(void* params)
 		if((RecvThread = SDL_CreateThread(&RecvThreadProc, NULL)) == 0)
 		{
 			fprintf(stderr,"TCP-INPUT-MODULE: could not start receveing thread!!\n");
-			return NULL;
+			return 0;
 		}
 	}
 	
-	return NULL;
+	return 0;
 }
 
 static int RecvThreadProc(void* params)
@@ -175,7 +177,7 @@ static int RecvThreadProc(void* params)
 	close(socket_fd);
 	socket_fd = -1;
 
-	return NULL;
+	return 0;
 }
 
 void finalizeChunkPuller()

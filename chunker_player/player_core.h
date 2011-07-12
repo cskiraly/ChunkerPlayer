@@ -68,7 +68,9 @@ typedef struct PacketQueue {
 	int last_frame_extracted; //HINT THIS SHOULD BE MORE THAN 4 BYTES
 	//total frames lost, as seen from the queue, since last queue init
 	int total_lost_frames;
-	
+	long cumulative_bitrate;
+	long cumulative_samples;
+
 	SHistory PacketHistory;
 	
 	double density;
@@ -123,6 +125,7 @@ unsigned char LastSourceIFrameDistance;
 int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels);
 int ChunkerPlayerCore_AudioEnded();
 void ChunkerPlayerCore_Stop();
+void ChunkerPlayerCore_Pause();
 void ChunkerPlayerCore_Play();
 int ChunkerPlayerCore_IsRunning();
 void ChunkerPlayerCore_ResetAVQueues();

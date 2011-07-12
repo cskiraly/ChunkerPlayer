@@ -42,6 +42,7 @@ void ChunkerPlayerGUI_SetChannelRatio(float ratio);
 void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text, int ledstatus);
 void ChunkerPlayerGUI_ToggleFullscreen();
 void ChunkerPlayerGUI_ChannelSwitched();
+void ChunkerPlayerGUI_ChangeRatio(void);
 void GetScreenSizeFromOverlay(int overlayWidth, int overlayHeight, int* screenWidth, int* screenHeight);
 void ChunkerPlayerGUI_AspectRatioResize(float aspect_ratio, int width, int height, int* out_width, int* out_height);
 

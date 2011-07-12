@@ -2,6 +2,7 @@ include ../common.mak
 
 ifdef WINDOWS
 OUTPUTFILE = chunker_player.exe
+#LDLIBS += -lmsvcrt -lwsock32 -lws2_32 -liberty
 else
 OUTPUTFILE = chunker_player
 endif
@@ -61,11 +62,16 @@ endif
 LOCAL_CONFUSE_CPPFLAGS = -I$(LOCAL_CONFUSE)/include
 LOCAL_CONFUSE_LDLIBS = $(LOCAL_CONFUSE)/lib/libconfuse.a
 
-ifdef PSNR_PUBLICATION
+#ifdef PSNR_PUBLICATION
 CPPFLAGS += -DPSNR_PUBLICATION
-LOCAL_PSNR_CPPFLAGS = -I$(LIBEVENT_DIR)/include
+LOCAL_PSNR_CPPFLAGS = -I$(LIBEVENT_DIR)/include -I$(NAPA)/include
 LOCAL_PSNR_LDLIBS = $(NAPA)/rep/librep.a $(NAPA)/dclog/libdclog.a $(NAPA)/common/libcommon.a $(NAPA)/ml/libml.a $(LIBEVENT_DIR)/lib/libevent.a
+
+ifdef WINDOWS
+LOCAL_PSNR_LDLIBS += -lmsvcrt -lwsock32 -lws2_32 -liberty
 endif
+
+#endif
 
 #put them in the correct order
 CPPFLAGS += $(LOCAL_SDLTTF_CPPFLAGS) $(LOCAL_SDLIMAGE_CPPFLAGS) $(LOCAL_SDL_CPPFLAGS)

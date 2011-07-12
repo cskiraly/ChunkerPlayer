@@ -109,14 +109,6 @@ int main(int argc, char *argv[])
 	QueueFillingMode=1;
 	LogTraces = 0;
 
-#ifdef PSNR_PUBLICATION
-	repoclient=NULL;
-	LastTimeRepoPublish.tv_sec=0;
-	LastTimeRepoPublish.tv_usec=0;
-	eventbase = event_base_new();
-	napaInitLog(LOG_DEBUG, NULL, NULL);
-	repInit("");
-#endif
 	
 #ifndef __WIN32__
 	static pid_t fork_pid = -1;
@@ -137,7 +129,6 @@ int main(int argc, char *argv[])
 
 	Port = 6100;
 
-	struct MHD_Daemon *daemon = NULL;
 	SDL_Event event;
 	OverlayMutex = SDL_CreateMutex();
 	
@@ -222,6 +213,7 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef HTTPIO
+	struct MHD_Daemon *daemon = NULL;
 	//this thread fetches chunks from the network by listening to the following path, port
 	daemon = (struct MHD_Daemon*)initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, Port);
 	if(daemon == NULL)
@@ -237,6 +229,14 @@ int main(int argc, char *argv[])
 		printf("CANNOT START TCP PULLER...\n");
 		exit(2);
 	}
+#endif
+#ifdef PSNR_PUBLICATION
+	repoclient=NULL;
+	LastTimeRepoPublish.tv_sec=0;
+	LastTimeRepoPublish.tv_usec=0;
+	eventbase = event_base_new();
+	napaInitLog(LOG_DEBUG, NULL, NULL);
+	repInit("");
 #endif
 
 	if(SilentMode == 0)
@@ -506,7 +506,7 @@ int ParseConf()
 	}
 	
 	FILE * tmp_file;
-	if(tmp_file = fopen(DEFAULT_PEEREXECNAME_FILENAME, "r")) {
+	if( (tmp_file = fopen(DEFAULT_PEEREXECNAME_FILENAME, "r")) ) {
 		if(fscanf(tmp_file, "%s", StreamerFilename) != 1) {
 			printf("Wrong format of conf file %s containing peer application exec name. Assuming default: %s.\n\n", DEFAULT_PEEREXECNAME_FILENAME, DEFAULT_PEER_EXEC_NAME);
 		}
@@ -516,7 +516,7 @@ int ParseConf()
 		printf("Could not find conf file %s containing peer application exec name. Exiting.\n\n", DEFAULT_PEEREXECNAME_FILENAME);
 		exit(1);
 	}
-	if(tmp_file = fopen(StreamerFilename, "r"))
+	if( (tmp_file = fopen(StreamerFilename, "r")) )
     {
         fclose(tmp_file);
     }
@@ -618,7 +618,6 @@ int SwitchChannel(SChannel* channel)
 	{
 
 #ifndef __WIN32__
-
 		char* parameters_vector[255];
 		parameters_vector[0] = argv0;
 
@@ -630,9 +629,8 @@ int SwitchChannel(SChannel* channel)
 		while (pch != NULL)
 		{
 			if(par_count > 255) break;
-			// printf ("\tpch=%s\n",pch);
-			parameters_vector[par_count] = (char*) malloc(sizeof(char)*(strlen(pch)+1));
-			strcpy(parameters_vector[par_count], pch);
+			//printf ("\tpch=%s\n",pch);
+			parameters_vector[par_count] = strdup(pch);
 			// Find repo_address
 			CheckForRepoAddress(parameters_vector[par_count]);
 			pch = strtok (NULL, " ");
@@ -669,14 +667,12 @@ int SwitchChannel(SChannel* channel)
 		dup2(stderrS, STDERR_FILENO);
 
 		fclose(stream);
-
 		for(i=1; i<par_count; i++)
 			free(parameters_vector[i]);
 
 #else
 		STARTUPINFO sti;
 		SECURITY_ATTRIBUTES sats = { 0 };
-		DWORD writ, excode, read, available;
 		int ret = 0;
 
 		//set SECURITY_ATTRIBUTES struct fields
