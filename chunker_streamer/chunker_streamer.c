@@ -449,8 +449,6 @@ restart:
 	// pCodecCtxEnc->rc_buffer_size = 0;
 	break;
     case CODEC_ID_MPEG4 :
-	pCodecCtxEnc->qmin = 10; // qmin=10
-	pCodecCtxEnc->qmax = 51; // qmax=51
 	break;
     default:
 	fprintf(stderr, "INIT: Unsupported OUT VIDEO codec: %s!\n", video_codec);
