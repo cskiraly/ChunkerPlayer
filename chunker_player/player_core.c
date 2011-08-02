@@ -5,15 +5,92 @@
  *  This is free software; see lgpl-2.1.txt
  */
 
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+
+#include <stdio.h>
+#include <unistd.h>
+#include <microhttpd.h>
+#include "external_chunk_transcoding.h"
+#include "frame.h"
+#include <SDL.h>
+#include <SDL_thread.h>
+#include <SDL_mutex.h>
+// #include <SDL_ttf.h>
+// #include <SDL_image.h>
+#include <SDL_video.h>
+#include <assert.h>
+#include <time.h>
+
+#include "player_stats.h"
 #include "player_defines.h"
 #include "chunker_player.h"
 #include "player_gui.h"
 #include "player_core.h"
 #include "player_stats.h"
-#include <assert.h>
-#include <time.h>
 
 static char *video_codec;
+
+typedef struct PacketQueue {
+	AVPacketList *first_pkt;
+	AVPacket *minpts_pkt;
+	AVPacketList *last_pkt;
+	int nb_packets;
+	int size;
+	SDL_mutex *mutex;
+	short int queueType;
+	int last_frame_extracted; //HINT THIS SHOULD BE MORE THAN 4 BYTES
+	//total frames lost, as seen from the queue, since last queue init
+	int total_lost_frames;
+	long cumulative_bitrate;
+	long cumulative_samples;
+
+	SHistory PacketHistory;
+	
+	double density;
+	char stats_message[255];
+} PacketQueue;
+
+AVCodecContext  *aCodecCtx;
+SDL_Thread *video_thread;
+SDL_Thread *stats_thread;
+uint8_t *outbuf_audio;
+// short int QueueFillingMode=1;
+short int QueueStopped;
+ThreadVal VideoCallbackThreadParams;
+
+int AudioQueueOffset;
+PacketQueue audioq;
+PacketQueue videoq;
+AVPacket AudioPkt, VideoPkt;
+int AVPlaying;
+int CurrentAudioFreq;
+int CurrentAudioSamples;
+uint8_t CurrentAudioSilence;
+
+SDL_Rect *InitRect;
+SDL_AudioSpec *AudioSpecification;
+
+struct SwsContext *img_convert_ctx;
+int GotSigInt;
+
+long long DeltaTime;
+short int FirstTimeAudio, FirstTime;
+
+int dimAudioQ;
+float deltaAudioQ;
+float deltaAudioQError;
+
+int SaveYUV;
+char YUVFileName[256];
+int SaveLoss;
+
+char VideoFrameLossRateLogFilename[256];
+char VideoFrameSkipRateLogFilename[256];
+
+long int decoded_vframes;
+long int LastSavedVFrame;
 
 void SaveFrame(AVFrame *pFrame, int width, int height);
 int VideoCallback(void *valthread);
@@ -1067,7 +1144,7 @@ void ChunkerPlayerCore_Play()
 	
 	SDL_PauseAudio(0);
 	video_thread = SDL_CreateThread(VideoCallback, &VideoCallbackThreadParams);
-	ChunkerPlayerStats_Init();
+	ChunkerPlayerStats_Init(&VideoCallbackThreadParams);
 	stats_thread = SDL_CreateThread(CollectStatisticsThread, NULL);
 	
 	decoded_vframes = 0;
