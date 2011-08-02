@@ -903,13 +903,12 @@ void RedrawStats()
 	SDL_UnlockMutex(OverlayMutex);
 }
 
-void ChunkerPlayerGUI_SetupOverlayRect(SChannel* channel)
+void ChunkerPlayerGUI_SetupOverlayRect(int w, int h, float r)
 {
-	ratio = channel->Ratio;
-	int w, h;
-	GetScreenSizeFromOverlay(channel->Width, channel->Height, &w, &h);
-	UpdateOverlaySize(ratio, w, h);
-	// UpdateOverlaySize(ratio, channel->Width, channel->Height);
+	ratio = r;
+	int w2, h2;
+	GetScreenSizeFromOverlay(w, h, &w2, &h2);
+	UpdateOverlaySize(ratio, w2, h2);
 }
 
 void ChunkerPlayerGUI_ForceResize(int width, int height)
