@@ -570,46 +570,8 @@ int ReTune(SChannel* channel)
 	return 0;
 }
 
-int SwitchChannel(SChannel* channel)
+int StartStreamer(SChannel* channel)
 {
-	int i=0;
-#ifdef RESTORE_SCREEN_ON_ZAPPING
-	int was_fullscreen = FullscreenMode;
-	int old_width = window_width, old_height = window_height;
-#endif
-	
-	if(ChunkerPlayerCore_IsRunning())
-		ChunkerPlayerCore_Stop();
-
-    KILL_PROCESS(P2PProcessHandle);
-#ifdef PSNR_PUBLICATION
-	remove("NetworkID");
-#endif
-	
-	ChunkerPlayerGUI_SetChannelRatio(channel->Ratio);
-	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
-	ChunkerPlayerGUI_ForceResize(channel->Width, channel->Height);
-	
-	int w=0, h=0;
-	ChunkerPlayerGUI_AspectRatioResize((float)channel->Ratio, channel->Width, channel->Height, &w, &h);
-	ChunkerPlayerCore_SetupOverlay(w, h);
-	//ChunkerPlayerGUI_SetupOverlayRect(channel);
-	
-	if(ChunkerPlayerCore_InitCodecs(channel->VideoCodec, channel->Width, channel->Height, channel->AudioCodec, channel->SampleRate, channel->AudioChannels) < 0)
-	{
-		printf("ERROR, COULD NOT INITIALIZE CODECS\n");
-		exit(2);
-	}
-	
-	//reset quality info
-	channel->startTime = time(NULL);
-	channel->instant_score = 0.0;
-	channel->average_score = 0.0;
-	channel->history_index = 0;
-	for(i=0; i<CHANNEL_SCORE_HISTORY_SIZE; i++)
-		channel->score_history[i] = -1;
-	sprintf(channel->quality, "EVALUATING...");
-	
 	char argv0[255], parameters_string[511];
 	sprintf(argv0, "%s", StreamerFilename);
 
@@ -627,6 +589,7 @@ int SwitchChannel(SChannel* channel)
 	{
 
 #ifndef __WIN32__
+		int i;
 		char* parameters_vector[255];
 		parameters_vector[0] = argv0;
 
@@ -711,8 +674,52 @@ int SwitchChannel(SChannel* channel)
 			return -1;
 		}
 #endif
-
 	}
+
+	return 1;
+}
+
+int SwitchChannel(SChannel* channel)
+{
+	int i=0;
+#ifdef RESTORE_SCREEN_ON_ZAPPING
+	int was_fullscreen = FullscreenMode;
+	int old_width = window_width, old_height = window_height;
+#endif
+	
+	if(ChunkerPlayerCore_IsRunning())
+		ChunkerPlayerCore_Stop();
+
+    KILL_PROCESS(P2PProcessHandle);
+#ifdef PSNR_PUBLICATION
+	remove("NetworkID");
+#endif
+	
+	ChunkerPlayerGUI_SetChannelRatio(channel->Ratio);
+	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
+	ChunkerPlayerGUI_ForceResize(channel->Width, channel->Height);
+	
+	int w=0, h=0;
+	ChunkerPlayerGUI_AspectRatioResize((float)channel->Ratio, channel->Width, channel->Height, &w, &h);
+	ChunkerPlayerCore_SetupOverlay(w, h);
+	//ChunkerPlayerGUI_SetupOverlayRect(channel);
+	
+	if(ChunkerPlayerCore_InitCodecs(channel->VideoCodec, channel->Width, channel->Height, channel->AudioCodec, channel->SampleRate, channel->AudioChannels) < 0)
+	{
+		printf("ERROR, COULD NOT INITIALIZE CODECS\n");
+		exit(2);
+	}
+	
+	//reset quality info
+	channel->startTime = time(NULL);
+	channel->instant_score = 0.0;
+	channel->average_score = 0.0;
+	channel->history_index = 0;
+	for(i=0; i<CHANNEL_SCORE_HISTORY_SIZE; i++)
+		channel->score_history[i] = -1;
+	sprintf(channel->quality, "EVALUATING...");
+
+	StartStreamer(channel);
 
 #ifdef RESTORE_SCREEN_ON_ZAPPING
 	if(SilentMode == 0) {
