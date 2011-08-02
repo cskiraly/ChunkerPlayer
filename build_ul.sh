@@ -53,7 +53,7 @@ if [ "$YASM_PATH" = "yasm:" ]; then
 	exit
 fi
 
-mkdir $EXTERN_DIR
+mkdir -p $EXTERN_DIR
 
 if [ -n "$MINGW" ]; then
 	TEMP_BZ2="$BASE_UL_DIR/$EXTERN_DIR/bzip2_mingw"
