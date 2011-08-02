@@ -6,6 +6,7 @@
 typedef struct threadVal {
 	int width;
 	int height;
+	char *video_codec;
 } ThreadVal;
 
 int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels);

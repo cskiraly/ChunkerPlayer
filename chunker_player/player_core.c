@@ -30,8 +30,6 @@
 #include "player_core.h"
 #include "player_stats.h"
 
-static char *video_codec;
-
 typedef struct PacketQueue {
 	AVPacketList *first_pkt;
 	AVPacket *minpts_pkt;
@@ -336,8 +334,6 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 
 int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels)
 {
-	video_codec = v_codec;
-
 	// some initializations
 	QueueStopped = 0;
 	AudioQueueOffset=0;
@@ -356,6 +352,7 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	
 	VideoCallbackThreadParams.width = width;
 	VideoCallbackThreadParams.height = height;
+	VideoCallbackThreadParams.video_codec = strdup(v_codec);
 
 	// Register all formats and codecs
 	avcodec_init();
@@ -818,11 +815,11 @@ int VideoCallback(void *valthread)
 	//frecon = fopen("recondechunk.mpg","wb");
 
 	//setup video decoder
-	pCodec = avcodec_find_decoder_by_name(video_codec);
+	pCodec = avcodec_find_decoder_by_name(tval->video_codec);
 	if (pCodec) {
 		fprintf(stderr, "INIT: Setting VIDEO codecID to: %d\n",pCodec->id);
 	} else {
-		fprintf(stderr, "INIT: Unknown VIDEO codec: %s!\n", video_codec);
+		fprintf(stderr, "INIT: Unknown VIDEO codec: %s!\n", tval->video_codec);
 		return -1; // Codec not found
 	}
 
