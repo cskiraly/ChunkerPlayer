@@ -28,7 +28,6 @@
 #include <windows.h>
 #endif
 
-void* P2PProcessHandle;
 int NChannels;
 char StreamerFilename[255];
 int Port;
@@ -117,16 +116,6 @@ int main(int argc, char *argv[])
 	quit = 0;
 	QueueFillingMode=1;
 	LogTraces = 0;
-
-	
-#ifndef __WIN32__
-	static pid_t fork_pid = -1;
-	P2PProcessHandle=&fork_pid;
-#else
-	static PROCESS_INFORMATION ProcessInfo;
-	ZeroMemory( &ProcessInfo, sizeof(ProcessInfo) );
-	P2PProcessHandle=&ProcessInfo;
-#endif
 
 	NChannels = 0;
 	SelectedChannel = -1;
@@ -408,7 +397,7 @@ int main(int argc, char *argv[])
 		usleep(120000);
 	}
 
-	KILL_PROCESS(P2PProcessHandle);
+	KILL_PROCESS(&(Channels[SelectedChannel].StreamerProcess));
 
 	//TERMINATE
 	ChunkerPlayerCore_Stop();
@@ -432,8 +421,7 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef PSNR_PUBLICATION
-	if(repoclient) repClose(repoclient);
-	event_base_free(eventbase);
+	if(repoclient) repClose(repoclient);	event_base_free(eventbase);
 #endif
 	return 0;
 }
@@ -631,9 +619,10 @@ int StartStreamer(SChannel* channel)
 			printf("ERROR, COULD NOT LAUNCH OFFERSTREAMER\n");
 			exit(2);
 		}
-		else
-			*((pid_t*)P2PProcessHandle) = pid;
-		
+		else {
+			channel->StreamerProcess = pid;
+		}
+
 		// restore backup descriptors in the parent process
 		dup2(stdoutS, STDOUT_FILENO);
 		dup2(stderrS, STDERR_FILENO);
@@ -654,7 +643,7 @@ int StartStreamer(SChannel* channel)
 
 		ZeroMemory( &sti, sizeof(sti) );
 		sti.cb = sizeof(sti);
-		ZeroMemory( P2PProcessHandle, sizeof(PROCESS_INFORMATION) );
+		ZeroMemory( &channel->StreamerProcess, sizeof(PROCESS_INFORMATION) );
 
 		char buffer[512];
 		sprintf(buffer, "%s %s", argv0, parameters_string);
@@ -668,7 +657,7 @@ int StartStreamer(SChannel* channel)
 	  	NULL,
 	  	NULL,
 	  	&sti,
-	  	P2PProcessHandle))
+		&channel->StreamerProcess))
 		{
 			printf("Unable to generate process \n");
 			return -1;
@@ -690,7 +679,6 @@ int SwitchChannel(SChannel* channel)
 	if(ChunkerPlayerCore_IsRunning())
 		ChunkerPlayerCore_Stop();
 
-    KILL_PROCESS(P2PProcessHandle);
 #ifdef PSNR_PUBLICATION
 	remove("NetworkID");
 #endif
@@ -783,12 +771,14 @@ int SwitchChannel(SChannel* channel)
 
 void ZapDown()
 {
+	KILL_PROCESS(&Channels[SelectedChannel].StreamerProcess);
 	SelectedChannel = ((SelectedChannel+1) %NChannels);
 	SwitchChannel(&(Channels[SelectedChannel]));
 }
 
 void ZapUp()
 {
+	KILL_PROCESS(&Channels[SelectedChannel].StreamerProcess);
 	SelectedChannel--;
 	if(SelectedChannel < 0)
 		SelectedChannel = NChannels-1;

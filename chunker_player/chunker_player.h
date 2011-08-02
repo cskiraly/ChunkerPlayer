@@ -30,6 +30,11 @@ typedef struct SChannel
 	int startTime;
 	char VideoCodec[255];
 	char AudioCodec[255];
+#ifndef __WIN32__
+	pid_t StreamerProcess;
+#else
+	PROCESS_INFORMATION StreamerProcess;
+#endif
 } SChannel;
 
 SChannel Channels[MAX_CHANNELS_NUM];
