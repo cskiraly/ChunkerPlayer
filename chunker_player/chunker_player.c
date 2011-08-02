@@ -14,6 +14,7 @@
 #include "http_default_urls.h"
 #include "player_defines.h"
 #include "chunker_player.h"
+#include "chunk_puller.h"
 #include "player_gui.h"
 #include <time.h>
 #include <getopt.h>
@@ -26,6 +27,14 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+
+void* P2PProcessHandle;
+int NChannels;
+char StreamerFilename[255];
+int Port;
+
+int ParseConf();
+int SwitchChannel(SChannel* channel);
 
 int ReadALine(FILE* fp, char* Output, int MaxOutputSize)
 {
