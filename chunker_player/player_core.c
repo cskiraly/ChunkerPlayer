@@ -68,7 +68,6 @@ int CurrentAudioSamples;
 uint8_t CurrentAudioSilence;
 
 SDL_Rect *InitRect;
-SDL_AudioSpec *AudioSpecification;
 
 struct SwsContext *img_convert_ctx;
 int GotSigInt;
@@ -332,31 +331,9 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 	return res;
 }
 
-int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels)
+int OpenACodec (char *audio_codec, int sample_rate, short int audio_channels)
 {
-	// some initializations
-	QueueStopped = 0;
-	AudioQueueOffset=0;
-	AVPlaying = 0;
-	GotSigInt = 0;
-	FirstTimeAudio=1;
-	FirstTime = 1;
-	deltaAudioQError=0;
-	InitRect = NULL;
-	img_convert_ctx = NULL;
-	
-	SDL_AudioSpec *wanted_spec;
-	AVCodec         *aCodec;
-	
-	memset(&VideoCallbackThreadParams, 0, sizeof(ThreadVal));
-	
-	VideoCallbackThreadParams.width = width;
-	VideoCallbackThreadParams.height = height;
-	VideoCallbackThreadParams.video_codec = strdup(v_codec);
-
-	// Register all formats and codecs
-	avcodec_init();
-	av_register_all();
+	AVCodec *aCodec;
 
 	aCodecCtx = avcodec_alloc_context();
 	//aCodecCtx->bit_rate = 64000;
@@ -374,6 +351,14 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	printf("using audio Codecid: %d ",aCodecCtx->codec_id);
 	printf("samplerate: %d ",aCodecCtx->sample_rate);
 	printf("channels: %d\n",aCodecCtx->channels);
+
+	return 1;
+}
+
+int OpenAudio(AVCodecContext  *aCodecCtx)
+{
+	SDL_AudioSpec *wanted_spec;
+	SDL_AudioSpec *AudioSpecification = NULL;
 
 	if (! (wanted_spec = malloc(sizeof(*wanted_spec)))) {
 		perror("error initializing audio");
@@ -421,6 +406,40 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	printf("size:%d\n",AudioSpecification->size);
 	printf("deltaAudioQ: %f\n",deltaAudioQ);
 #endif
+
+	return 1;
+}
+
+int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels)
+{
+	// some initializations
+	QueueStopped = 0;
+	AudioQueueOffset=0;
+	AVPlaying = 0;
+	GotSigInt = 0;
+	FirstTimeAudio=1;
+	FirstTime = 1;
+	deltaAudioQError=0;
+	InitRect = NULL;
+	img_convert_ctx = NULL;
+	
+	memset(&VideoCallbackThreadParams, 0, sizeof(ThreadVal));
+	
+	VideoCallbackThreadParams.width = width;
+	VideoCallbackThreadParams.height = height;
+	VideoCallbackThreadParams.video_codec = strdup(v_codec);
+
+	// Register all formats and codecs
+	avcodec_init();
+	av_register_all();
+
+	if (OpenACodec(audio_codec, sample_rate, audio_channels) < 0) {
+		return -1;
+	}
+
+	if (OpenAudio(aCodecCtx) < 1) {
+		return -1;
+	}
 
 	outbuf_audio = malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
 
