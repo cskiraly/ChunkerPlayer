@@ -3,6 +3,9 @@
 
 #include <libavcodec/avcodec.h>
 #include <SDL_mutex.h>
+#ifdef __WIN32__
+#include <winsock2.h>
+#endif
 
 #include "player_defines.h"
 #include "player_core.h"
