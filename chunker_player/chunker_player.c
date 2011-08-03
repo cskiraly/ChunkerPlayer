@@ -107,6 +107,32 @@ static void print_usage(int argc, char *argv[])
     );
 }
 
+// initialize a receiver instance for receiving chunks from a Streamer process
+// returns: <0 on error
+int initIPCReceiver(Port)
+{
+#ifdef HTTPIO
+	struct MHD_Daemon *daemon = NULL;
+	//this thread fetches chunks from the network by listening to the following path, port
+	daemon = (struct MHD_Daemon*)initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, Port);
+	if(daemon == NULL)
+	{
+		printf("CANNOT START MICROHTTPD SERVICE, EXITING...\n");
+		return -1;
+	}
+#endif
+#ifdef TCPIO
+	int fd = initChunkPuller(Port);
+	if(! (fd > 0))
+	{
+		printf("CANNOT START TCP PULLER...\n");
+		return -1;
+	}
+#endif
+
+	return 1;
+}
+
 int main(int argc, char *argv[])
 {
 	srand ( time(NULL) );
@@ -210,24 +236,10 @@ int main(int argc, char *argv[])
 	}
 #endif
 
-#ifdef HTTPIO
-	struct MHD_Daemon *daemon = NULL;
-	//this thread fetches chunks from the network by listening to the following path, port
-	daemon = (struct MHD_Daemon*)initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, Port);
-	if(daemon == NULL)
-	{
-		printf("CANNOT START MICROHTTPD SERVICE, EXITING...\n");
+	if (initIPCReceiver(Port) < 0) {
 		exit(2);
 	}
-#endif
-#ifdef TCPIO
-	int fd = initChunkPuller(Port);
-	if(! (fd > 0))
-	{
-		printf("CANNOT START TCP PULLER...\n");
-		exit(2);
-	}
-#endif
+
 #ifdef PSNR_PUBLICATION
 	repoclient=NULL;
 	LastTimeRepoPublish.tv_sec=0;
