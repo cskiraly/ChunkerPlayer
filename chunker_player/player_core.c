@@ -358,7 +358,7 @@ int OpenACodec (char *audio_codec, int sample_rate, short int audio_channels)
 int OpenAudio(AVCodecContext  *aCodecCtx)
 {
 	SDL_AudioSpec *wanted_spec;
-	SDL_AudioSpec *AudioSpecification = NULL;
+	static SDL_AudioSpec *wanted_spec_old = NULL;
 
 	if (! (wanted_spec = malloc(sizeof(*wanted_spec)))) {
 		perror("error initializing audio");
@@ -380,30 +380,40 @@ int OpenAudio(AVCodecContext  *aCodecCtx)
 	printf("wanted samples:%d\n",wanted_spec->samples);
 #endif
 
-	if(SDL_OpenAudio(wanted_spec,AudioSpecification)<0)
-	{
+	if (wanted_spec_old && 
+	   (wanted_spec->freq == wanted_spec_old->freq) &&
+	   (wanted_spec->channels == wanted_spec_old->channels)) {	//do not reinit audio if the wanted specification is the same as before
+		return 1;
+	}
+
+	if(wanted_spec_old) {
+		SDL_CloseAudio();
+	}
+
+	if (! (wanted_spec_old = malloc(sizeof(*wanted_spec_old)))) {
+		perror("error initializing audio");
+		return -1;
+	}
+	memcpy(wanted_spec_old, wanted_spec, sizeof(*wanted_spec));
+
+	if (SDL_OpenAudio(wanted_spec,NULL)<0) {
 		fprintf(stderr,"SDL_OpenAudio: %s\n", SDL_GetError());
 		return -1;
 	}
-	if (!AudioSpecification) {
-		AudioSpecification = wanted_spec;
-	} else {
-		free(wanted_spec);
-	}
 
-	CurrentAudioFreq = AudioSpecification->freq;
-	CurrentAudioSamples = AudioSpecification->samples;
-	dimAudioQ = AudioSpecification->size;
-	deltaAudioQ = (float)((float)AudioSpecification->samples)*1000/AudioSpecification->freq;	//in ms
-	CurrentAudioSilence = AudioSpecification->silence;
+	CurrentAudioFreq = wanted_spec->freq;
+	CurrentAudioSamples = wanted_spec->samples;
+	dimAudioQ = wanted_spec->size;
+	deltaAudioQ = (float)((float)wanted_spec->samples)*1000/wanted_spec->freq;	//in ms
+	CurrentAudioSilence = wanted_spec->silence;
 
 #ifdef DEBUG_AUDIO
-	printf("freq:%d\n",AudioSpecification->freq);
-	printf("format:%d\n",AudioSpecification->format);
-	printf("channels:%d\n",AudioSpecification->channels);
-	printf("silence:%d\n",AudioSpecification->silence);
-	printf("samples:%d\n",AudioSpecification->samples);
-	printf("size:%d\n",AudioSpecification->size);
+	printf("freq:%d\n",wanted_spec->freq);
+	printf("format:%d\n",wanted_spec->format);
+	printf("channels:%d\n",wanted_spec->channels);
+	printf("silence:%d\n",wanted_spec->silence);
+	printf("samples:%d\n",wanted_spec->samples);
+	printf("size:%d\n",wanted_spec->size);
 	printf("deltaAudioQ: %f\n",deltaAudioQ);
 #endif
 
@@ -1177,7 +1187,6 @@ void ChunkerPlayerCore_Stop()
 	SDL_WaitThread(video_thread, NULL);
 	SDL_WaitThread(stats_thread, NULL);
 	SDL_PauseAudio(1);	
-	SDL_CloseAudio();
 	
 	if(YUVOverlay != NULL)
 	{
@@ -1203,6 +1212,11 @@ void ChunkerPlayerCore_Stop()
 	int delay = 2 * 1000 * CurrentAudioSamples / CurrentAudioFreq;
 	// printf("SDL_Delay(%d)\n", delay*10);
 	SDL_Delay(delay*10);
+}
+
+void ChunkerPlayerCore_Finalize()
+{
+	SDL_CloseAudio();
 }
 
 void ChunkerPlayerCore_Pause()

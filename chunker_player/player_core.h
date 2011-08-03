@@ -12,6 +12,7 @@ typedef struct threadVal {
 int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels);
 int ChunkerPlayerCore_AudioEnded();
 void ChunkerPlayerCore_Stop();
+void ChunkerPlayerCore_Finalize();
 void ChunkerPlayerCore_Pause();
 void ChunkerPlayerCore_Play();
 int ChunkerPlayerCore_IsRunning();
