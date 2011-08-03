@@ -389,7 +389,6 @@ restart:
 	//~ pCodecCtxEnc->qmin = 30;
 	//~ pCodecCtxEnc->qmax = 30;
 	//times 20 follows the defaults, was not needed in previous versions of libavcodec
-	pCodecCtxEnc->bit_rate_tolerance = video_bitrate*20;
 //	pCodecCtxEnc->crf = 20.0f;
 	// resolution must be a multiple of two 
 	pCodecCtxEnc->width = dest_width;
@@ -450,8 +449,6 @@ restart:
 	// pCodecCtxEnc->rc_buffer_size = 0;
 	break;
     case CODEC_ID_MPEG4 :
-	pCodecCtxEnc->qmin = 10; // qmin=10
-	pCodecCtxEnc->qmax = 51; // qmax=51
 	break;
     default:
 	fprintf(stderr, "INIT: Unsupported OUT VIDEO codec: %s!\n", video_codec);
