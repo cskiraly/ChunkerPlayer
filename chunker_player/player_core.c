@@ -5,15 +5,89 @@
  *  This is free software; see lgpl-2.1.txt
  */
 
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+
+#include <stdio.h>
+#include <unistd.h>
+#include <microhttpd.h>
+#include "external_chunk_transcoding.h"
+#include "frame.h"
+#include <SDL.h>
+#include <SDL_thread.h>
+#include <SDL_mutex.h>
+// #include <SDL_ttf.h>
+// #include <SDL_image.h>
+#include <SDL_video.h>
+#include <assert.h>
+#include <time.h>
+
+#include "player_stats.h"
 #include "player_defines.h"
 #include "chunker_player.h"
 #include "player_gui.h"
 #include "player_core.h"
 #include "player_stats.h"
-#include <assert.h>
-#include <time.h>
 
-static char *video_codec;
+typedef struct PacketQueue {
+	AVPacketList *first_pkt;
+	AVPacket *minpts_pkt;
+	AVPacketList *last_pkt;
+	int nb_packets;
+	int size;
+	SDL_mutex *mutex;
+	short int queueType;
+	int last_frame_extracted; //HINT THIS SHOULD BE MORE THAN 4 BYTES
+	//total frames lost, as seen from the queue, since last queue init
+	int total_lost_frames;
+	long cumulative_bitrate;
+	long cumulative_samples;
+
+	SHistory PacketHistory;
+	
+	double density;
+	char stats_message[255];
+} PacketQueue;
+
+AVCodecContext  *aCodecCtx;
+SDL_Thread *video_thread;
+SDL_Thread *stats_thread;
+uint8_t *outbuf_audio;
+// short int QueueFillingMode=1;
+short int QueueStopped;
+ThreadVal VideoCallbackThreadParams;
+
+int AudioQueueOffset;
+PacketQueue audioq;
+PacketQueue videoq;
+AVPacket AudioPkt, VideoPkt;
+int AVPlaying;
+int CurrentAudioFreq;
+int CurrentAudioSamples;
+uint8_t CurrentAudioSilence;
+
+SDL_Rect *InitRect;
+
+struct SwsContext *img_convert_ctx;
+int GotSigInt;
+
+long long DeltaTime;
+short int FirstTimeAudio, FirstTime;
+
+int dimAudioQ;
+float deltaAudioQ;
+float deltaAudioQError;
+
+int SaveYUV;
+char YUVFileName[256];
+int SaveLoss;
+
+char VideoFrameLossRateLogFilename[256];
+char VideoFrameSkipRateLogFilename[256];
+
+long int decoded_vframes;
+long int LastSavedVFrame;
 
 void SaveFrame(AVFrame *pFrame, int width, int height);
 int VideoCallback(void *valthread);
@@ -257,32 +331,9 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 	return res;
 }
 
-int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels)
+int OpenACodec (char *audio_codec, int sample_rate, short int audio_channels)
 {
-	video_codec = v_codec;
-
-	// some initializations
-	QueueStopped = 0;
-	AudioQueueOffset=0;
-	AVPlaying = 0;
-	GotSigInt = 0;
-	FirstTimeAudio=1;
-	FirstTime = 1;
-	deltaAudioQError=0;
-	InitRect = NULL;
-	img_convert_ctx = NULL;
-	
-	SDL_AudioSpec *wanted_spec;
-	AVCodec         *aCodec;
-	
-	memset(&VideoCallbackThreadParams, 0, sizeof(ThreadVal));
-	
-	VideoCallbackThreadParams.width = width;
-	VideoCallbackThreadParams.height = height;
-
-	// Register all formats and codecs
-	avcodec_init();
-	av_register_all();
+	AVCodec *aCodec;
 
 	aCodecCtx = avcodec_alloc_context();
 	//aCodecCtx->bit_rate = 64000;
@@ -300,6 +351,14 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	printf("using audio Codecid: %d ",aCodecCtx->codec_id);
 	printf("samplerate: %d ",aCodecCtx->sample_rate);
 	printf("channels: %d\n",aCodecCtx->channels);
+
+	return 1;
+}
+
+int OpenAudio(AVCodecContext  *aCodecCtx)
+{
+	SDL_AudioSpec *wanted_spec;
+	SDL_AudioSpec *AudioSpecification = NULL;
 
 	if (! (wanted_spec = malloc(sizeof(*wanted_spec)))) {
 		perror("error initializing audio");
@@ -347,6 +406,40 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	printf("size:%d\n",AudioSpecification->size);
 	printf("deltaAudioQ: %f\n",deltaAudioQ);
 #endif
+
+	return 1;
+}
+
+int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels)
+{
+	// some initializations
+	QueueStopped = 0;
+	AudioQueueOffset=0;
+	AVPlaying = 0;
+	GotSigInt = 0;
+	FirstTimeAudio=1;
+	FirstTime = 1;
+	deltaAudioQError=0;
+	InitRect = NULL;
+	img_convert_ctx = NULL;
+	
+	memset(&VideoCallbackThreadParams, 0, sizeof(ThreadVal));
+	
+	VideoCallbackThreadParams.width = width;
+	VideoCallbackThreadParams.height = height;
+	VideoCallbackThreadParams.video_codec = strdup(v_codec);
+
+	// Register all formats and codecs
+	avcodec_init();
+	av_register_all();
+
+	if (OpenACodec(audio_codec, sample_rate, audio_channels) < 0) {
+		return -1;
+	}
+
+	if (OpenAudio(aCodecCtx) < 1) {
+		return -1;
+	}
 
 	outbuf_audio = malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
 
@@ -741,11 +834,11 @@ int VideoCallback(void *valthread)
 	//frecon = fopen("recondechunk.mpg","wb");
 
 	//setup video decoder
-	pCodec = avcodec_find_decoder_by_name(video_codec);
+	pCodec = avcodec_find_decoder_by_name(tval->video_codec);
 	if (pCodec) {
 		fprintf(stderr, "INIT: Setting VIDEO codecID to: %d\n",pCodec->id);
 	} else {
-		fprintf(stderr, "INIT: Unknown VIDEO codec: %s!\n", video_codec);
+		fprintf(stderr, "INIT: Unknown VIDEO codec: %s!\n", tval->video_codec);
 		return -1; // Codec not found
 	}
 
@@ -1067,7 +1160,7 @@ void ChunkerPlayerCore_Play()
 	
 	SDL_PauseAudio(0);
 	video_thread = SDL_CreateThread(VideoCallback, &VideoCallbackThreadParams);
-	ChunkerPlayerStats_Init();
+	ChunkerPlayerStats_Init(&VideoCallbackThreadParams);
 	stats_thread = SDL_CreateThread(CollectStatisticsThread, NULL);
 	
 	decoded_vframes = 0;

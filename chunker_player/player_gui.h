@@ -35,7 +35,7 @@ void ChunkerPlayerGUI_HandleGetFocus();
 void ChunkerPlayerGUI_HandleMouseMotion(int x, int y);
 void ChunkerPlayerGUI_HandleLButton(int x, int y);
 void ChunkerPlayerGUI_HandleKey();
-void ChunkerPlayerGUI_SetupOverlayRect(SChannel* channel);
+void ChunkerPlayerGUI_SetupOverlayRect(int w, int h, float r);
 void ChunkerPlayerGUI_ForceResize(int w, int h);
 void ChunkerPlayerGUI_SetChannelTitle(char* title);
 void ChunkerPlayerGUI_SetChannelRatio(float ratio);

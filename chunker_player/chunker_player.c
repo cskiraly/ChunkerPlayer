@@ -14,6 +14,7 @@
 #include "http_default_urls.h"
 #include "player_defines.h"
 #include "chunker_player.h"
+#include "chunk_puller.h"
 #include "player_gui.h"
 #include <time.h>
 #include <getopt.h>
@@ -26,6 +27,13 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+
+int NChannels;
+char StreamerFilename[255];
+int Port;
+
+int ParseConf();
+int SwitchChannel(SChannel* channel);
 
 int ReadALine(FILE* fp, char* Output, int MaxOutputSize)
 {
@@ -99,6 +107,32 @@ static void print_usage(int argc, char *argv[])
     );
 }
 
+// initialize a receiver instance for receiving chunks from a Streamer process
+// returns: <0 on error
+int initIPCReceiver(Port)
+{
+#ifdef HTTPIO
+	struct MHD_Daemon *daemon = NULL;
+	//this thread fetches chunks from the network by listening to the following path, port
+	daemon = (struct MHD_Daemon*)initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, Port);
+	if(daemon == NULL)
+	{
+		printf("CANNOT START MICROHTTPD SERVICE, EXITING...\n");
+		return -1;
+	}
+#endif
+#ifdef TCPIO
+	int fd = initChunkPuller(Port);
+	if(! (fd > 0))
+	{
+		printf("CANNOT START TCP PULLER...\n");
+		return -1;
+	}
+#endif
+
+	return 1;
+}
+
 int main(int argc, char *argv[])
 {
 	srand ( time(NULL) );
@@ -108,16 +142,6 @@ int main(int argc, char *argv[])
 	quit = 0;
 	QueueFillingMode=1;
 	LogTraces = 0;
-
-	
-#ifndef __WIN32__
-	static pid_t fork_pid = -1;
-	P2PProcessHandle=&fork_pid;
-#else
-	static PROCESS_INFORMATION ProcessInfo;
-	ZeroMemory( &ProcessInfo, sizeof(ProcessInfo) );
-	P2PProcessHandle=&ProcessInfo;
-#endif
 
 	NChannels = 0;
 	SelectedChannel = -1;
@@ -212,24 +236,10 @@ int main(int argc, char *argv[])
 	}
 #endif
 
-#ifdef HTTPIO
-	struct MHD_Daemon *daemon = NULL;
-	//this thread fetches chunks from the network by listening to the following path, port
-	daemon = (struct MHD_Daemon*)initChunkPuller(UL_DEFAULT_EXTERNALPLAYER_PATH, Port);
-	if(daemon == NULL)
-	{
-		printf("CANNOT START MICROHTTPD SERVICE, EXITING...\n");
+	if (initIPCReceiver(Port) < 0) {
 		exit(2);
 	}
-#endif
-#ifdef TCPIO
-	int fd = initChunkPuller(Port);
-	if(! (fd > 0))
-	{
-		printf("CANNOT START TCP PULLER...\n");
-		exit(2);
-	}
-#endif
+
 #ifdef PSNR_PUBLICATION
 	repoclient=NULL;
 	LastTimeRepoPublish.tv_sec=0;
@@ -399,7 +409,7 @@ int main(int argc, char *argv[])
 		usleep(120000);
 	}
 
-	KILL_PROCESS(P2PProcessHandle);
+	KILL_PROCESS(&(Channels[SelectedChannel].StreamerProcess));
 
 	//TERMINATE
 	ChunkerPlayerCore_Stop();
@@ -423,8 +433,7 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef PSNR_PUBLICATION
-	if(repoclient) repClose(repoclient);
-	event_base_free(eventbase);
+	if(repoclient) repClose(repoclient);	event_base_free(eventbase);
 #endif
 	return 0;
 }
@@ -561,46 +570,8 @@ int ReTune(SChannel* channel)
 	return 0;
 }
 
-int SwitchChannel(SChannel* channel)
+int StartStreamer(SChannel* channel)
 {
-	int i=0;
-#ifdef RESTORE_SCREEN_ON_ZAPPING
-	int was_fullscreen = FullscreenMode;
-	int old_width = window_width, old_height = window_height;
-#endif
-	
-	if(ChunkerPlayerCore_IsRunning())
-		ChunkerPlayerCore_Stop();
-
-    KILL_PROCESS(P2PProcessHandle);
-#ifdef PSNR_PUBLICATION
-	remove("NetworkID");
-#endif
-	
-	ChunkerPlayerGUI_SetChannelRatio(channel->Ratio);
-	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
-	ChunkerPlayerGUI_ForceResize(channel->Width, channel->Height);
-	
-	int w=0, h=0;
-	ChunkerPlayerGUI_AspectRatioResize((float)channel->Ratio, channel->Width, channel->Height, &w, &h);
-	ChunkerPlayerCore_SetupOverlay(w, h);
-	//ChunkerPlayerGUI_SetupOverlayRect(channel);
-	
-	if(ChunkerPlayerCore_InitCodecs(channel->VideoCodec, channel->Width, channel->Height, channel->AudioCodec, channel->SampleRate, channel->AudioChannels) < 0)
-	{
-		printf("ERROR, COULD NOT INITIALIZE CODECS\n");
-		exit(2);
-	}
-	
-	//reset quality info
-	channel->startTime = time(NULL);
-	channel->instant_score = 0.0;
-	channel->average_score = 0.0;
-	channel->history_index = 0;
-	for(i=0; i<CHANNEL_SCORE_HISTORY_SIZE; i++)
-		channel->score_history[i] = -1;
-	sprintf(channel->quality, "EVALUATING...");
-	
 	char argv0[255], parameters_string[511];
 	sprintf(argv0, "%s", StreamerFilename);
 
@@ -618,6 +589,7 @@ int SwitchChannel(SChannel* channel)
 	{
 
 #ifndef __WIN32__
+		int i;
 		char* parameters_vector[255];
 		parameters_vector[0] = argv0;
 
@@ -659,9 +631,10 @@ int SwitchChannel(SChannel* channel)
 			printf("ERROR, COULD NOT LAUNCH OFFERSTREAMER\n");
 			exit(2);
 		}
-		else
-			*((pid_t*)P2PProcessHandle) = pid;
-		
+		else {
+			channel->StreamerProcess = pid;
+		}
+
 		// restore backup descriptors in the parent process
 		dup2(stdoutS, STDOUT_FILENO);
 		dup2(stderrS, STDERR_FILENO);
@@ -682,7 +655,7 @@ int SwitchChannel(SChannel* channel)
 
 		ZeroMemory( &sti, sizeof(sti) );
 		sti.cb = sizeof(sti);
-		ZeroMemory( P2PProcessHandle, sizeof(PROCESS_INFORMATION) );
+		ZeroMemory( &channel->StreamerProcess, sizeof(PROCESS_INFORMATION) );
 
 		char buffer[512];
 		sprintf(buffer, "%s %s", argv0, parameters_string);
@@ -696,14 +669,57 @@ int SwitchChannel(SChannel* channel)
 	  	NULL,
 	  	NULL,
 	  	&sti,
-	  	P2PProcessHandle))
+		&channel->StreamerProcess))
 		{
 			printf("Unable to generate process \n");
 			return -1;
 		}
 #endif
-
 	}
+
+	return 1;
+}
+
+int SwitchChannel(SChannel* channel)
+{
+	int i=0;
+#ifdef RESTORE_SCREEN_ON_ZAPPING
+	int was_fullscreen = FullscreenMode;
+	int old_width = window_width, old_height = window_height;
+#endif
+	
+	if(ChunkerPlayerCore_IsRunning())
+		ChunkerPlayerCore_Stop();
+
+#ifdef PSNR_PUBLICATION
+	remove("NetworkID");
+#endif
+	
+	ChunkerPlayerGUI_SetChannelRatio(channel->Ratio);
+	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
+	ChunkerPlayerGUI_ForceResize(channel->Width, channel->Height);
+	
+	int w=0, h=0;
+	ChunkerPlayerGUI_AspectRatioResize((float)channel->Ratio, channel->Width, channel->Height, &w, &h);
+	ChunkerPlayerCore_SetupOverlay(w, h);
+	//ChunkerPlayerGUI_SetupOverlayRect(channel);
+	
+	if(ChunkerPlayerCore_InitCodecs(channel->VideoCodec, channel->Width, channel->Height, channel->AudioCodec, channel->SampleRate, channel->AudioChannels) < 0)
+	{
+		printf("ERROR, COULD NOT INITIALIZE CODECS\n");
+		exit(2);
+	}
+	
+	//reset quality info
+	channel->startTime = time(NULL);
+	channel->instant_score = 0.0;
+	channel->average_score = 0.0;
+	channel->history_index = 0;
+	for(i=0; i<CHANNEL_SCORE_HISTORY_SIZE; i++)
+		channel->score_history[i] = -1;
+	sprintf(channel->quality, "EVALUATING...");
+
+	StartStreamer(channel);
 
 #ifdef RESTORE_SCREEN_ON_ZAPPING
 	if(SilentMode == 0) {
@@ -767,12 +783,14 @@ int SwitchChannel(SChannel* channel)
 
 void ZapDown()
 {
+	KILL_PROCESS(&Channels[SelectedChannel].StreamerProcess);
 	SelectedChannel = ((SelectedChannel+1) %NChannels);
 	SwitchChannel(&(Channels[SelectedChannel]));
 }
 
 void ZapUp()
 {
+	KILL_PROCESS(&Channels[SelectedChannel].StreamerProcess);
 	SelectedChannel--;
 	if(SelectedChannel < 0)
 		SelectedChannel = NChannels-1;

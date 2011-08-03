@@ -1,9 +1,10 @@
 #ifndef _CHUNKER_PLAYER_H
 #define _CHUNKER_PLAYER_H
 
-#include "player_defines.h"
 #include <SDL.h>
 #include <SDL_mutex.h>
+
+#include "player_defines.h"
 
 #ifdef PSNR_PUBLICATION
 #include <repoclient.h>
@@ -29,7 +30,15 @@ typedef struct SChannel
 	int startTime;
 	char VideoCodec[255];
 	char AudioCodec[255];
+#ifndef __WIN32__
+	pid_t StreamerProcess;
+#else
+	PROCESS_INFORMATION StreamerProcess;
+#endif
 } SChannel;
+
+SChannel Channels[MAX_CHANNELS_NUM];
+int SelectedChannel;
 
 SDL_mutex *OverlayMutex;
 SDL_Overlay *YUVOverlay;
@@ -61,8 +70,6 @@ SChunkLoss* ScheduledChunkLosses;
 int CurrChunkLossIndex, NScheduledChunkLosses;
 #endif
 
-void* P2PProcessHandle;
-
 #ifdef __WIN32__
 //~ #define KILL_PROCESS(pid) {char command_name[255]; sprintf(command_name, "taskkill /pid %d /F", pid); system(command_name);}
 #define KILL_PROCESS(handle) {TerminateProcess(((PROCESS_INFORMATION*)handle)->hProcess, 0);}
@@ -86,30 +93,13 @@ void* P2PProcessHandle;
 #define CREATE_DIR(folder) {char command_name[255]; sprintf(command_name, "mkdir %s", folder); system(command_name); }
 #endif
 
-SChannel Channels[MAX_CHANNELS_NUM];
-int NChannels;
-int SelectedChannel;
-char StreamerFilename[255];
 int FullscreenMode; // fullscreen vs windowized flag
 int window_width, window_height;
 int Audio_ON;
 
-int Port;
-
-int CheckForRepoAddress(char* Param);
 void ZapDown();
 void ZapUp();
-int ParseConf();
-int SwitchChannel(SChannel* channel);
 int ReTune(SChannel* channel);
 int enqueueBlock(const uint8_t *block, const int block_size);
-#ifdef HTTPIO
-struct MHD_Daemon *initChunkPuller(const char *path, const int port);
-void finalizeChunkPuller(struct MHD_Daemon *daemon);
-#endif
-#ifdef TCPIO
-int initChunkPuller(const int port);
-void finalizeChunkPuller(void);
-#endif
 
 #endif // _CHUNKER_PLAYER_H

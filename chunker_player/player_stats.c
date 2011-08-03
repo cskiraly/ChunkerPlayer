@@ -12,13 +12,17 @@
 #include <time.h>
 #include <assert.h>
 
+static unsigned char LastSourceIFrameDistance;
+static ThreadVal *VideoCallbackThreadParams;
+
 void QoE_Estimator(double * inputs, double * outputs);
 
-void ChunkerPlayerStats_Init()
+void ChunkerPlayerStats_Init(ThreadVal *params)
 {
+	VideoCallbackThreadParams = params;
 	LastIFrameNumber = -1;
 	LastQualityEstimation = 0.5f;
-	qoe_adjust_factor = sqrt(VideoCallbackThreadParams.height*VideoCallbackThreadParams.width);
+	qoe_adjust_factor = sqrt(VideoCallbackThreadParams->height*VideoCallbackThreadParams->width);
 	
 	if(LogTraces)
 	{
@@ -442,8 +446,8 @@ void ChunkerPlayerStats_PrintContextFile()
 	FILE* tmp_file = fopen(tmp, "w");
 	if(tmp_file)
 	{
-		fprintf(tmp_file, "width = %d\n", VideoCallbackThreadParams.width);
-		fprintf(tmp_file, "height = %d\n", VideoCallbackThreadParams.height);
+		fprintf(tmp_file, "width = %d\n", VideoCallbackThreadParams->width);
+		fprintf(tmp_file, "height = %d\n", VideoCallbackThreadParams->height);
 		fprintf(tmp_file, "total_video_frames_logged = %ld\n", VideoFramesLogged[0]+VideoFramesLogged[1]+VideoFramesLogged[2]);
 		fprintf(tmp_file, "first_video_frame_number = %ld\n", FirstLoggedVFrameNumber);
 		fprintf(tmp_file, "last_video_frame_number = %ld\n", LastLoggedVFrameNumber);
