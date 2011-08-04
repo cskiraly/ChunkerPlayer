@@ -110,7 +110,7 @@ else
 		cd zlib
 		#make and install in local folder
 		./configure --prefix="$LOCAL_Z"
-		$MAKE; $MAKE install
+		$MAKE && $MAKE install || exit 1
 	fi
 
 	#clean all external libraries if CLEAN_EXTERNAL_BUILD=1
@@ -136,7 +136,7 @@ if [ ! -n "$MINGW" ]; then
 				$WGET_OR_CURL $WGET_OR_CURLOPT http://www.bzip.org/1.0.5/bzip2-1.0.5.tar.gz; tar xzf bzip2-1.0.5.tar.gz; mv bzip2-1.0.5 bzip2; rm -f bzip2-1.0.5.tar.gz
 				cd bzip2
 				#make and install in local folder
-				$MAKE; $MAKE install PREFIX="$TEMP_BZ2"
+				$MAKE && $MAKE install PREFIX="$TEMP_BZ2" || exit 1 
 			fi
 			#previous local install is existing, just set pointer to it
 			#or override location if it was set as systemwide
@@ -293,7 +293,7 @@ if [ -n "$BUILD_X264" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_X264" ]; then
 
 	#make and install in local folder
 	./configure --prefix="$TEMP_X264" ${HOSTARCH:+--host=$HOSTARCH}
-	$MAKE; $MAKE install
+	$MAKE && $MAKE install || exit 1
 fi
 fi
 fi
@@ -322,7 +322,7 @@ if [ -n "$BUILD_MP3LAME" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MP3LAME" ]; then
 
 	#make and install in local folder
 	./configure --disable-gtktest --disable-frontend --prefix="$TEMP_MP3LAME" ${HOSTARCH:+--host=$HOSTARCH}
-	$MAKE; $MAKE install
+	$MAKE && $MAKE install || exit 1
 fi
 fi
 fi
@@ -380,7 +380,7 @@ if [ -n "$BUILD_FFMPEG" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_FFMPEG" ]; then
 	else
 		./configure --enable-gpl --enable-nonfree --enable-version3 --enable-pthreads  $FFMPEG_CONFIG --extra-cflags="$FFMPEG_EXTRA_CFLAGS -I$LOCAL_BZ2/include  -I$LOCAL_Z/include" --extra-ldflags="-L$TEMP_X264/lib -L$TEMP_MP3LAME/lib -L$LOCAL_BZ2/lib -L$LOCAL_Z/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$TEMP_FFMPEG"
 	fi
-	$MAKE; $MAKE install
+	$MAKE && $MAKE install || exit 1
 fi
 fi
 
@@ -413,7 +413,7 @@ if [ -n "$BUILD_MHD" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MHD" ]; then
 	else
 		./configure --disable-curl --disable-https --enable-messages --disable-client-side --prefix="$TEMP_MHD"
 	fi
-	$MAKE; $MAKE install
+	$MAKE && $MAKE install || exit 1
 fi
 
 
@@ -440,7 +440,7 @@ if [ -n "$BUILD_SDL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL" ]; then
 			cd sdl_mingw
 			#make and install in local folder
 			./configure ${HOSTARCH:+--host=$HOSTARCH} --disable-video-directfb --disable-shared --prefix="$TEMP_SDL"
-			$MAKE; $MAKE install
+			$MAKE && $MAKE install || exit 1
 #		fi
 	else
 		if [ -e "sdl" ]; then
@@ -453,7 +453,7 @@ if [ -n "$BUILD_SDL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL" ]; then
 		fi
 		#make and install in local folder
 		./configure --disable-video-directfb --prefix="$TEMP_SDL"
-		$MAKE; $MAKE install
+		$MAKE && $MAKE install || exit 1
 	fi
 fi
 
@@ -479,7 +479,7 @@ if [ -n "$BUILD_SDLIMAGE" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_i
 
 	./configure CFLAGS="$CFLAGS $LIBSDLIMAGE_FLAGS -I$LOCAL_LIBPNG/include" CPPFLAGS="$CPPFLAGS -I$LOCAL_LIBPNG/include" LDFLAGS="$LDFLAGS $LIBSDLIMAGE_LDFLAGS -L$LOCAL_LIBPNG/lib" ${HOSTARCH:+--host=$HOSTARCH} --prefix="$TEMP_SDL" --with-sdl-prefix="$TEMP_SDL" --disable-png-shared  --disable-shared --disable-sdltest
 
-	$MAKE; $MAKE install
+	$MAKE && $MAKE install || exit 1
 fi
 
 echo "building freetype"
@@ -503,7 +503,7 @@ if [ -n "$BUILD_FREETYPE" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_FREETYPE" ]; the
 
 	#make and install in local folder
 	./configure ${HOSTARCH:+--host=$HOSTARCH} --prefix="$TEMP_FREETYPE"
-	$MAKE; $MAKE install
+	$MAKE && $MAKE install || exit 1
 fi
 
 echo "building libSDL-ttf"
@@ -522,7 +522,7 @@ if [ -n "$BUILD_SDLTTF" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_ttf
 
 	#make and install in local SDL folder
 	./configure ${HOSTARCH:+--host=$HOSTARCH} --with-freetype-prefix="$TEMP_FREETYPE" --with-sdl-prefix="$TEMP_SDL" --prefix="$TEMP_SDL" --disable-shared --disable-sdltest
-	$MAKE; $MAKE install
+	$MAKE && $MAKE install || exit 1
 fi
 
 echo "building curl"
@@ -545,7 +545,7 @@ if [ -n "$BUILD_CURL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_CURL" ]; then
 
 	#make and install in local folder
 	./configure ${HOSTARCH:+--host=$HOSTARCH} --disable-ftp --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --without-libssh2 --without-ssl --without-krb4 --enable-static --disable-shared --without-zlib --without-libidn --prefix="$TEMP_CURL"
-	$MAKE; $MAKE install
+	$MAKE && $MAKE install || exit 1
 fi
 
 echo "looking for libevent"
