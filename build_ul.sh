@@ -477,7 +477,7 @@ if [ -n "$BUILD_SDLIMAGE" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_i
 
 	echo "./configure CFLAGS=\"$CFLAGS -I$LOCAL_LIBPNG/include\" CPPFLAGS=\"$CPPFLAGS -I$LOCAL_LIBPNG/include\" LDFLAGS=\"$LDFLAGS -L$LOCAL_LIBPNG/lib\" ${HOSTARCH:+--host=$HOSTARCH} --prefix=\"$TEMP_SDL\" --with-sdl-prefix=\"$TEMP_SDL\" --disable-png-shared"
 
-	./configure CFLAGS="$CFLAGS $LIBSDLIMAGE_FLAGS -I$LOCAL_LIBPNG/include" CPPFLAGS="$CPPFLAGS -I$LOCAL_LIBPNG/include" LDFLAGS="$LDFLAGS $LIBSDLIMAGE_LDFLAGS -L$LOCAL_LIBPNG/lib" ${HOSTARCH:+--host=$HOSTARCH} --prefix="$TEMP_SDL" --with-sdl-prefix="$TEMP_SDL" --disable-png-shared  --disable-shared
+	./configure CFLAGS="$CFLAGS $LIBSDLIMAGE_FLAGS -I$LOCAL_LIBPNG/include" CPPFLAGS="$CPPFLAGS -I$LOCAL_LIBPNG/include" LDFLAGS="$LDFLAGS $LIBSDLIMAGE_LDFLAGS -L$LOCAL_LIBPNG/lib" ${HOSTARCH:+--host=$HOSTARCH} --prefix="$TEMP_SDL" --with-sdl-prefix="$TEMP_SDL" --disable-png-shared  --disable-shared --disable-sdltest
 
 	$MAKE; $MAKE install
 fi
@@ -521,7 +521,7 @@ if [ -n "$BUILD_SDLTTF" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_ttf
 	fi
 
 	#make and install in local SDL folder
-	./configure ${HOSTARCH:+--host=$HOSTARCH} --with-freetype-prefix="$TEMP_FREETYPE" --with-sdl-prefix="$TEMP_SDL" --prefix="$TEMP_SDL" --disable-shared
+	./configure ${HOSTARCH:+--host=$HOSTARCH} --with-freetype-prefix="$TEMP_FREETYPE" --with-sdl-prefix="$TEMP_SDL" --prefix="$TEMP_SDL" --disable-shared --disable-sdltest
 	$MAKE; $MAKE install
 fi
 
