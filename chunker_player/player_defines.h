@@ -8,7 +8,7 @@
 
 #define MAX_CHANNELS_NUM 255
 
-#define SDL_AUDIO_BUFFER_SIZE 1024
+#define SDL_AUDIO_BUFFER_SIZE 0 //auto-set by SDL (to 46ms), or set by SDL_AUDIO_SAMPLES
 
 #define MAX_TOLLERANCE 40
 #define AUDIO	1
