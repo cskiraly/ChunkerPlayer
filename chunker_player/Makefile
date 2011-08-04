@@ -116,3 +116,11 @@ $(OUTPUTFILE): $(OBJS)
 clean:
 	rm -f $(OUTPUTFILE)
 	rm -f *.o
+
+### Automatic generation of headers dependencies ###
+%.d: %.c
+	$(CC) $(CPPFLAGS) -MM -MF $@ $<
+
+%.o: %.d
+
+-include $(OBJS:.o=.d)

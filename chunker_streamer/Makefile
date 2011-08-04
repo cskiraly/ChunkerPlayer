@@ -34,3 +34,11 @@ chunker_streamer: ../chunk_transcoding/external_chunk_transcoding.o chunker_meta
 clean:
 	rm -f chunker_streamer
 	rm -f *.o
+
+### Automatic generation of headers dependencies ###
+%.d: %.c
+	$(CC) $(CPPFLAGS) -MM -MF $@ $<
+
+%.o: %.d
+
+-include $(OBJS:.o=.d)

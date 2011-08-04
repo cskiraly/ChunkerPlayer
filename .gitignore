@@ -4,3 +4,4 @@ chunker_player/chunker_player
 chunker_streamer/chunker_streamer
 chunker_player/chunker_player.exe
 chunker_streamer/chunker_streamer.exe
+*.d
