@@ -323,7 +323,7 @@ int main(int argc, char *argv[])
 			SDL_WM_SetCaption("NAPA-Wine Player", NULL);
 		
 #ifdef PSNR_PUBLICATION
-		event_base_loop(eventbase, EVLOOP_ONCE);
+		event_base_loop(eventbase, EVLOOP_NONBLOCK);
 #endif
 
 		//listen for key and mouse
