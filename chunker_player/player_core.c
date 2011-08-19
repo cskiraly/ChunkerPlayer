@@ -419,7 +419,7 @@ int OpenAudio(AVCodecContext  *aCodecCtx)
 	return 1;
 }
 
-int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels)
+int ChunkerPlayerCore_InitAudioCodecs(char *audio_codec, int sample_rate, short int audio_channels)
 {
 	// some initializations
 	QueueStopped = 0;
@@ -429,15 +429,7 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	FirstTimeAudio=1;
 	FirstTime = 1;
 	deltaAudioQError=0;
-	memset(&VideoCallbackThreadParams, 0, sizeof(ThreadVal));
-	
-	VideoCallbackThreadParams.width = width;
-	VideoCallbackThreadParams.height = height;
-	VideoCallbackThreadParams.video_codec = strdup(v_codec);
 
-	// Register all formats and codecs
-	avcodec_init();
-	av_register_all();
 
 	if (OpenACodec(audio_codec, sample_rate, audio_channels) < 0) {
 		return -1;
@@ -449,25 +441,58 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 
 	outbuf_audio = malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
 
-	//initialize the audio and the video queues
+	//initialize the audio queue
 	PacketQueueInit(&audioq, AUDIO);
-	PacketQueueInit(&videoq, VIDEO);
 	
-	// Init audio and video buffers
+	// Init audio buffers
 	av_init_packet(&AudioPkt);
-	av_init_packet(&VideoPkt);
 	//printf("AVCODEC_MAX_AUDIO_FRAME_SIZE=%d\n", AVCODEC_MAX_AUDIO_FRAME_SIZE);
 	AudioPkt.data=(uint8_t *)malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
-	if(!AudioPkt.data) return 1;
-	VideoPkt.data=(uint8_t *)malloc(width*height*3/2);
-	if(!VideoPkt.data) return 1;
+	if(!AudioPkt.data) return -1;
 
+	return 0;
+}
+
+int ChunkerPlayerCore_InitVideoCodecs(char *v_codec, int width, int height)
+{
+
+	memset(&VideoCallbackThreadParams, 0, sizeof(ThreadVal));
+	
+	VideoCallbackThreadParams.width = width;
+	VideoCallbackThreadParams.height = height;
+	VideoCallbackThreadParams.video_codec = strdup(v_codec);
+
+	//initialize the video queue
+	PacketQueueInit(&videoq, VIDEO);
+
+	// Init video buffers
+	av_init_packet(&VideoPkt);
+
+	VideoPkt.data=(uint8_t *)malloc(width*height*3/2);
+	if(!VideoPkt.data) return -1;
+
+	return 0;
+}
+
+int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels)
+{
 	char audio_stats[255], video_stats[255];
+
+	// Register all formats and codecs
+	avcodec_init();
+	av_register_all();
+
+	if (ChunkerPlayerCore_InitAudioCodecs(audio_codec, sample_rate, audio_channels) < 0) {
+		return -1;
+	}
+
+	if (ChunkerPlayerCore_InitVideoCodecs(v_codec, width, height) < 0) {
+		return -1;
+	}
+
 	sprintf(audio_stats, "waiting for incoming audio packets...");
 	sprintf(video_stats, "waiting for incoming video packets...");
 	ChunkerPlayerGUI_SetStatsText(audio_stats, video_stats,LED_GREEN);
-	
-	return 0;
 }
 
 int DecodeEnqueuedAudio(AVPacket *pkt, PacketQueue *q, int* size)
