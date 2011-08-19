@@ -1086,7 +1086,7 @@ int VideoCallback(void *valthread)
 						continue;
 					}
 
-					if (RenderOverlay2Rect(YUVOverlay, &OverlayRect) < 0) {
+					if (RenderOverlay2Rect(YUVOverlay, ChunkerPlayerGUI_GetMainOverlayRect()) < 0) {
 						continue;
 					}
 
@@ -1487,7 +1487,6 @@ void ChunkerPlayerCore_SetupOverlay(int width, int height)
 	// create video overlay for display of video frames
 	// printf("SDL_CreateYUVOverlay(%d, %d, SDL_YV12_OVERLAY, MainScreen)\n", width, height);
 	YUVOverlay = SDL_CreateYUVOverlay(width, height, SDL_YV12_OVERLAY, MainScreen);
-	// YUVOverlay = SDL_CreateYUVOverlay(OverlayRect.w, OverlayRect.h, SDL_YV12_OVERLAY, MainScreen);
 	if ( YUVOverlay == NULL )
 	{
 		fprintf(stderr,"SDL: Couldn't create SDL_yuv_overlay: %s", SDL_GetError());
@@ -1496,9 +1495,8 @@ void ChunkerPlayerCore_SetupOverlay(int width, int height)
 
 	if ( YUVOverlay->hw_overlay )
 		fprintf(stderr,"SDL: Using hardware overlay.\n");
-	// OverlayRect.x = (screen_w - width) / 2;
 	
-	SDL_DisplayYUVOverlay(YUVOverlay, &OverlayRect);
+	SDL_DisplayYUVOverlay(YUVOverlay, ChunkerPlayerGUI_GetMainOverlayRect());
 	
 	SDL_UnlockMutex(OverlayMutex);
 }

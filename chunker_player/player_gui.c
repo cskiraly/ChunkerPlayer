@@ -30,6 +30,7 @@ static float ratio;
 static float ratios[] = {DEFAULT_RATIO, 4.0/3.0, 16.0/9.0};
 static int ratios_index;
 
+SDL_Rect OverlayRect;
 SDL_Surface *ChannelTitleSurface = NULL;
 //SDL_Surface *AudioStatisticsSurface = NULL, *VideoStatisticsSurface = NULL;
 SDL_Rect ChannelTitleRect, AudioStatisticsRect, VideoStatisticsRect, tmpRect;
@@ -461,6 +462,16 @@ void AspectRatioResize(float aspect_ratio, int width, int height, int* out_width
 	*out_width = w;
 	*out_height = h;
 }
+
+
+/**
+ * Provide coordinates of the main overlay Rect
+ */
+SDL_Rect *ChunkerPlayerGUI_GetMainOverlayRect()
+{
+    return &OverlayRect;
+}
+
 
 /**
  * Updates the overlay surface size, mantaining the aspect ratio

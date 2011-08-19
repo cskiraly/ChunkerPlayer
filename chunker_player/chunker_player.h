@@ -41,7 +41,6 @@ SChannel Channels[MAX_CHANNELS_NUM];
 int SelectedChannel;
 
 SDL_mutex *OverlayMutex;
-SDL_Rect OverlayRect;
 SDL_Surface *MainScreen;
 int SilentMode;
 int queue_filling_threshold;
