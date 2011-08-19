@@ -818,9 +818,6 @@ int RenderFrame2Overlay(AVFrame *pFrame, SDL_Overlay *YUVOverlay, int width, int
 	struct SwsContext *img_convert_ctx = NULL;
 
 					if(SDL_LockYUVOverlay(YUVOverlay) < 0) {
-						if(SDL_MUSTLOCK(MainScreen)) {
-							SDL_UnlockSurface(MainScreen);
-						}
 						return -1;
 					}
 
@@ -848,13 +845,29 @@ int RenderFrame2Overlay(AVFrame *pFrame, SDL_Overlay *YUVOverlay, int width, int
 }
 
 // Render a YUV Overlay to the specified Rect of the Surface. Note that the Overlay is already bound to an SDL Surface.
-void RenderOverlay2Rect(SDL_Overlay *YUVOverlay, SDL_Rect *Rect)
+int RenderOverlay2Rect(SDL_Overlay *YUVOverlay, SDL_Rect *Rect)
 {
+
+					// Lock SDL_yuv_overlay
+					if(SDL_MUSTLOCK(MainScreen)) {
+						if(SDL_LockSurface(MainScreen) < 0) {
+							return -1;
+						}
+					}
+
 					// Show, baby, show!
 					SDL_LockMutex(OverlayMutex);
 					SDL_DisplayYUVOverlay(YUVOverlay, Rect);
 					SDL_UnlockMutex(OverlayMutex);
+
+					if(SDL_MUSTLOCK(MainScreen)) {
+						SDL_UnlockSurface(MainScreen);
+					}
+
+	return 0;
+
 }
+
 
 int VideoCallback(void *valthread)
 {
@@ -1081,27 +1094,19 @@ int VideoCallback(void *valthread)
 					if(SilentMode)
 						continue;
 
-					// Lock SDL_yuv_overlay
-					if(SDL_MUSTLOCK(MainScreen)) {
-						if(SDL_LockSurface(MainScreen) < 0) {
-							continue;
-						}
-					}
 
 					if (RenderFrame2Overlay(pFrame, YUVOverlay, tval->width, tval->height, InitRect->w, InitRect->h) < 0){
 						continue;
 					}
 
-					RenderOverlay2Rect(YUVOverlay, &OverlayRect);
+					if (RenderOverlay2Rect(YUVOverlay, &OverlayRect) < 0) {
+						continue;
+					}
 
 					//redisplay logo
 					/**SDL_BlitSurface(image, NULL, MainScreen, &dest);*/
 					/* Update the screen area just changed */
 					/**SDL_UpdateRects(MainScreen, 1, &dest);*/
-
-					if(SDL_MUSTLOCK(MainScreen)) {
-						SDL_UnlockSurface(MainScreen);
-					}
 				} //if FrameFinished
 				else
 				{
