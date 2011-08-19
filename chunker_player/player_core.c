@@ -1219,7 +1219,10 @@ void ChunkerPlayerCore_Stop()
 void ChunkerPlayerCore_Finalize()
 {
 	if(YUVOverlay != NULL)
+	{
 		SDL_FreeYUVOverlay(YUVOverlay);
+		YUVOverlay = NULL;
+	}
 
 	SDL_CloseAudio();
 }
