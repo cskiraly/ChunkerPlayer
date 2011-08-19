@@ -699,10 +699,8 @@ int SwitchChannel(SChannel* channel)
 	ChunkerPlayerGUI_SetChannelRatio(channel->Ratio);
 	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
 	ChunkerPlayerGUI_ForceResize(channel->Width, channel->Height);
-	
-	int w=0, h=0;
-	ChunkerPlayerGUI_AspectRatioResize((float)channel->Ratio, channel->Width, channel->Height, &w, &h);
-	ChunkerPlayerCore_SetupOverlay(w, h);
+
+	ChunkerPlayerCore_SetupOverlay(channel->Width, channel->Height);
 	//ChunkerPlayerGUI_SetupOverlayRect(channel);
 	
 	if(ChunkerPlayerCore_InitCodecs(channel->VideoCodec, channel->Width, channel->Height, channel->AudioCodec, channel->SampleRate, channel->AudioChannels) < 0)

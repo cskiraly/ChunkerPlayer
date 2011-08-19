@@ -1051,7 +1051,7 @@ int VideoCallback(void *valthread)
 					pict.linesize[2] = YUVOverlay->pitches[1];
 
 					if(img_convert_ctx == NULL) {
-						img_convert_ctx = sws_getContext(tval->width, tval->height, PIX_FMT_YUV420P, InitRect->w, InitRect->h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
+						img_convert_ctx = sws_getContext(tval->width, tval->height, PIX_FMT_YUV420P, YUVOverlay->w, YUVOverlay->h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
 						if(img_convert_ctx == NULL) {
 							fprintf(stderr, "Cannot initialize the conversion context!\n");
 							exit(1);
