@@ -69,8 +69,6 @@ int CurrentAudioFreq;
 int CurrentAudioSamples;
 uint8_t CurrentAudioSilence;
 
-SDL_Rect *InitRect;
-
 int GotSigInt;
 
 long long DeltaTime;
@@ -431,8 +429,6 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	FirstTimeAudio=1;
 	FirstTime = 1;
 	deltaAudioQError=0;
-	InitRect = NULL;
-	
 	memset(&VideoCallbackThreadParams, 0, sizeof(ThreadVal));
 	
 	VideoCallbackThreadParams.width = width;
@@ -465,18 +461,7 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	if(!AudioPkt.data) return 1;
 	VideoPkt.data=(uint8_t *)malloc(width*height*3/2);
 	if(!VideoPkt.data) return 1;
-	
-	InitRect = (SDL_Rect*) malloc(sizeof(SDL_Rect));
-	if(!InitRect)
-	{
-		printf("Memory error!!!\n");
-		return -1;
-	}
-	InitRect->x = OverlayRect.x;
-	InitRect->y = OverlayRect.y;
-	InitRect->w = OverlayRect.w;
-	InitRect->h = OverlayRect.h;
-	
+
 	char audio_stats[255], video_stats[255];
 	sprintf(audio_stats, "waiting for incoming audio packets...");
 	sprintf(video_stats, "waiting for incoming video packets...");
@@ -1229,7 +1214,6 @@ void ChunkerPlayerCore_Stop()
 	free(AudioPkt.data);
 	free(VideoPkt.data);
 	free(outbuf_audio);
-	free(InitRect);
 	
 	/*
 	* Sleep two buffers' worth of audio before closing, in order
