@@ -799,7 +799,7 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 // Render a Frame to a YUV Overlay. Note that the Overlay is already bound to an SDL Surface
 // Note that width, height would not be needed in new ffmpeg versions where this info is contained in AVFrame
 // see: [FFmpeg-devel] [PATCH] lavc: add width and height fields to AVFrame
-int RenderFrame2Overlay(AVFrame *pFrame, SDL_Overlay *YUVOverlay, int width, int height)
+int RenderFrame2Overlay(AVFrame *pFrame, int frame_width, int frame_height, SDL_Overlay *YUVOverlay)
 {
 	AVPicture pict;
 	struct SwsContext *img_convert_ctx = NULL;
@@ -817,7 +817,7 @@ int RenderFrame2Overlay(AVFrame *pFrame, SDL_Overlay *YUVOverlay, int width, int
 					pict.linesize[2] = YUVOverlay->pitches[1];
 
 					if(img_convert_ctx == NULL) {
-						img_convert_ctx = sws_getContext(width, height, PIX_FMT_YUV420P, YUVOverlay->w, YUVOverlay->h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
+						img_convert_ctx = sws_getContext(frame_width, frame_height, PIX_FMT_YUV420P, YUVOverlay->w, YUVOverlay->h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
 						if(img_convert_ctx == NULL) {
 							fprintf(stderr, "Cannot initialize the conversion context!\n");
 							exit(1);
@@ -825,7 +825,7 @@ int RenderFrame2Overlay(AVFrame *pFrame, SDL_Overlay *YUVOverlay, int width, int
 					}
 
 					// let's draw the data (*yuv[3]) on a SDL screen (*screen)
-					sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, height, pict.data, pict.linesize);
+					sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, frame_height, pict.data, pict.linesize);
 					SDL_UnlockYUVOverlay(YUVOverlay);
 
 	return 0;
@@ -1082,7 +1082,7 @@ int VideoCallback(void *valthread)
 						continue;
 
 
-					if (RenderFrame2Overlay(pFrame, YUVOverlay, pCodecCtx->width, pCodecCtx->height) < 0){
+					if (RenderFrame2Overlay(pFrame, pCodecCtx->width, pCodecCtx->height, YUVOverlay) < 0){
 						continue;
 					}
 
