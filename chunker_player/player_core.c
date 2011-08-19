@@ -71,7 +71,6 @@ uint8_t CurrentAudioSilence;
 
 SDL_Rect *InitRect;
 
-struct SwsContext *img_convert_ctx;
 int GotSigInt;
 
 long long DeltaTime;
@@ -433,7 +432,6 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	FirstTime = 1;
 	deltaAudioQError=0;
 	InitRect = NULL;
-	img_convert_ctx = NULL;
 	
 	memset(&VideoCallbackThreadParams, 0, sizeof(ThreadVal));
 	
@@ -813,6 +811,51 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 	return audio_pkt_size;
 }
 
+// Render a Frame to a YUV Overlay. Note that the Overlay is already bound to an SDL Surface
+int RenderFrame2Overlay(AVFrame *pFrame, SDL_Overlay *YUVOverlay, int width, int height, int w2, int h2)
+{
+	AVPicture pict;
+	struct SwsContext *img_convert_ctx = NULL;
+
+					if(SDL_LockYUVOverlay(YUVOverlay) < 0) {
+						if(SDL_MUSTLOCK(MainScreen)) {
+							SDL_UnlockSurface(MainScreen);
+						}
+						return -1;
+					}
+
+					pict.data[0] = YUVOverlay->pixels[0];
+					pict.data[1] = YUVOverlay->pixels[2];
+					pict.data[2] = YUVOverlay->pixels[1];
+
+					pict.linesize[0] = YUVOverlay->pitches[0];
+					pict.linesize[1] = YUVOverlay->pitches[2];
+					pict.linesize[2] = YUVOverlay->pitches[1];
+
+					if(img_convert_ctx == NULL) {
+						img_convert_ctx = sws_getContext(width, height, PIX_FMT_YUV420P, w2, h2, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
+						if(img_convert_ctx == NULL) {
+							fprintf(stderr, "Cannot initialize the conversion context!\n");
+							exit(1);
+						}
+					}
+
+					// let's draw the data (*yuv[3]) on a SDL screen (*screen)
+					sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, height, pict.data, pict.linesize);
+					SDL_UnlockYUVOverlay(YUVOverlay);
+
+	return 0;
+}
+
+// Render a YUV Overlay to the specified Rect of the Surface. Note that the Overlay is already bound to an SDL Surface.
+void RenderOverlay2Rect(SDL_Overlay *YUVOverlay, SDL_Rect *Rect)
+{
+					// Show, baby, show!
+					SDL_LockMutex(OverlayMutex);
+					SDL_DisplayYUVOverlay(YUVOverlay, Rect);
+					SDL_UnlockMutex(OverlayMutex);
+}
+
 int VideoCallback(void *valthread)
 {
 	//AVPacket pktvideo;
@@ -820,7 +863,6 @@ int VideoCallback(void *valthread)
 	AVCodec         *pCodec;
 	AVFrame         *pFrame;
 	int frameFinished;
-	AVPicture pict;
 	long long Now;
 	short int SkipVideo, DecodeVideo;
 	uint64_t last_pts = 0;
@@ -1046,36 +1088,11 @@ int VideoCallback(void *valthread)
 						}
 					}
 
-					if(SDL_LockYUVOverlay(YUVOverlay) < 0) {
-						if(SDL_MUSTLOCK(MainScreen)) {
-							SDL_UnlockSurface(MainScreen);
-						}
+					if (RenderFrame2Overlay(pFrame, YUVOverlay, tval->width, tval->height, InitRect->w, InitRect->h) < 0){
 						continue;
 					}
-					
-					pict.data[0] = YUVOverlay->pixels[0];
-					pict.data[1] = YUVOverlay->pixels[2];
-					pict.data[2] = YUVOverlay->pixels[1];
 
-					pict.linesize[0] = YUVOverlay->pitches[0];
-					pict.linesize[1] = YUVOverlay->pitches[2];
-					pict.linesize[2] = YUVOverlay->pitches[1];
-
-					if(img_convert_ctx == NULL) {
-						img_convert_ctx = sws_getContext(tval->width, tval->height, PIX_FMT_YUV420P, InitRect->w, InitRect->h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
-						if(img_convert_ctx == NULL) {
-							fprintf(stderr, "Cannot initialize the conversion context!\n");
-							exit(1);
-						}
-					}
-					
-					// let's draw the data (*yuv[3]) on a SDL screen (*screen)
-					sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, tval->height, pict.data, pict.linesize);
-					SDL_UnlockYUVOverlay(YUVOverlay);
-					// Show, baby, show!
-					SDL_LockMutex(OverlayMutex);
-					SDL_DisplayYUVOverlay(YUVOverlay, &OverlayRect);
-					SDL_UnlockMutex(OverlayMutex);
+					RenderOverlay2Rect(YUVOverlay, &OverlayRect);
 
 					//redisplay logo
 					/**SDL_BlitSurface(image, NULL, MainScreen, &dest);*/
