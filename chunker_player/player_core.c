@@ -997,6 +997,15 @@ int VideoCallback(void *valthread)
 #endif
 					decoded_vframes++;
 					
+
+#ifdef VIDEO_DEINTERLACE
+					avpicture_deinterlace(
+						(AVPicture*) pFrame,
+						(const AVPicture*) pFrame,
+						pCodecCtx->pix_fmt,
+						tval->width, tval->height);
+#endif
+
 					// sometimes assertion fails, maybe the decoder change the frame type
 					//~ if(LastSourceIFrameDistance == 0)
 						//~ assert(pFrame->pict_type == 1);
@@ -1059,14 +1068,6 @@ int VideoCallback(void *valthread)
 							exit(1);
 						}
 					}
-					
-#ifdef VIDEO_DEINTERLACE
-					avpicture_deinterlace(
-						(AVPicture*) pFrame,
-						(const AVPicture*) pFrame,
-						pCodecCtx->pix_fmt,
-						tval->width, tval->height);
-#endif
 					
 					// let's draw the data (*yuv[3]) on a SDL screen (*screen)
 					sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, tval->height, pict.data, pict.linesize);
