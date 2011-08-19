@@ -30,6 +30,8 @@
 #include "player_core.h"
 #include "player_stats.h"
 
+SDL_Overlay *YUVOverlay;
+
 typedef struct PacketQueue {
 	AVPacketList *first_pkt;
 	AVPacket *minpts_pkt;
@@ -1216,6 +1218,9 @@ void ChunkerPlayerCore_Stop()
 
 void ChunkerPlayerCore_Finalize()
 {
+	if(YUVOverlay != NULL)
+		SDL_FreeYUVOverlay(YUVOverlay);
+
 	SDL_CloseAudio();
 }
 

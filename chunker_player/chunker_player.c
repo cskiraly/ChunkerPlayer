@@ -414,9 +414,6 @@ int main(int argc, char *argv[])
 	//TERMINATE
 	ChunkerPlayerCore_Stop();
 	ChunkerPlayerCore_Finalize();
-	if(YUVOverlay != NULL)
-		SDL_FreeYUVOverlay(YUVOverlay);
-	
 	ChunkerPlayerGUI_Close();
 	SDL_DestroyMutex(OverlayMutex);
 	SDL_Quit();
