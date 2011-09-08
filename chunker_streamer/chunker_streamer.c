@@ -409,6 +409,47 @@ restart:
 	//some generic quality tuning
 	pCodecCtxEnc->mb_decision = FF_MB_DECISION_RD;
 
+	//some rate control parameters for streaming, taken from ffserver.c
+	{
+        /* Bitrate tolerance is less for streaming */
+	AVCodecContext *av = pCodecCtxEnc;
+        if (av->bit_rate_tolerance == 0)
+            av->bit_rate_tolerance = FFMAX(av->bit_rate / 4,
+                      (int64_t)av->bit_rate*av->time_base.num/av->time_base.den);
+        if (av->qmin == 0)
+            av->qmin = 3;
+        if (av->qmax == 0)
+            av->qmax = 31;
+        if (av->max_qdiff == 0)
+            av->max_qdiff = 3;
+        av->qcompress = 0.5;
+        av->qblur = 0.5;
+
+        if (!av->nsse_weight)
+            av->nsse_weight = 8;
+
+        av->frame_skip_cmp = FF_CMP_DCTMAX;
+        if (!av->me_method)
+            av->me_method = ME_EPZS;
+        av->rc_buffer_aggressivity = 1.0;
+
+        if (!av->rc_eq)
+            av->rc_eq = "tex^qComp";
+        if (!av->i_quant_factor)
+            av->i_quant_factor = -0.8;
+        if (!av->b_quant_factor)
+            av->b_quant_factor = 1.25;
+        if (!av->b_quant_offset)
+            av->b_quant_offset = 1.25;
+        if (!av->rc_max_rate)
+            av->rc_max_rate = av->bit_rate * 2;
+
+        if (av->rc_max_rate && !av->rc_buffer_size) {
+            av->rc_buffer_size = av->rc_max_rate;
+        }
+	}
+	//end of code taken fromffserver.c
+
   switch (pCodecEnc->id) {
     case CODEC_ID_H264 :
 	// Fast Profile
