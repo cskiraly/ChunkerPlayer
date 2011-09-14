@@ -212,7 +212,8 @@ int main(int argc, char *argv[]) {
 	static struct option long_options[] =
 	{
 		/* These options set a flag. */
-		{"long_option", required_argument, 0, 0},
+		{"audio_stream", required_argument, 0, 0},
+		{"video_stream", required_argument, 0, 0},
 		{0, 0, 0, 0}
 	};
 	/* `getopt_long' stores the option index here. */
@@ -222,6 +223,8 @@ int main(int argc, char *argv[]) {
 	{
 		switch (c) {
 			case 0: //for long options
+				if( strcmp( "audio_stream", long_options[option_index].name ) == 0 ) { audioStream = atoi(optarg); }
+				if( strcmp( "video_stream", long_options[option_index].name ) == 0 ) { videoStream = atoi(optarg); }
 				break;
 			case 'i':
 				sprintf(av_input, "%s", optarg);
