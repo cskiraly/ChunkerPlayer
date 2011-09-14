@@ -414,9 +414,6 @@ int main(int argc, char *argv[])
 	//TERMINATE
 	ChunkerPlayerCore_Stop();
 	ChunkerPlayerCore_Finalize();
-	if(YUVOverlay != NULL)
-		SDL_FreeYUVOverlay(YUVOverlay);
-	
 	ChunkerPlayerGUI_Close();
 	SDL_DestroyMutex(OverlayMutex);
 	SDL_Quit();
@@ -701,8 +698,6 @@ int SwitchChannel(SChannel* channel)
 	ChunkerPlayerGUI_ForceResize(channel->Width, channel->Height);
 
 	ChunkerPlayerCore_SetupOverlay(channel->Width, channel->Height);
-	//ChunkerPlayerGUI_SetupOverlayRect(channel);
-	
 	if(ChunkerPlayerCore_InitCodecs(channel->VideoCodec, channel->Width, channel->Height, channel->AudioCodec, channel->SampleRate, channel->AudioChannels) < 0)
 	{
 		printf("ERROR, COULD NOT INITIALIZE CODECS\n");

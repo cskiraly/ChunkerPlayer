@@ -30,6 +30,8 @@
 #include "player_core.h"
 #include "player_stats.h"
 
+SDL_Overlay *YUVOverlay;
+
 typedef struct PacketQueue {
 	AVPacketList *first_pkt;
 	AVPacket *minpts_pkt;
@@ -67,9 +69,6 @@ int CurrentAudioFreq;
 int CurrentAudioSamples;
 uint8_t CurrentAudioSilence;
 
-SDL_Rect *InitRect;
-
-struct SwsContext *img_convert_ctx;
 int GotSigInt;
 
 long long DeltaTime;
@@ -420,7 +419,7 @@ int OpenAudio(AVCodecContext  *aCodecCtx)
 	return 1;
 }
 
-int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels)
+int ChunkerPlayerCore_InitAudioCodecs(char *audio_codec, int sample_rate, short int audio_channels)
 {
 	// some initializations
 	QueueStopped = 0;
@@ -430,18 +429,7 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	FirstTimeAudio=1;
 	FirstTime = 1;
 	deltaAudioQError=0;
-	InitRect = NULL;
-	img_convert_ctx = NULL;
-	
-	memset(&VideoCallbackThreadParams, 0, sizeof(ThreadVal));
-	
-	VideoCallbackThreadParams.width = width;
-	VideoCallbackThreadParams.height = height;
-	VideoCallbackThreadParams.video_codec = strdup(v_codec);
 
-	// Register all formats and codecs
-	avcodec_init();
-	av_register_all();
 
 	if (OpenACodec(audio_codec, sample_rate, audio_channels) < 0) {
 		return -1;
@@ -453,36 +441,58 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 
 	outbuf_audio = malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
 
-	//initialize the audio and the video queues
+	//initialize the audio queue
 	PacketQueueInit(&audioq, AUDIO);
-	PacketQueueInit(&videoq, VIDEO);
 	
-	// Init audio and video buffers
+	// Init audio buffers
 	av_init_packet(&AudioPkt);
-	av_init_packet(&VideoPkt);
 	//printf("AVCODEC_MAX_AUDIO_FRAME_SIZE=%d\n", AVCODEC_MAX_AUDIO_FRAME_SIZE);
 	AudioPkt.data=(uint8_t *)malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
-	if(!AudioPkt.data) return 1;
-	VideoPkt.data=(uint8_t *)malloc(width*height*3/2);
-	if(!VideoPkt.data) return 1;
+	if(!AudioPkt.data) return -1;
+
+	return 0;
+}
+
+int ChunkerPlayerCore_InitVideoCodecs(char *v_codec, int width, int height)
+{
+
+	memset(&VideoCallbackThreadParams, 0, sizeof(ThreadVal));
 	
-	InitRect = (SDL_Rect*) malloc(sizeof(SDL_Rect));
-	if(!InitRect)
-	{
-		printf("Memory error!!!\n");
+	VideoCallbackThreadParams.width = width;
+	VideoCallbackThreadParams.height = height;
+	VideoCallbackThreadParams.video_codec = strdup(v_codec);
+
+	//initialize the video queue
+	PacketQueueInit(&videoq, VIDEO);
+
+	// Init video buffers
+	av_init_packet(&VideoPkt);
+
+	VideoPkt.data=(uint8_t *)malloc(width*height*3/2);
+	if(!VideoPkt.data) return -1;
+
+	return 0;
+}
+
+int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *audio_codec, int sample_rate, short int audio_channels)
+{
+	char audio_stats[255], video_stats[255];
+
+	// Register all formats and codecs
+	avcodec_init();
+	av_register_all();
+
+	if (ChunkerPlayerCore_InitAudioCodecs(audio_codec, sample_rate, audio_channels) < 0) {
 		return -1;
 	}
-	InitRect->x = OverlayRect.x;
-	InitRect->y = OverlayRect.y;
-	InitRect->w = OverlayRect.w;
-	InitRect->h = OverlayRect.h;
-	
-	char audio_stats[255], video_stats[255];
+
+	if (ChunkerPlayerCore_InitVideoCodecs(v_codec, width, height) < 0) {
+		return -1;
+	}
+
 	sprintf(audio_stats, "waiting for incoming audio packets...");
 	sprintf(video_stats, "waiting for incoming video packets...");
 	ChunkerPlayerGUI_SetStatsText(audio_stats, video_stats,LED_GREEN);
-	
-	return 0;
 }
 
 int DecodeEnqueuedAudio(AVPacket *pkt, PacketQueue *q, int* size)
@@ -811,6 +821,66 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 	return audio_pkt_size;
 }
 
+// Render a Frame to a YUV Overlay. Note that the Overlay is already bound to an SDL Surface
+// Note that width, height would not be needed in new ffmpeg versions where this info is contained in AVFrame
+// see: [FFmpeg-devel] [PATCH] lavc: add width and height fields to AVFrame
+int RenderFrame2Overlay(AVFrame *pFrame, int frame_width, int frame_height, SDL_Overlay *YUVOverlay)
+{
+	AVPicture pict;
+	struct SwsContext *img_convert_ctx = NULL;
+
+					if(SDL_LockYUVOverlay(YUVOverlay) < 0) {
+						return -1;
+					}
+
+					pict.data[0] = YUVOverlay->pixels[0];
+					pict.data[1] = YUVOverlay->pixels[2];
+					pict.data[2] = YUVOverlay->pixels[1];
+
+					pict.linesize[0] = YUVOverlay->pitches[0];
+					pict.linesize[1] = YUVOverlay->pitches[2];
+					pict.linesize[2] = YUVOverlay->pitches[1];
+
+					if(img_convert_ctx == NULL) {
+						img_convert_ctx = sws_getContext(frame_width, frame_height, PIX_FMT_YUV420P, YUVOverlay->w, YUVOverlay->h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
+						if(img_convert_ctx == NULL) {
+							fprintf(stderr, "Cannot initialize the conversion context!\n");
+							exit(1);
+						}
+					}
+
+					// let's draw the data (*yuv[3]) on a SDL screen (*screen)
+					sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, frame_height, pict.data, pict.linesize);
+					SDL_UnlockYUVOverlay(YUVOverlay);
+
+	return 0;
+}
+
+// Render a YUV Overlay to the specified Rect of the Surface. Note that the Overlay is already bound to an SDL Surface.
+int RenderOverlay2Rect(SDL_Overlay *YUVOverlay, SDL_Rect *Rect)
+{
+
+					// Lock SDL_yuv_overlay
+					if(SDL_MUSTLOCK(MainScreen)) {
+						if(SDL_LockSurface(MainScreen) < 0) {
+							return -1;
+						}
+					}
+
+					// Show, baby, show!
+					SDL_LockMutex(OverlayMutex);
+					SDL_DisplayYUVOverlay(YUVOverlay, Rect);
+					SDL_UnlockMutex(OverlayMutex);
+
+					if(SDL_MUSTLOCK(MainScreen)) {
+						SDL_UnlockSurface(MainScreen);
+					}
+
+	return 0;
+
+}
+
+
 int VideoCallback(void *valthread)
 {
 	//AVPacket pktvideo;
@@ -818,7 +888,6 @@ int VideoCallback(void *valthread)
 	AVCodec         *pCodec;
 	AVFrame         *pFrame;
 	int frameFinished;
-	AVPicture pict;
 	long long Now;
 	short int SkipVideo, DecodeVideo;
 	uint64_t last_pts = 0;
@@ -995,6 +1064,15 @@ int VideoCallback(void *valthread)
 #endif
 					decoded_vframes++;
 					
+
+#ifdef VIDEO_DEINTERLACE
+					avpicture_deinterlace(
+						(AVPicture*) pFrame,
+						(const AVPicture*) pFrame,
+						pCodecCtx->pix_fmt,
+						tval->width, tval->height);
+#endif
+
 					// sometimes assertion fails, maybe the decoder change the frame type
 					//~ if(LastSourceIFrameDistance == 0)
 						//~ assert(pFrame->pict_type == 1);
@@ -1028,60 +1106,19 @@ int VideoCallback(void *valthread)
 					if(SilentMode)
 						continue;
 
-					// Lock SDL_yuv_overlay
-					if(SDL_MUSTLOCK(MainScreen)) {
-						if(SDL_LockSurface(MainScreen) < 0) {
-							continue;
-						}
-					}
 
-					if(SDL_LockYUVOverlay(YUVOverlay) < 0) {
-						if(SDL_MUSTLOCK(MainScreen)) {
-							SDL_UnlockSurface(MainScreen);
-						}
+					if (RenderFrame2Overlay(pFrame, pCodecCtx->width, pCodecCtx->height, YUVOverlay) < 0){
 						continue;
 					}
-					
-					pict.data[0] = YUVOverlay->pixels[0];
-					pict.data[1] = YUVOverlay->pixels[2];
-					pict.data[2] = YUVOverlay->pixels[1];
 
-					pict.linesize[0] = YUVOverlay->pitches[0];
-					pict.linesize[1] = YUVOverlay->pitches[2];
-					pict.linesize[2] = YUVOverlay->pitches[1];
-
-					if(img_convert_ctx == NULL) {
-						img_convert_ctx = sws_getContext(tval->width, tval->height, PIX_FMT_YUV420P, YUVOverlay->w, YUVOverlay->h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
-						if(img_convert_ctx == NULL) {
-							fprintf(stderr, "Cannot initialize the conversion context!\n");
-							exit(1);
-						}
+					if (RenderOverlay2Rect(YUVOverlay, ChunkerPlayerGUI_GetMainOverlayRect()) < 0) {
+						continue;
 					}
-					
-#ifdef VIDEO_DEINTERLACE
-					avpicture_deinterlace(
-						(AVPicture*) pFrame,
-						(const AVPicture*) pFrame,
-						pCodecCtx->pix_fmt,
-						tval->width, tval->height);
-#endif
-					
-					// let's draw the data (*yuv[3]) on a SDL screen (*screen)
-					sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, tval->height, pict.data, pict.linesize);
-					SDL_UnlockYUVOverlay(YUVOverlay);
-					// Show, baby, show!
-					SDL_LockMutex(OverlayMutex);
-					SDL_DisplayYUVOverlay(YUVOverlay, &OverlayRect);
-					SDL_UnlockMutex(OverlayMutex);
 
 					//redisplay logo
 					/**SDL_BlitSurface(image, NULL, MainScreen, &dest);*/
 					/* Update the screen area just changed */
 					/**SDL_UpdateRects(MainScreen, 1, &dest);*/
-
-					if(SDL_MUSTLOCK(MainScreen)) {
-						SDL_UnlockSurface(MainScreen);
-					}
 				} //if FrameFinished
 				else
 				{
@@ -1202,7 +1239,6 @@ void ChunkerPlayerCore_Stop()
 	free(AudioPkt.data);
 	free(VideoPkt.data);
 	free(outbuf_audio);
-	free(InitRect);
 	
 	/*
 	* Sleep two buffers' worth of audio before closing, in order
@@ -1216,6 +1252,12 @@ void ChunkerPlayerCore_Stop()
 
 void ChunkerPlayerCore_Finalize()
 {
+	if(YUVOverlay != NULL)
+	{
+		SDL_FreeYUVOverlay(YUVOverlay);
+		YUVOverlay = NULL;
+	}
+
 	SDL_CloseAudio();
 }
 
@@ -1470,7 +1512,6 @@ void ChunkerPlayerCore_SetupOverlay(int width, int height)
 	// create video overlay for display of video frames
 	// printf("SDL_CreateYUVOverlay(%d, %d, SDL_YV12_OVERLAY, MainScreen)\n", width, height);
 	YUVOverlay = SDL_CreateYUVOverlay(width, height, SDL_YV12_OVERLAY, MainScreen);
-	// YUVOverlay = SDL_CreateYUVOverlay(OverlayRect.w, OverlayRect.h, SDL_YV12_OVERLAY, MainScreen);
 	if ( YUVOverlay == NULL )
 	{
 		fprintf(stderr,"SDL: Couldn't create SDL_yuv_overlay: %s", SDL_GetError());
@@ -1479,9 +1520,8 @@ void ChunkerPlayerCore_SetupOverlay(int width, int height)
 
 	if ( YUVOverlay->hw_overlay )
 		fprintf(stderr,"SDL: Using hardware overlay.\n");
-	// OverlayRect.x = (screen_w - width) / 2;
 	
-	SDL_DisplayYUVOverlay(YUVOverlay, &OverlayRect);
+	SDL_DisplayYUVOverlay(YUVOverlay, ChunkerPlayerGUI_GetMainOverlayRect());
 	
 	SDL_UnlockMutex(OverlayMutex);
 }
