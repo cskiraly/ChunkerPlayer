@@ -110,6 +110,13 @@ OBJS += tcp_chunk_puller.o
 endif
 OBJS += chunker_player.o QoE_Estimator.o player_stats.o player_core.o player_gui.o
 
+ifdef LOCAL_CURL
+CPPFLAGS += -I$(LOCAL_CURL)/include
+LDLIBS += $(LOCAL_CURL)/lib/libcurl.a
+OBJS += http.o
+CPPFLAGS += -DCHANNELS_DOWNLOAD
+endif
+
 $(OUTPUTFILE): $(OBJS)
 	$(LINKER) $(LDFLAGS) $^ $(LDLIBS) -o $@
 

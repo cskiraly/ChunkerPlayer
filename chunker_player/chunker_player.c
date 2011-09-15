@@ -24,6 +24,10 @@
 #include <napa_log.h>
 #endif
 
+#ifdef CHANNELS_DOWNLOAD
+#include "http.h"
+#endif
+
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -32,7 +36,7 @@ int NChannels;
 char StreamerFilename[255];
 int Port;
 
-int ParseConf();
+int ParseConf(char *file, char *uri);
 int SwitchChannel(SChannel* channel);
 
 int ReadALine(FILE* fp, char* Output, int MaxOutputSize)
@@ -271,7 +275,7 @@ int main(int argc, char *argv[])
 		}
 	}
 	
-	if(ParseConf())
+	if(ParseConf(DEFAULT_CONF_FILENAME, DEFAULT_CONF_URI))
 	{
 		printf("ERROR: Cannot parse configuration file, exit...\n");
 		exit(1);
@@ -470,9 +474,10 @@ int cb_validate_conffile(cfg_t *cfg)
     return 0;
 }
 
-int ParseConf()
+int ParseConf(char *file, char *uri)
 {
 	int j,r;
+	char * conf = NULL;
 
 	// PARSING CONF FILE
 	cfg_opt_t channel_opts[] =
@@ -499,7 +504,14 @@ int ParseConf()
 	};
 	cfg_t *cfg, *cfg_channel;
 	cfg = cfg_init(opts, CFGF_NONE);
-	r = cfg_parse(cfg, DEFAULT_CONF_FILENAME);
+
+#ifdef CHANNELS_DOWNLOAD
+	if (uri) {
+		http_get2file(uri, file);
+	}
+#endif
+
+	r = cfg_parse(cfg, file);
 	if (r == CFG_PARSE_ERROR) {
 		printf("Error while parsing configuration file, exiting...\n");
 		cb_validate_conffile(cfg);
