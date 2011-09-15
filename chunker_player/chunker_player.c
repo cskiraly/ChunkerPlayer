@@ -472,8 +472,8 @@ int cb_validate_conffile(cfg_t *cfg)
 
 int ParseConf()
 {
-	int j;
-	
+	int j,r;
+
 	// PARSING CONF FILE
 	cfg_opt_t channel_opts[] =
 	{
@@ -499,19 +499,16 @@ int ParseConf()
 	};
 	cfg_t *cfg, *cfg_channel;
 	cfg = cfg_init(opts, CFGF_NONE);
-	if(cfg_parse(cfg, DEFAULT_CONF_FILENAME) == CFG_PARSE_ERROR)
-	{
+	r = cfg_parse(cfg, DEFAULT_CONF_FILENAME);
+	if (r == CFG_PARSE_ERROR) {
 		printf("Error while parsing configuration file, exiting...\n");
 		cb_validate_conffile(cfg);
 		return 1;
-	}
-	
-	if(cfg_parse(cfg, DEFAULT_CONF_FILENAME) == CFG_FILE_ERROR)
-	{
+	} else if (r == CFG_FILE_ERROR) {
 		printf("Error trying parsing configuration file. '%s' file couldn't be opened for reading\n", DEFAULT_CONF_FILENAME);
 		return 1;
 	}
-	
+
 	FILE * tmp_file;
 	if( (tmp_file = fopen(DEFAULT_PEEREXECNAME_FILENAME, "r")) ) {
 		if(fscanf(tmp_file, "%s", StreamerFilename) != 1) {

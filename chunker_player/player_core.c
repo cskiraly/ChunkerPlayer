@@ -11,7 +11,6 @@
 
 #include <stdio.h>
 #include <unistd.h>
-#include <microhttpd.h>
 #include "external_chunk_transcoding.h"
 #include "frame.h"
 #include <SDL.h>
