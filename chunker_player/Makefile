@@ -115,6 +115,7 @@ CPPFLAGS += -I$(LOCAL_CURL)/include
 LDLIBS += $(LOCAL_CURL)/lib/libcurl.a
 OBJS += http.o
 CPPFLAGS += -DCHANNELS_DOWNLOAD
+CFLAGS += -DCURL_STATICLIB	#required by MinGW; based on http://curl.haxx.se/docs/faq.html#Link_errors_when_building_libcur
 endif
 
 $(OUTPUTFILE): $(OBJS)
