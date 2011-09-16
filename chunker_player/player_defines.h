@@ -29,7 +29,8 @@
 #define CHANNEL_UP_ICON_FILE "icons/up_16.png"
 #define CHANNEL_DOWN_ICON_FILE "icons/down_16.png"
 
-#define DEFAULT_CONF_FILENAME "channels.conf"
+#define DEFAULT_CONF_FILEDIR "~/.peerstreamer/"
+#define DEFAULT_CONF_FILENAME DEFAULT_CONF_FILEDIR"channels.conf"
 #define DEFAULT_CONF_URI "http://peerstreamer.org/~napawine/release/channels.conf"
 #define DEFAULT_PEEREXECNAME_FILENAME "peer_exec_name.conf"
 #define DEFAULT_PEER_EXEC_NAME "streamer"

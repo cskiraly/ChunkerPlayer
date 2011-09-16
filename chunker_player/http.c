@@ -1,5 +1,7 @@
 // based on curl/examples/{simple,getinmemory,ftpget}.c
 
+#include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <curl/curl.h>
 
@@ -30,7 +32,7 @@ static size_t my_fwrite(void *buffer, size_t size, size_t nmemb, void *stream)
   return fwrite(buffer, size, nmemb, out->stream);
 }
 
-int http_get2file(char *uri, char*fname)
+int http_get2file(char *uri, char *fname)
 {
   CURL *curl;
   CURLcode res;
@@ -38,6 +40,19 @@ int http_get2file(char *uri, char*fname)
     fname, /* name to store the file as if succesful */
     NULL
   };
+
+  if (strncmp(fname, "~/", 2) == 0) {	/* curl can't handle ~ in the filename */
+    char *fname2;
+    char *home = getenv("HOME");
+    if (!home) return -1;
+
+    fname2 = malloc(strlen(home) + strlen(fname));
+    if (!fname2) return -1;
+
+    strcpy(fname2, home);
+    strcpy(fname2 + strlen(home), fname+1);
+    ftpfile.filename = fname2;
+  }
 
   curl_global_init(CURL_GLOBAL_DEFAULT);
 
