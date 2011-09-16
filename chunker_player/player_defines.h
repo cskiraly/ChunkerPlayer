@@ -29,11 +29,10 @@
 #define CHANNEL_UP_ICON_FILE "icons/up_16.png"
 #define CHANNEL_DOWN_ICON_FILE "icons/down_16.png"
 
-#define DEFAULT_CHANNEL_EXEC_PATH "../Streamer/"
 #define DEFAULT_CONF_FILENAME "channels.conf"
 #define DEFAULT_CONF_URI "http://peerstreamer.org/~napawine/release/channels.conf"
 #define DEFAULT_PEEREXECNAME_FILENAME "peer_exec_name.conf"
-#define DEFAULT_PEER_EXEC_NAME "winestreamer-ml-monl-http"
+#define DEFAULT_PEER_EXEC_NAME "streamer"
 
 #define DEFAULT_WIDTH 704
 #define DEFAULT_HEIGHT 576

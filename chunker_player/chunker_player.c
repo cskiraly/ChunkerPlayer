@@ -525,6 +525,7 @@ int ParseConf(char *file, char *uri)
 	if( (tmp_file = fopen(DEFAULT_PEEREXECNAME_FILENAME, "r")) ) {
 		if(fscanf(tmp_file, "%s", StreamerFilename) != 1) {
 			printf("Wrong format of conf file %s containing peer application exec name. Assuming default: %s.\n\n", DEFAULT_PEEREXECNAME_FILENAME, DEFAULT_PEER_EXEC_NAME);
+			strncpy(StreamerFilename, DEFAULT_PEER_EXEC_NAME, 255);
 		}
 		fclose(tmp_file);
 	}
