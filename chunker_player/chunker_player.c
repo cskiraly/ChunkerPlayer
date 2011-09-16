@@ -34,6 +34,7 @@
 
 int NChannels;
 char StreamerFilename[255];
+char *ConfFilename = NULL;
 int Port;
 
 int ParseConf(char *file, char *uri);
@@ -101,6 +102,7 @@ static void print_usage(int argc, char *argv[])
     "\nUsage:%s [options]\n"
     "\n"
     "\t[-c ChannelName]: channel name (from channels.conf)\n"
+    "\t[-C file]: channel list file name (default: channels.conf)\n"
     "\t[-p port]: player http port\n"
     "\t[-q q_thresh]: playout queue size\n"
     "\t[-A audiocodec]\n"
@@ -161,7 +163,7 @@ int main(int argc, char *argv[])
 	OverlayMutex = SDL_CreateMutex();
 	
 	char c;
-	while ((c = getopt (argc, argv, "q:c:p:s:t")) != -1)
+	while ((c = getopt (argc, argv, "q:c:C:p:s:t")) != -1)
 	{
 		switch (c) {
 			case 0: //for long options
@@ -171,6 +173,9 @@ int main(int argc, char *argv[])
 				break;
 			case 'c':
 				sprintf(firstChannelName, "%s", optarg);
+				break;
+			case 'C':
+				ConfFilename = strdup(optarg);
 				break;
 			case 'p':
 				sscanf(optarg, "%d", &Port);
@@ -274,13 +279,21 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 	}
-	
-	if(ParseConf(DEFAULT_CONF_FILENAME, DEFAULT_CONF_URI))
-	{
-		printf("ERROR: Cannot parse configuration file, exit...\n");
-		exit(1);
+
+	if (ConfFilename) {
+		if(ParseConf(ConfFilename, NULL))
+		{
+			printf("ERROR: Cannot parse configuration file %s, exit...\n", ConfFilename);
+			exit(1);
+		}
+	} else {
+		if(ParseConf(DEFAULT_CONF_FILENAME, DEFAULT_CONF_URI))
+		{
+			printf("ERROR: Cannot parse configuration file, exit...\n");
+			exit(1);
+		}
 	}
-	
+
 	firstChannelIndex = -1;
 	int it;
 	for(it = 0; it < NChannels; it++)
@@ -517,7 +530,7 @@ int ParseConf(char *file, char *uri)
 		cb_validate_conffile(cfg);
 		return 1;
 	} else if (r == CFG_FILE_ERROR) {
-		printf("Error trying parsing configuration file. '%s' file couldn't be opened for reading\n", DEFAULT_CONF_FILENAME);
+		printf("Error trying parsing configuration file. '%s' couldn't be opened for reading\n", file);
 		return 1;
 	}
 
