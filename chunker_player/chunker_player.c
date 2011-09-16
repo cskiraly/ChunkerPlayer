@@ -773,7 +773,7 @@ int SwitchChannel(SChannel* channel)
 	char Line1[255], Line2[255];
 	while(Error)
 	{
-	    FILE* fp=fopen("NetworkID","r");
+	    FILE* fp=fopen("NetworkID","r");	//TODO: better error handling needed, this could block the player if there are no write permissions
 	    if(fp)
 	    {
 	        if(ReadALine(fp,Line1,255)!=-1)
