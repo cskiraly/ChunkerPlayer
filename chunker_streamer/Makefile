@@ -2,6 +2,8 @@ include ../common.mak
 
 LDLIBS += $(call ld-option, -lrt)
 
+OBJECTS += dbg.o
+
 ifeq ($(IO), httpevent)
 CPPFLAGS += -DHTTPIO
 OBJECTS += chunk_pusher.o chunk_pusher_curl.o

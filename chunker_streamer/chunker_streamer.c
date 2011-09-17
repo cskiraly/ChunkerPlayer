@@ -10,16 +10,19 @@
 #include <math.h>
 #include <getopt.h>
 #include <libswscale/swscale.h>
+#include "dbg.h"
 
 #define STREAMER_MAX(a,b) ((a>b)?(a):(b))
 #define STREAMER_MIN(a,b) ((a<b)?(a):(b))
 
-//#define DEBUG_AUDIO_FRAMES
-//#define DEBUG_VIDEO_FRAMES
-//#define DEBUG_CHUNKER
+#define DEBUG
+#define DEBUG_AUDIO_FRAMES  false
+#define DEBUG_VIDEO_FRAMES  false
+#define DEBUG_CHUNKER false
+#define DEBUG_ANOMALIES true
+#define DEBUG_TIMESTAMPING false
+
 //#define DISPLAY_PSNR
-#define DEBUG_ANOMALIES
-//~ #define DEBUG_TIMESTAMPING
 #define GET_PSNR(x) ((x==0) ? 0 : (-10.0*log(x)/log(10)))
 
 ChunkerMetadata *cmeta = NULL;
@@ -55,9 +58,7 @@ long delay_audio = 0; //delay audio by x millisec
 // Constant number of frames per chunk
 int chunkFilledFramesStrategy(ExternalChunk *echunk, int chunkType)
 {
-#ifdef DEBUG_CHUNKER
-	fprintf(stderr, "CHUNKER: check if frames num %d == %d in chunk %d\n", echunk->frames_num, cmeta->framesPerChunk[chunkType], echunk->seq);
-#endif
+	dcprintf(DEBUG_CHUNKER, "CHUNKER: check if frames num %d == %d in chunk %d\n", echunk->frames_num, cmeta->framesPerChunk[chunkType], echunk->seq);
 	if(echunk->frames_num == cmeta->framesPerChunk[chunkType])
 		return 1;
 
@@ -68,9 +69,7 @@ int chunkFilledFramesStrategy(ExternalChunk *echunk, int chunkType)
 // It can be considered as constant size.
 int chunkFilledSizeStrategy(ExternalChunk *echunk, int chunkType)
 {
-#ifdef DEBUG_CHUNKER
-	fprintf(stderr, "CHUNKER: check if chunk size %d >= %d in chunk %d\n", echunk->payload_len, cmeta->targetChunkSize, echunk->seq);
-#endif
+	dcprintf(DEBUG_CHUNKER, "CHUNKER: check if chunk size %d >= %d in chunk %d\n", echunk->payload_len, cmeta->targetChunkSize, echunk->seq);
 	if(echunk->payload_len >= cmeta->targetChunkSize)
 		return 1;
 	
@@ -601,9 +600,7 @@ restart:
 	chunk->data = NULL;
 	chunk->seq = 0;
 	//initChunk(chunk, &seq_current_chunk); if i init them now i get out of sequence
-#ifdef DEBUG_CHUNKER
-	fprintf(stderr, "INIT: chunk video %d\n", chunk->seq);
-#endif
+	dcprintf(DEBUG_CHUNKER, "INIT: chunk video %d\n", chunk->seq);
 	//create empty first audio chunk
 	chunkaudio = (ExternalChunk *)malloc(sizeof(ExternalChunk));
 	if(!chunkaudio) {
@@ -613,9 +610,7 @@ restart:
   chunkaudio->data=NULL;
 	chunkaudio->seq = 0;
 	//initChunk(chunkaudio, &seq_current_chunk);
-#ifdef DEBUG_CHUNKER
-	fprintf(stderr, "INIT: chunk audio %d\n", chunkaudio->seq);
-#endif
+	dcprintf(DEBUG_CHUNKER, "INIT: chunk audio %d\n", chunkaudio->seq);
 
 #ifdef HTTPIO
 	/* initialize the HTTP chunk pusher */
@@ -666,14 +661,10 @@ restart:
 		//detect if a strange number of anomalies is occurring
 		if(ptsvideo1 < 0 || ptsvideo1 > packet.dts || ptsaudio1 < 0 || ptsaudio1 > packet.dts) {
 			pts_anomalies_counter++;
-#ifdef DEBUG_ANOMALIES
-			fprintf(stderr, "READLOOP: pts BASE anomaly detected number %d\n", pts_anomalies_counter);
-#endif
+			dcprintf(DEBUG_ANOMALIES, "READLOOP: pts BASE anomaly detected number %d\n", pts_anomalies_counter);
 			if(pts_anomaly_threshold >=0 && live_source) { //reset just in case of live source
 				if(pts_anomalies_counter > pts_anomaly_threshold) {
-#ifdef DEBUG_ANOMALIES
-					fprintf(stderr, "READLOOP: too many pts BASE anomalies. resetting pts base\n");
-#endif
+					dcprintf(DEBUG_ANOMALIES, "READLOOP: too many pts BASE anomalies. resetting pts base\n");
 					av_free_packet(&packet);
 					goto close;
 				}
@@ -684,16 +675,12 @@ restart:
 		//if video and audio stamps differ more than 5sec
 		if( newTime_video - newTime_audio > 5000000 || newTime_video - newTime_audio < -5000000 ) {
 			newtime_anomalies_counter++;
-#ifdef DEBUG_ANOMALIES
-			fprintf(stderr, "READLOOP: NEWTIME audio video differ anomaly detected number %d\n", newtime_anomalies_counter);
-#endif
+			dcprintf(DEBUG_ANOMALIES, "READLOOP: NEWTIME audio video differ anomaly detected number %d\n", newtime_anomalies_counter);
 		}
 
 		if(newtime_anomaly_threshold >=0 && newtime_anomalies_counter > newtime_anomaly_threshold) {
 			if(live_source) { //restart just in case of live source
-#ifdef DEBUG_ANOMALIES
-				fprintf(stderr, "READLOOP: too many NEGATIVE TIMESTAMPS anomalies. Restarting.\n");
-#endif
+				dcprintf(DEBUG_ANOMALIES, "READLOOP: too many NEGATIVE TIMESTAMPS anomalies. Restarting.\n");
 				av_free_packet(&packet);
 				goto close;
 			}
@@ -710,9 +697,7 @@ restart:
 					// therefore, it's better to skip the frame
 					if(timebank && (lateTime+maxVDecodeTime) >= 0)
 					{
-#ifdef DEBUG_ANOMALIES
-						fprintf(stderr, "\n\n\t\t************************* SKIPPING VIDEO FRAME %ld ***********************************\n\n", sleep);
-#endif
+						dcprintf(DEBUG_ANOMALIES, "\n\n\t\t************************* SKIPPING VIDEO FRAME %ld ***********************************\n\n", sleep);
 						av_free_packet(&packet);
 						continue;
 					}
@@ -725,11 +710,9 @@ restart:
 			if(avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet)>0)
 			{
 				// usleep(5000);
-#ifdef DEBUG_VIDEO_FRAMES
-				fprintf(stderr, "VIDEOin pkt: dts %lld pts %lld\n", packet.dts, packet.pts);
-				fprintf(stderr, "VIDEOdecode: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pFrame->pkt_dts, pFrame->pkt_pts, pFrame->pts);
-				fprintf(stderr, "VIDEOdecode intype %d%s\n", pFrame->pict_type, pFrame->key_frame ? " (key)" : "");
-#endif
+				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOin pkt: dts %lld pts %lld\n", packet.dts, packet.pts);
+				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pFrame->pkt_dts, pFrame->pkt_pts, pFrame->pts);
+				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode intype %d%s\n", pFrame->pict_type, pFrame->key_frame ? " (key)" : "");
 				pFrame->pts = av_rescale_q(pFrame->pkt_pts, pFormatCtx->streams[videoStream]->time_base, pCodecCtxEnc->time_base);
 				if(frameFinished)
 				{ // it must be true all the time else error
@@ -747,9 +730,7 @@ restart:
 				}
 #endif
 
-#ifdef DEBUG_VIDEO_FRAMES
-					fprintf(stderr, "VIDEO: finished frame %d dts %lld pts %lld\n", frame->number, packet.dts, packet.pts);
-#endif
+					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: finished frame %d dts %lld pts %lld\n", frame->number, packet.dts, packet.pts);
 					if(frame->number==0) {
 						if(packet.dts==AV_NOPTS_VALUE)
 						{
@@ -774,9 +755,7 @@ restart:
 							continue;
 						}
 					}
-#ifdef DEBUG_VIDEO_FRAMES
-					fprintf(stderr, "VIDEO: deltavideo : %d\n", (int)delta_video);
-#endif
+					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: deltavideo : %d\n", (int)delta_video);
 
 					if(vcopy) {
 						video_frame_size = packet.size;
@@ -816,12 +795,10 @@ restart:
 						continue;
 					}
 
-#ifdef DEBUG_VIDEO_FRAMES
 					if(!vcopy && pCodecCtxEnc->coded_frame) {
-						fprintf(stderr, "VIDEOout: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pCodecCtxEnc->coded_frame->pkt_dts, pCodecCtxEnc->coded_frame->pkt_pts, pCodecCtxEnc->coded_frame->pts);
-						fprintf(stderr, "VIDEOout: outtype: %d%s\n", pCodecCtxEnc->coded_frame->pict_type, pCodecCtxEnc->coded_frame->key_frame ? " (key)" : "");
+						dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOout: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pCodecCtxEnc->coded_frame->pkt_dts, pCodecCtxEnc->coded_frame->pkt_pts, pCodecCtxEnc->coded_frame->pts);
+						dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOout: outtype: %d%s\n", pCodecCtxEnc->coded_frame->pict_type, pCodecCtxEnc->coded_frame->key_frame ? " (key)" : "");
 					}
-#endif
 #ifdef DISPLAY_PSNR
 					static double ist_psnr = 0;
 					static double cum_psnr = 0;
@@ -850,9 +827,7 @@ restart:
 						if(FirstTimeVideo && target_pts>0) {
 							ptsvideo1 = target_pts;
 							FirstTimeVideo = 0;
-#ifdef DEBUG_VIDEO_FRAMES
-							fprintf(stderr, "VIDEO: SET PTS BASE OFFSET %lld\n", ptsvideo1);
-#endif
+							dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: SET PTS BASE OFFSET %lld\n", ptsvideo1);
 						}
 					}
 					else //we want to compensate audio and video offset for this source
@@ -865,9 +840,7 @@ restart:
 							else
 								ptsvideo1 = target_pts;
 							FirstTimeVideo = 0;
-#ifdef DEBUG_VIDEO_FRAMES
-							fprintf(stderr, "VIDEO LIVE: SET PTS BASE OFFSET %lld\n", ptsvideo1);
-#endif
+							dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO LIVE: SET PTS BASE OFFSET %lld\n", ptsvideo1);
 						}
 					}
 					//compute the new video timestamp in milliseconds
@@ -876,17 +849,11 @@ restart:
 						// store timestamp in useconds for next frame sleep
 						newTime_video = newTime*1000;
 					}
-#ifdef DEBUG_TIMESTAMPING
-					fprintf(stderr, "VIDEO: NEWTIMESTAMP %ld\n", newTime);
-#endif
+					dcprintf(DEBUG_TIMESTAMPING, "VIDEO: NEWTIMESTAMP %ld\n", newTime);
 					if(newTime<0) {
-#ifdef DEBUG_VIDEO_FRAMES
-						fprintf(stderr, "VIDEO: SKIPPING FRAME\n");
-#endif
+						dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: SKIPPING FRAME\n");
 						newtime_anomalies_counter++;
-#ifdef DEBUG_ANOMALIES
-						fprintf(stderr, "READLOOP: NEWTIME negative video timestamp anomaly detected number %d\n", newtime_anomalies_counter);
-#endif
+						dcprintf(DEBUG_ANOMALIES, "READLOOP: NEWTIME negative video timestamp anomaly detected number %d\n", newtime_anomalies_counter);
 						contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
 						av_free_packet(&packet);
 						continue; //SKIP THIS FRAME, bad timestamp
@@ -900,10 +867,8 @@ restart:
 					/* pict_type maybe 1 (I), 2 (P), 3 (B), 5 (AUDIO)*/
 					frame->type = vcopy ? pFrame->pict_type : (unsigned char)pCodecCtxEnc->coded_frame->pict_type;
 
-#ifdef DEBUG_VIDEO_FRAMES
-					if (!vcopy) fprintf(stderr, "VIDEO: original codec frame number %d vs. encoded %d vs. packed %d\n", pCodecCtx->frame_number, pCodecCtxEnc->frame_number, frame->number);
-					if (!vcopy) fprintf(stderr, "VIDEO: duration %d timebase %d %d container timebase %d\n", (int)packet.duration, pCodecCtxEnc->time_base.den, pCodecCtxEnc->time_base.num, pCodecCtx->time_base.den);
-#endif
+					if (!vcopy) dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: original codec frame number %d vs. encoded %d vs. packed %d\n", pCodecCtx->frame_number, pCodecCtxEnc->frame_number, frame->number);
+					if (!vcopy) dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: duration %d timebase %d %d container timebase %d\n", (int)packet.duration, pCodecCtxEnc->time_base.den, pCodecCtxEnc->time_base.num, pCodecCtx->time_base.den);
 
 #ifdef YUV_RECORD_ENABLED
 					if(!vcopy && ChunkerStreamerTestMode)
@@ -935,10 +900,8 @@ restart:
 					}
 #endif
 
-#ifdef DEBUG_VIDEO_FRAMES
-					fprintf(stderr, "VIDEO: encapsulated frame size:%d type:%d\n", frame->size, frame->type);
-					fprintf(stderr, "VIDEO: timestamped sec %d usec:%d\n", frame->timestamp.tv_sec, frame->timestamp.tv_usec);
-#endif
+					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: encapsulated frame size:%d type:%d\n", frame->size, frame->type);
+					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: timestamped sec %d usec:%d\n", frame->timestamp.tv_sec, frame->timestamp.tv_usec);
 					//contFrameVideo++; //lets increase the numbering of the frames
 
 					if(update_chunk(chunk, frame, video_outbuf) == -1) {
@@ -954,9 +917,7 @@ restart:
 						//saveChunkOnFile(chunk);
 						//Send the chunk to an external transport/player
 						sendChunk(chunk);
-#ifdef DEBUG_CHUNKER
-						fprintf(stderr, "VIDEO: sent chunk video %d, prio:%f\n", chunk->seq, chunk->priority);
-#endif
+						dcprintf(DEBUG_CHUNKER, "VIDEO: sent chunk video %d, prio:%f\n", chunk->seq, chunk->priority);
 						chunk->seq = 0; //signal that we need an increase
 						//initChunk(chunk, &seq_current_chunk);
 					}
@@ -980,10 +941,8 @@ restart:
 								//how much delay between video frames ideally
 								long long maxDelay = newTime_video - newTime_prev;
 								sleep = (maxDelay - usec);
-#ifdef DEBUG_ANOMALIES
-								printf("\tmaxDelay=%ld\n", ((long)maxDelay));
-								printf("\tlast video frame interval=%ld; sleep time=%ld\n", ((long)usec), ((long)sleep));
-#endif
+								dcprintf(DEBUG_ANOMALIES,"\tmaxDelay=%ld\n", ((long)maxDelay));
+								dcprintf(DEBUG_ANOMALIES,"\tlast video frame interval=%ld; sleep time=%ld\n", ((long)usec), ((long)sleep));
 							}
 							else
 								sleep = 0;
@@ -995,9 +954,7 @@ restart:
 							//the next frame because in this case we only have video
 							//frames, hence it would immediately be the next thing to do
 							if(sleep > 0) {
-#ifdef DEBUG_ANOMALIES
-								fprintf(stderr, "\n\tREADLOOP: going to sleep for %ld microseconds\n", sleep);
-#endif
+								dcprintf(DEBUG_ANOMALIES, "\n\tREADLOOP: going to sleep for %ld microseconds\n", sleep);
 								usleep(sleep);
 							}
 
@@ -1011,9 +968,7 @@ restart:
 		{
 			if(sleep > 0)
 			{
-#ifdef DEBUG_ANOMALIES
-				fprintf(stderr, "\n\tREADLOOP: going to sleep for %ld microseconds\n", sleep);
-#endif
+				dcprintf(DEBUG_ANOMALIES, "\n\tREADLOOP: going to sleep for %ld microseconds\n", sleep);
 				usleep(sleep);
 			}
 			
@@ -1021,14 +976,10 @@ restart:
 			//decode the audio packet into a raw audio source buffer
 			if(avcodec_decode_audio3(aCodecCtx, samples, &audio_data_size, &packet)>0)
 			{
-#ifdef DEBUG_AUDIO_FRAMES
-				fprintf(stderr, "\n-------AUDIO FRAME\n");
-				fprintf(stderr, "AUDIO: newTimeaudioSTART : %lf\n", (double)(packet.pts)*av_q2d(pFormatCtx->streams[audioStream]->time_base));
-#endif
+				dcprintf(DEBUG_AUDIO_FRAMES, "\n-------AUDIO FRAME\n");
+				dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: newTimeaudioSTART : %lf\n", (double)(packet.pts)*av_q2d(pFormatCtx->streams[audioStream]->time_base));
 				if(audio_data_size>0) {
-#ifdef DEBUG_AUDIO_FRAMES
-					fprintf(stderr, "AUDIO: datasizeaudio:%d\n", audio_data_size);
-#endif
+					dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: datasizeaudio:%d\n", audio_data_size);
 					/* if a frame has been decoded, output it */
 					//fwrite(samples, 1, audio_data_size, outfileaudio);
 				}
@@ -1063,9 +1014,7 @@ restart:
 						continue;
 					}
 				}
-#ifdef DEBUG_AUDIO_FRAMES
-				fprintf(stderr, "AUDIO: original codec frame number %d vs. encoded %d vs. packed %d\n", aCodecCtx->frame_number, aCodecCtxEnc->frame_number, frame->number);
-#endif
+				dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: original codec frame number %d vs. encoded %d vs. packed %d\n", aCodecCtx->frame_number, aCodecCtxEnc->frame_number, frame->number);
 				//use pts if dts is invalid
 				if(packet.dts!=AV_NOPTS_VALUE)
 					target_pts = packet.dts;
@@ -1081,9 +1030,7 @@ restart:
 					if(FirstTimeAudio && packet.dts>0) {
 						ptsaudio1 = packet.dts;
 						FirstTimeAudio = 0;
-#ifdef DEBUG_AUDIO_FRAMES
-						fprintf(stderr, "AUDIO: SET PTS BASE OFFSET %lld\n", ptsaudio1);
-#endif
+						dcprintf(stderr, DEBUG_AUDIO_FRAMES, "AUDIO: SET PTS BASE OFFSET %lld\n", ptsaudio1);
 					}
 				}
 				else //we want to compensate audio and video offset for this source
@@ -1096,9 +1043,7 @@ restart:
 						else
 							ptsaudio1 = packet.dts;
 						FirstTimeAudio = 0;
-#ifdef DEBUG_AUDIO_FRAMES
-						fprintf(stderr, "AUDIO LIVE: SET PTS BASE OFFSET %f\n", ptsaudio1);
-#endif
+						dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO LIVE: SET PTS BASE OFFSET %f\n", ptsaudio1);
 					}
 				}
 				//compute the new audio timestamps in milliseconds
@@ -1107,17 +1052,11 @@ restart:
 					// store timestamp in useconds for next frame sleep
 					newTime_audio = newTime*1000;
 				}
-#ifdef DEBUG_TIMESTAMPING
-				fprintf(stderr, "AUDIO: NEWTIMESTAMP %d\n", newTime);
-#endif
+				dcprintf(DEBUG_TIMESTAMPING, "AUDIO: NEWTIMESTAMP %d\n", newTime);
 				if(newTime<0) {
-#ifdef DEBUG_AUDIO_FRAMES
-					fprintf(stderr, "AUDIO: SKIPPING FRAME\n");
-#endif
+					dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: SKIPPING FRAME\n");
 					newtime_anomalies_counter++;
-#ifdef DEBUG_ANOMALIES
-					fprintf(stderr, "READLOOP: NEWTIME negative audio timestamp anomaly detected number %d\n", newtime_anomalies_counter);
-#endif
+					dcprintf(DEBUG_ANOMALIES, "READLOOP: NEWTIME negative audio timestamp anomaly detected number %d\n", newtime_anomalies_counter);
 					av_free_packet(&packet);
 					continue; //SKIP THIS FRAME, bad timestamp
 				}
@@ -1126,11 +1065,9 @@ restart:
 				frame->timestamp.tv_usec = (newTime + delay_audio)%1000;
 				frame->size = audio_frame_size;
 				frame->type = 5; // 5 is audio type
-#ifdef DEBUG_AUDIO_FRAMES
-				fprintf(stderr, "AUDIO: pts %lld duration %d timebase %d %lld dts %d\n", packet.pts, (int)packet.duration, pFormatCtx->streams[audioStream]->time_base.num, pFormatCtx->streams[audioStream]->time_base.den, packet.dts);
-				fprintf(stderr, "AUDIO: timestamp sec:%d usec:%d\n", frame->timestamp.tv_sec, frame->timestamp.tv_usec);
-				fprintf(stderr, "AUDIO: deltaaudio %lld\n", delta_audio);	
-#endif
+				dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: pts %lld duration %d timebase %d %lld dts %d\n", packet.pts, (int)packet.duration, pFormatCtx->streams[audioStream]->time_base.num, pFormatCtx->streams[audioStream]->time_base.den, packet.dts);
+				dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: timestamp sec:%d usec:%d\n", frame->timestamp.tv_sec, frame->timestamp.tv_usec);
+				dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: deltaaudio %lld\n", delta_audio);	
 				contFrameAudio++;
 
 				if(update_chunk(chunkaudio, frame, audio_outbuf) == -1) {
@@ -1146,9 +1083,7 @@ restart:
 					//saveChunkOnFile(chunkaudio);
 					//Send the chunk to an external transport/player
 					sendChunk(chunkaudio);
-#ifdef DEBUG_CHUNKER
-					fprintf(stderr, "AUDIO: just sent chunk audio %d\n", chunkaudio->seq);
-#endif
+					dcprintf(DEBUG_CHUNKER, "AUDIO: just sent chunk audio %d\n", chunkaudio->seq);
 					chunkaudio->seq = 0; //signal that we need an increase
 					//initChunk(chunkaudio, &seq_current_chunk);
 				}
@@ -1172,10 +1107,8 @@ restart:
 							maxAudioInterval = usec;
 
 						lateTime -= (maxDelay - usec);
-#ifdef DEBUG_ANOMALIES
-						printf("\tmaxDelay=%ld, maxAudioInterval=%ld\n", ((long)maxDelay), ((long) maxAudioInterval));
-						printf("\tlast audio frame interval=%ld; lateTime=%ld\n", ((long)usec), ((long)lateTime));
-#endif
+						dcprintf(DEBUG_ANOMALIES,"\tmaxDelay=%ld, maxAudioInterval=%ld\n", ((long)maxDelay), ((long) maxAudioInterval));
+						dcprintf(DEBUG_ANOMALIES,"\tlast audio frame interval=%ld; lateTime=%ld\n", ((long)usec), ((long)lateTime));
 
 						if((lateTime+maxAudioInterval) < 0)
 							sleep = (lateTime+maxAudioInterval)*-1;
@@ -1190,9 +1123,7 @@ restart:
 				}
 			}
 		}
-#ifdef DEBUG_CHUNKER
-		fprintf(stderr,"Free the packet that was allocated by av_read_frame\n");
-#endif
+		dcprintf(DEBUG_CHUNKER,"Free the packet that was allocated by av_read_frame\n");
 		av_free_packet(&packet);
 	}
 	
@@ -1207,9 +1138,7 @@ close:
 		//saveChunkOnFile(chunk);
 		//Send the chunk to an external transport/player
 		sendChunk(chunk);
-#ifdef DEBUG_CHUNKER
-		fprintf(stderr, "CHUNKER: SENDING LAST VIDEO CHUNK\n");
-#endif
+		dcprintf(DEBUG_CHUNKER, "CHUNKER: SENDING LAST VIDEO CHUNK\n");
 		chunk->seq = 0; //signal that we need an increase just in case we will restart
 	}
 	if(chunkaudio->seq != 0 && chunkaudio->frames_num>0) {
@@ -1217,9 +1146,7 @@ close:
 		//saveChunkOnFile(chunkaudio);
 		//Send the chunk via http to an external transport/player
 		sendChunk(chunkaudio);
-#ifdef DEBUG_CHUNKER
-		fprintf(stderr, "CHUNKER: SENDING LAST AUDIO CHUNK\n");
-#endif
+		dcprintf(DEBUG_CHUNKER, "CHUNKER: SENDING LAST AUDIO CHUNK\n");
 		chunkaudio->seq = 0; //signal that we need an increase just in case we will restart
 	}
 
@@ -1257,9 +1184,7 @@ close:
 		//we want video to continue, but the av_read_frame stopped
 		//lets wait a 5 secs, and cycle in again
 		usleep(5000000);
-#ifdef DEBUG_CHUNKER
-		fprintf(stderr, "CHUNKER: WAITING 5 secs FOR LIVE SOURCE TO SKIP ERRORS AND RESTARTING\n");
-#endif
+		dcprintf(DEBUG_CHUNKER, "CHUNKER: WAITING 5 secs FOR LIVE SOURCE TO SKIP ERRORS AND RESTARTING\n");
 		videoStream = -1;
 		audioStream = -1;
 		FirstTimeAudio=1;
