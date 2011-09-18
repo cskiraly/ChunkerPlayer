@@ -12,7 +12,7 @@ REBUILD=
 if [ "$OSTYPE" == "linux-gnu" ]; then
    # do something Linux-y
    echo "Building on Linux"
-elif [ "$OSTYPE" == "darwin10.0" ]; then
+elif [ "$OSTYPE" == "darwin10.0" -o "$OSTYPE" == "darwin11" ]; then
    # do something OSX-y
    echo "Building on OSX"
    MAC_OS=1
