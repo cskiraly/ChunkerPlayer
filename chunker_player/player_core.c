@@ -826,7 +826,7 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 int RenderFrame2Overlay(AVFrame *pFrame, int frame_width, int frame_height, SDL_Overlay *YUVOverlay)
 {
 	AVPicture pict;
-	struct SwsContext *img_convert_ctx = NULL;
+	static struct SwsContext *img_convert_ctx = NULL;	//if the function is used for more streams, this could be made part of some context passed as a parameter (to optimize performance)
 
 					if(SDL_LockYUVOverlay(YUVOverlay) < 0) {
 						return -1;
@@ -840,12 +840,10 @@ int RenderFrame2Overlay(AVFrame *pFrame, int frame_width, int frame_height, SDL_
 					pict.linesize[1] = YUVOverlay->pitches[2];
 					pict.linesize[2] = YUVOverlay->pitches[1];
 
+					img_convert_ctx = sws_getCachedContext(img_convert_ctx, frame_width, frame_height, PIX_FMT_YUV420P, YUVOverlay->w, YUVOverlay->h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
 					if(img_convert_ctx == NULL) {
-						img_convert_ctx = sws_getContext(frame_width, frame_height, PIX_FMT_YUV420P, YUVOverlay->w, YUVOverlay->h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
-						if(img_convert_ctx == NULL) {
-							fprintf(stderr, "Cannot initialize the conversion context!\n");
-							exit(1);
-						}
+						fprintf(stderr, "Cannot initialize the conversion context!\n");
+						exit(1);
 					}
 
 					// let's draw the data (*yuv[3]) on a SDL screen (*screen)
