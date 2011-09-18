@@ -448,10 +448,13 @@ if [ -n "$BUILD_SDL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL" ]; then
 			make clean
 		else
 			#get and compile SDL lib
-			$WGET_OR_CURL $WGET_OR_CURLOPT http://www.libsdl.org/release/SDL-1.2.14.tar.gz; tar xzf SDL-1.2.14.tar.gz; mv SDL-1.2.14 sdl; rm -f SDL-1.2.14.tar.gz
+			# we use a daily build because of OS X problems in 1.2.14
+			#$WGET_OR_CURL $WGET_OR_CURLOPT http://www.libsdl.org/release/SDL-1.2.14.tar.gz; tar xzf SDL-1.2.14.tar.gz; mv SDL-1.2.14 sdl; rm -f SDL-1.2.14.tar.gz
+			$WGET_OR_CURL $WGET_OR_CURLOPT http://peerstreamer.org/files/release/SDL-1.2.tar.gz; tar xzf SDL-1.2.tar.gz; mv SDL-1.2.14 sdl; rm -f SDL-1.2.tar.gz
 			cd sdl
 		fi
 		#make and install in local folder
+		./autogen.sh
 		./configure --disable-video-directfb --prefix="$TEMP_SDL"
 		$MAKE && $MAKE install || exit 1
 	fi
