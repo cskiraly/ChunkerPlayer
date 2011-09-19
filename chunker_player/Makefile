@@ -68,10 +68,6 @@ LOCAL_PSNR_CPPFLAGS = -I$(LIBEVENT_DIR)/include -I$(NAPA)/include
 LOCAL_PSNR_LDLIBS = $(NAPA)/rep/librep.a $(NAPA)/dclog/libdclog.a $(NAPA)/common/libcommon.a $(NAPA)/ml/libml.a $(LIBEVENT_DIR)/lib/libevent.a
 endif
 
-ifdef WINDOWS
-LOCAL_PSNR_LDLIBS += -lmsvcrt -lwsock32 -lws2_32 -liberty
-endif
-
 #endif
 
 #put them in the correct order
@@ -89,7 +85,12 @@ LDLIBS += $(LOCAL_MHD_LDLIBS) $(LOCAL_CONFUSE_LDLIBS) $(LOCAL_FREETYPE_LDLIBS)
 LDLIBS += $(LOCAL_FFMPEG_LDLIBS) $(LOCAL_COMMON_LDLIBS)
 LDLIBS += $(LOCAL_PSNR_LDLIBS)
 
+ifdef LOCAL_CURL
+LDLIBS += $(LOCAL_CURL)/lib/libcurl.a
+endif
+
 ifdef WINDOWS
+LDLIBS += -lmsvcrt -lwsock32 -lws2_32 -liberty
 LDLIBS += $(DYNAMIC_LDLIBS) -lmingw32 $(LOCAL_ABS_SDL)/lib/libSDLmain.a $(LOCAL_ABS_SDL)/lib/libSDL.a -lwinmm -lgdi32
 else
 LDLIBS += $(DYNAMIC_LDLIBS)
@@ -113,7 +114,6 @@ OBJS += chunker_player.o QoE_Estimator.o player_stats.o player_core.o player_gui
 
 ifdef LOCAL_CURL
 CPPFLAGS += -I$(LOCAL_CURL)/include
-LDLIBS += $(LOCAL_CURL)/lib/libcurl.a
 OBJS += http.o
 CPPFLAGS += -DCHANNELS_DOWNLOAD
 CFLAGS += -DCURL_STATICLIB	#required by MinGW; based on http://curl.haxx.se/docs/faq.html#Link_errors_when_building_libcur

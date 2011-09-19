@@ -6,6 +6,10 @@
 
 #include "player_defines.h"
 
+#ifdef __WIN32__
+#include <windows.h>
+#endif
+
 #ifdef PSNR_PUBLICATION
 #include <repoclient.h>
 #endif
