@@ -345,15 +345,17 @@ restart:
 			audioStream=i;
 		}
 	}
+
+	if(videoStream==-1 || audioStream==-1) {	// TODO: refine to work with 1 or the other
+		fprintf(stdout, "INIT: Didn't find audio and video streams. Exiting.\n");
+		exit(-1);
+	}
+
 	fprintf(stderr, "INIT: Num streams : %d TBR: %d %d RFRAMERATE:%d %d Duration:%ld\n", pFormatCtx->nb_streams, pFormatCtx->streams[videoStream]->time_base.num, pFormatCtx->streams[videoStream]->time_base.den, pFormatCtx->streams[videoStream]->r_frame_rate.num, pFormatCtx->streams[videoStream]->r_frame_rate.den, (long int)pFormatCtx->streams[videoStream]->duration);
 
 	fprintf(stderr, "INIT: Video stream has id : %d\n",videoStream);
 	fprintf(stderr, "INIT: Audio stream has id : %d\n",audioStream);
 
-	if(videoStream==-1 && audioStream==-1) {
-		fprintf(stdout, "INIT: Didn't find audio and video streams. Exiting.\n");
-		exit(-1);
-	}
 
 	// Get a pointer to the codec context for the input video stream
 	pCodecCtx=pFormatCtx->streams[videoStream]->codec;
