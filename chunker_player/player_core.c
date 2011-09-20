@@ -1675,3 +1675,8 @@ int CollectStatisticsThread(void *params)
 	}
 	return 0;
 }
+
+void ChunkerPlayerCore_ChangeDelay(int ms)
+{
+	DeltaTime += ms;
+}
