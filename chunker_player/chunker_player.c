@@ -416,6 +416,12 @@ int main(int argc, char *argv[])
 						case SDLK_r:
 							ChunkerPlayerGUI_ChangeRatio();
 							break;
+						case SDLK_UP:
+							ZapUp();
+							break;
+						case SDLK_DOWN:
+							ZapDown();
+							break;
 						case SDLK_LEFT:
 							ChunkerPlayerCore_ChangeDelay(100);
 							break;
