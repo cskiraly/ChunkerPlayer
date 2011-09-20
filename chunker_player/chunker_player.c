@@ -310,8 +310,6 @@ int main(int argc, char *argv[])
 	// Wait for user input
 	while(!quit) {
 		if(QueueFillingMode) {
-			SDL_WM_SetCaption("Filling buffer...", NULL);
-
 			if(ChunkerPlayerCore_AudioEnded())
 				ChunkerPlayerCore_ResetAVQueues();
 
@@ -319,8 +317,6 @@ int main(int argc, char *argv[])
 			//printf("QUEUE: MAIN audio:%d video:%d audiolastframe:%d videolastframe:%d\n", audioq.nb_packets, videoq.nb_packets, audioq.last_frame_extracted, videoq.last_frame_extracted);
 #endif
 		}
-		else
-			SDL_WM_SetCaption("NAPA-Wine Player", NULL);
 		
 #ifdef PSNR_PUBLICATION
 		event_base_loop(eventbase, EVLOOP_NONBLOCK);
