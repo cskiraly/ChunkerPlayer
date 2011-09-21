@@ -29,10 +29,12 @@
 #define CHANNEL_UP_ICON_FILE "icons/up_16.png"
 #define CHANNEL_DOWN_ICON_FILE "icons/down_16.png"
 
-#ifndef __WIN32__
-#define DEFAULT_CONF_FILENAME "~/.peerstreamer/channels.conf"
-#else
+#ifdef __WIN32__
 #define DEFAULT_CONF_FILENAME "channels.conf"
+#elif defined MAC_OS
+#define DEFAULT_CONF_FILENAME "../Resources/channels.conf"
+#else
+#define DEFAULT_CONF_FILENAME "~/.peerstreamer/channels.conf"
 #endif
 #define DEFAULT_CONF_URI "http://peerstreamer.org/~napawine/release/channels.conf"
 #define DEFAULT_PEEREXECNAME_FILENAME "peer_exec_name.conf"

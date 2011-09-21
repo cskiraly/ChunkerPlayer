@@ -1,5 +1,9 @@
 include ../common.mak
 
+ifdef MAC_OS
+CPPFLAGS += -DMAC_OS
+endif
+
 ifdef WINDOWS
 OUTPUTFILE = chunker_player.exe
 #LDLIBS += -lmsvcrt -lwsock32 -lws2_32 -liberty
