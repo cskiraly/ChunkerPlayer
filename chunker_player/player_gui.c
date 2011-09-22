@@ -586,7 +586,7 @@ void SetupGUI()
 		screen_w = BUTTONS_CONTAINER_WIDTH;
 	screen_h = OverlayRect.h + SCREEN_BOTTOM_PADDING;
 
-	SDL_WM_SetCaption("Filling buffer...", NULL);
+	SDL_WM_SetCaption("NAPA-Wine Player", NULL);
 	
 	// Make a screen to put our video
 	SetVideoMode(screen_w, screen_h, 0);
