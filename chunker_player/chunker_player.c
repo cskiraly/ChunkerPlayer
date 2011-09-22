@@ -408,12 +408,24 @@ int main(int argc, char *argv[])
 							if(FullscreenMode) {
 								ChunkerPlayerGUI_ToggleFullscreen();
 							}
-						break;
+							break;
 						case SDLK_r:
 							ChunkerPlayerGUI_ChangeRatio();
-						break;
+							break;
+						case SDLK_UP:
+							ZapUp();
+							break;
+						case SDLK_DOWN:
+							ZapDown();
+							break;
+						case SDLK_LEFT:
+							ChunkerPlayerCore_ChangeDelay(100);
+							break;
+						case SDLK_RIGHT:
+							ChunkerPlayerCore_ChangeDelay(-100);
+							break;
 						default:
-						break;
+							break;
 					}
 				break;
 			}
