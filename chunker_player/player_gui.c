@@ -100,6 +100,8 @@ int ChunkerPlayerGUI_Init()
 
 int SetVideoMode(int width, int height, int fullscreen)
 {
+	SDL_Surface *oldMainScreen = MainScreen;
+
 	if(SilentMode)
 		return 1;
 		
@@ -124,9 +126,11 @@ int SetVideoMode(int width, int height, int fullscreen)
 	}
 
 	if(!MainScreen) {
-		fprintf(stderr, "ERROR: could not change video mode\n");
+		fprintf(stderr, "ERROR: could not change video mode: %s\n", SDL_GetError());
+		MainScreen = oldMainScreen;
+		SDL_UnlockMutex(OverlayMutex);
 		return 1;
-	}
+	} // else no need to free oldMainScreen (see SDL_SetVideoMode doc)
 	SDL_UnlockMutex(OverlayMutex);
 	
 	return 0;
@@ -372,7 +376,6 @@ void ChunkerPlayerGUI_ToggleFullscreen()
 	{
 		int res = SetVideoMode(FullscreenWidth, FullscreenHeight, 1);
 		//Set the window state flag
-		FullscreenMode = 1;
 
 		if(res)
 		{
@@ -380,6 +383,8 @@ void ChunkerPlayerGUI_ToggleFullscreen()
 		}
 		else
 		{
+			FullscreenMode = 1;
+
 			// update the overlay surface size, mantaining the aspect ratio
 			UpdateOverlaySize(ratio, FullscreenWidth, FullscreenHeight);
 			
