@@ -417,6 +417,9 @@ int main(int argc, char *argv[])
 						case SDLK_r:
 							ChunkerPlayerGUI_ChangeRatio();
 							break;
+						case SDLK_q:
+							qoe_led = !qoe_led;
+							break;
 						case SDLK_UP:
 							ZapUp();
 							break;
