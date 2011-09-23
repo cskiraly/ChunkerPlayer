@@ -420,6 +420,9 @@ int main(int argc, char *argv[])
 						case SDLK_q:
 							qoe_led = !qoe_led;
 							break;
+						case SDLK_f:
+							ChunkerPlayerGUI_ToggleFullscreen();
+							break;
 						case SDLK_UP:
 							ZapUp();
 							break;
