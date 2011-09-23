@@ -61,6 +61,7 @@
 #define LED_RED     0
 #define LED_YELLOW  1
 #define LED_GREEN   2
+#define LED_NONE    3
 
 #define LED_THRS_RED    33.0f
 #define LED_THRS_YELLOW 36.0f

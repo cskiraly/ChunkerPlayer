@@ -148,6 +148,7 @@ int main(int argc, char *argv[])
 	quit = 0;
 	QueueFillingMode=1;
 	LogTraces = 0;
+	qoe_led = 1;
 
 	NChannels = 0;
 	SelectedChannel = -1;
@@ -411,6 +412,9 @@ int main(int argc, char *argv[])
 							break;
 						case SDLK_r:
 							ChunkerPlayerGUI_ChangeRatio();
+							break;
+						case SDLK_q:
+							qoe_led = !qoe_led;
 							break;
 						case SDLK_UP:
 							ZapUp();

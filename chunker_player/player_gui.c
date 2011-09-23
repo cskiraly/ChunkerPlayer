@@ -240,7 +240,6 @@ void ChunkerPlayerGUI_HandleMouseMotion(int x, int y)
 		        SDL_SetCursor(defaultCursor);
 		        break;
 		    }
-		        
 			Buttons[i].Hover = 1;
 			SDL_SetCursor(handCursor);
 			break;
@@ -834,26 +833,28 @@ void ChunkerPlayerGUI_SetStatsText(char* audio_text, char* video_text, int ledst
 	strcpy(AudioStatsText, audio_text);
 	strcpy(VideoStatsText, video_text);
 	
-	switch(ledstatus)
-    {
-    case LED_RED:
-        // PSNR LED RED
-        Buttons[PSNR_LED_RED_BUTTON_INDEX].Visible = 1;
+	switch(ledstatus) {
+	case LED_RED:	// PSNR LED RED
+		Buttons[PSNR_LED_RED_BUTTON_INDEX].Visible = 1;
 		Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].Visible = 0;
 		Buttons[PSNR_LED_GREEN_BUTTON_INDEX].Visible = 0;
-	    break;
-	case LED_YELLOW:
-	    // PSNR LED YELLOW
-	    Buttons[PSNR_LED_RED_BUTTON_INDEX].Visible = 0;
+		break;
+	case LED_YELLOW:	// PSNR LED YELLOW
+		Buttons[PSNR_LED_RED_BUTTON_INDEX].Visible = 0;
 		Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].Visible = 1;
 		Buttons[PSNR_LED_GREEN_BUTTON_INDEX].Visible = 0;
-	    break;
-	case LED_GREEN:
-	    // PSNR LED GREEN
-	    Buttons[PSNR_LED_RED_BUTTON_INDEX].Visible = 0;
+		break;
+	case LED_GREEN:	// PSNR LED GREEN
+		Buttons[PSNR_LED_RED_BUTTON_INDEX].Visible = 0;
 		Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].Visible = 0;
 		Buttons[PSNR_LED_GREEN_BUTTON_INDEX].Visible = 1;
-	    break;
+		break;
+	case LED_NONE:
+	default:
+		Buttons[PSNR_LED_RED_BUTTON_INDEX].Visible = 0;
+		Buttons[PSNR_LED_YELLOW_BUTTON_INDEX].Visible = 0;
+		Buttons[PSNR_LED_GREEN_BUTTON_INDEX].Visible = 0;
+		break;
 	}
 	
 	RedrawStats();
