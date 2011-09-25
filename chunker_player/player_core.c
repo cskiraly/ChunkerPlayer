@@ -1010,6 +1010,7 @@ int VideoCallback(void *valthread)
 				DeltaTime += decode_delay - (videoq.last_pkt->pkt.pts - videoq.first_pkt->pkt.pts);
 				queue_size_checked = 1;	//make sure we do not increase the delay several times bacause of the same frame
 			}
+			if (videoq.first_pkt->pkt.pts + DeltaTime - Now < decode_delay) {	//time to decode
 			    if (PacketQueueGet(&videoq,&VideoPkt,0, NULL) > 0) {
 				queue_size_checked = 0;
 				avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &VideoPkt);
@@ -1093,7 +1094,9 @@ int VideoCallback(void *valthread)
 				{
 					ChunkerPlayerStats_UpdateVideoLossHistory(&(videoq.PacketHistory), VideoPkt.stream_index+1, videoq.last_frame_extracted-1);
 				}
+			    }
 			}
+			usleep(5000);
 		}
 		usleep(5000);
 	}
