@@ -888,8 +888,11 @@ int VideoCallback(void *valthread)
 	AVFrame         *pFrame;
 	int frameFinished;
 	long long Now;
+	long long Last = 0;
 	short int SkipVideo, DecodeVideo;
 	uint64_t last_pts = 0;
+	long long decode_delay = 0;
+	int queue_size_checked = 0;
 	
 #ifdef SAVE_YUV
 	static AVFrame* lastSavedFrameBuffer = NULL;
@@ -995,69 +998,30 @@ int VideoCallback(void *valthread)
 			printf("VIDEO: VideoCallback - Empty queue\n");
 #endif
 
-		if(videoq.nb_packets>0) {
-			long long target_ts = videoq.minpts_pkt->pts + DeltaTime;
-			long long frame_timespan = MAX_TOLLERANCE;	//TODO: calculate real value
-			if(target_ts<Now-(long long)MAX_TOLLERANCE) {
-				SkipVideo = 1;
-				DecodeVideo = 0;
-			} else if(target_ts>=Now-(long long)MAX_TOLLERANCE && target_ts<=Now) {
-				SkipVideo = 0;
-				DecodeVideo = 1;
-			} else if (last_pts+frame_timespan+DeltaTime<=Now) {
-				SkipVideo = 0;
-				DecodeVideo = 1;
-			}
-		}
-		// else (i.e. videoq.minpts_pkt->pts+DeltaTime>Now+MAX_TOLLERANCE)
-		// do nothing and continue
 #ifdef DEBUG_VIDEO
 		printf("VIDEO: skipvideo:%d decodevideo:%d\n",SkipVideo,DecodeVideo);
 #endif
-		
-		if(SkipVideo==1 && videoq.size>0)
-		{
-			SkipVideo = 0;
-#ifdef DEBUG_VIDEO 
- 			printf("VIDEO: Skip Video\n");
-#endif
-			if(PacketQueueGet(&videoq,&VideoPkt,0, NULL) < 0) {
-				break;
+//			ChunkerPlayerStats_UpdateVideoSkipHistory(&(videoq.PacketHistory), VideoPkt.stream_index, pFrame->pict_type, VideoPkt.size, pFrame);
+
+		if(videoq.nb_packets>0) {
+			long long orig_pts = videoq.first_pkt->pkt.pts;	//the PTS of the packet entering the decoder
+
+			if (!queue_size_checked && videoq.last_pkt->pkt.pts - videoq.first_pkt->pkt.pts < decode_delay) {	//queue too short
+				DeltaTime += decode_delay - (videoq.last_pkt->pkt.pts - videoq.first_pkt->pkt.pts);
+				queue_size_checked = 1;	//make sure we do not increase the delay several times bacause of the same frame
 			}
-
-			avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &VideoPkt);
-			
-			// sometimes assertion fails, maybe the decoder change the frame type
-			//~ if(LastSourceIFrameDistance == 0)
-				//~ assert(pFrame->pict_type == 1);
-
-			
-			ChunkerPlayerStats_UpdateVideoSkipHistory(&(videoq.PacketHistory), VideoPkt.stream_index, pFrame->pict_type, VideoPkt.size, pFrame);
-			
-			/*if(pFrame->pict_type == 1)
-			{
-				int i1;
-				// every 23 items (23 is the qstride field in the AVFrame struct) there is 1 zero.
-				// 396/23 = 17 => 396 macroblocks + 17 zeros = 413 items
-				for(i1=0; i1< 413; i1++)
-					fprintf(qscaletable_file, "%d\t", (int)pFrame->qscale_table[i1]);
-				fprintf(qscaletable_file, "\n");
-			}*/
-			
-			//ChunkerPlayerStats_UpdateVideoPlayedHistory(&(videoq.PacketHistory), VideoPkt.stream_index, pFrame->pict_type, VideoPkt.size);
-			continue;
-		}
-
-		if (DecodeVideo==1) {
-			if(PacketQueueGet(&videoq,&VideoPkt,0, NULL) > 0) {
+			    if (PacketQueueGet(&videoq,&VideoPkt,0, NULL) > 0) {
+				queue_size_checked = 0;
 				avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &VideoPkt);
 				last_pts = pFrame->pkt_pts;
-				if (!videoq.minpts_pkt || videoq.minpts_pkt->pts > Now - DeltaTime) {
-					DecodeVideo = 0;
-				}
+				if (pFrame->pkt_pts) decode_delay = MAX(decode_delay, orig_pts - pFrame->pkt_pts);
 
 				if(frameFinished)
 				{ // it must be true all the time else error
+
+					long long target_pts = pFrame->pkt_pts + DeltaTime;
+					long long earlier = target_pts - Now;
+
 #ifdef DEBUG_VIDEO
 					printf("VIDEO: FrameFinished\n");
 #endif
@@ -1072,9 +1036,6 @@ int VideoCallback(void *valthread)
 						tval->width, tval->height);
 #endif
 
-					// sometimes assertion fails, maybe the decoder change the frame type
-					//~ if(LastSourceIFrameDistance == 0)
-						//~ assert(pFrame->pict_type == 1);
 #ifdef SAVE_YUV
 					if(LastSavedVFrame == -1)
 					{
@@ -1105,10 +1066,19 @@ int VideoCallback(void *valthread)
 					if(SilentMode)
 						continue;
 
-
 					if (RenderFrame2Overlay(pFrame, pCodecCtx->width, pCodecCtx->height, YUVOverlay) < 0){
 						continue;
 					}
+
+					//wait for the playback time
+					if (earlier > 0) {
+						usleep(MIN(earlier,1000) * 1000);
+//					} else if (earlier < 0) {
+//						fprintf(stderr, "should increase delay2 : pFrame->pkt_pts=%lld, DeltaTime=%lld, Now=%lld, earlier=%lld\n", pFrame->pkt_pts, DeltaTime, Now, earlier);
+//						DeltaTime -= earlier;
+					}
+
+					Last = Now;
 
 					if (RenderOverlay2Rect(YUVOverlay, ChunkerPlayerGUI_GetMainOverlayRect()) < 0) {
 						continue;
@@ -1123,11 +1093,8 @@ int VideoCallback(void *valthread)
 				{
 					ChunkerPlayerStats_UpdateVideoLossHistory(&(videoq.PacketHistory), VideoPkt.stream_index+1, videoq.last_frame_extracted-1);
 				}
-			} else { // if packet_queue_get
-				DecodeVideo = 0;
 			}
-		} //if DecodeVideo=1
-
+		}
 		usleep(5000);
 	}
 	avcodec_close(pCodecCtx);
