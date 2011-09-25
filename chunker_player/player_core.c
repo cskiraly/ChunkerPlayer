@@ -1397,8 +1397,8 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 			if(packet.size > 0) {
 				int ret = ChunkerPlayerCore_PacketQueuePut(&videoq, &packet); //the _put makes a copy of the packet
 				if (ret == 1) {	//TODO: check and correct return values
-					fprintf(stderr, "late chunk received, increasing delay\n");
-					DeltaTime += 40;	//TODO: handle audio skip; verify this value
+					fprintf(stderr, "late chunk received, increasing delay to %lld\n", DeltaTime);
+					DeltaTime += 5;	//TODO: handle audio skip; verify this value
 				}
 			}
 
@@ -1424,8 +1424,8 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 			if(packetaudio.size > 0) {
 				int ret = ChunkerPlayerCore_PacketQueuePut(&audioq, &packetaudio);//makes a copy of the packet so i can free here
 				if (ret == 1) {	//TODO: check and correct return values
-					fprintf(stderr, "late chunk received, increasing delay\n");
-					DeltaTime += 40;	//TODO: handle audio skip; verify this value
+					fprintf(stderr, "late chunk received, increasing delay to %lld\n", DeltaTime);
+					DeltaTime += 5;	//TODO: handle audio skip; verify this value
 				}
 			}
 
