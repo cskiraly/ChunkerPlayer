@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
 	srand ( time(NULL) );
 	// some initializations
 	SilentMode = 0;
-	queue_filling_threshold = 50;
+	queue_filling_threshold = 1;
 	quit = 0;
 	QueueFillingMode=1;
 	LogTraces = 0;
