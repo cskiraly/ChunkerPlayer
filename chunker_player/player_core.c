@@ -975,6 +975,7 @@ int VideoCallback(void *valthread)
 				//SDL_LockMutex(timing_mutex);
 				DeltaTime=Now-(long long)videoq.first_pkt->pkt.pts;
 				FirstTime = 0;
+				FirstTimeAudio = 0;
 				//SDL_UnlockMutex(timing_mutex);
 			}
 #ifdef DEBUG_VIDEO 
