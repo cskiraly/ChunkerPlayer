@@ -29,6 +29,9 @@
 #include "player_core.h"
 #include "player_stats.h"
 
+#define MAX(A,B)    ((A)>(B) ? (A) : (B))
+#define MIN(A,B)    ((A)<(B) ? (A) : (B))
+
 SDL_Overlay *YUVOverlay;
 
 typedef struct PacketQueue {
