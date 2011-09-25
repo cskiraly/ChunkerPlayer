@@ -729,7 +729,6 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 	//gettimeofday(&now,NULL);
 	//Now = (now.tv_sec)*1000+now.tv_usec/1000;
 	Now=(long long)SDL_GetTicks();
-	struct timeval now_tv;
 
 	if(QueueFillingMode || QueueStopped)
 	{
@@ -765,7 +764,6 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 		printf("AUDIO: audio_decode_frame - Empty queue\n");
 #endif
 
-	gettimeofday(&now_tv, NULL);
 	if(audioq.nb_packets>0)
 	{
 		if((double)audioq.first_pkt->pkt.pts+DeltaTime<Now+deltaAudioQ)	//too late ... TODO: figure out the right number
@@ -954,8 +952,8 @@ int VideoCallback(void *valthread)
  	printf("VIDEO: video_callback entering main cycle\n");
 #endif
 
-	struct timeval now_tv;
 	while(AVPlaying && !quit) {
+
 		if(QueueFillingMode || QueueStopped)
 		{
 			//SDL_LockMutex(timing_mutex);
@@ -1012,7 +1010,6 @@ int VideoCallback(void *valthread)
 #ifdef DEBUG_VIDEO
 		printf("VIDEO: skipvideo:%d decodevideo:%d\n",SkipVideo,DecodeVideo);
 #endif
-		gettimeofday(&now_tv, NULL);
 		
 		if(SkipVideo==1 && videoq.size>0)
 		{
