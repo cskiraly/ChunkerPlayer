@@ -92,6 +92,7 @@
 
 //~ #define SAVE_YUV
 
+//#define DEBUG_SYNC
 //#define DEBUG_AUDIO
 //#define DEBUG_VIDEO
 //#define DEBUG_QUEUE

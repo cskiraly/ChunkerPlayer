@@ -810,6 +810,9 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 		if(PacketQueueGet(&audioq,&AudioPkt,1, &compressed_size) < 0) {
 			return -1;
 		}
+#ifdef DEBUG_SYNC
+		fprintf(stderr, "AUDIO delay =%lld ms\n",(long long)AudioPkt.pts+DeltaTime-Now);
+#endif
 		memcpy(audio_buf,AudioPkt.data,AudioPkt.size);
 		audio_pkt_size = AudioPkt.size;
 #ifdef DEBUG_AUDIO
@@ -1014,8 +1017,15 @@ int VideoCallback(void *valthread)
 			    if (PacketQueueGet(&videoq,&VideoPkt,0, NULL) > 0) {
 				queue_size_checked = 0;
 				avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &VideoPkt);
+#ifdef DEBUG_SYNC
+				fprintf(stderr, "VIDEO delta =%lld ms; dt=%lld \n",(long long) pFrame->pkt_pts - last_pts, Now - Last);
+#endif
 				last_pts = pFrame->pkt_pts;
 				if (pFrame->pkt_pts) decode_delay = MAX(decode_delay, orig_pts - pFrame->pkt_pts);
+#ifdef DEBUG_SYNC
+				fprintf(stderr, "VIDEO t=%lld ms ptsin=%lld ptsout=%lld \n",Now, (long long)VideoPkt.pts+DeltaTime, pFrame->pkt_pts+DeltaTime);
+				fprintf(stderr, "VIDEO delay =%lld ms ; %lld ms \n",(long long)VideoPkt.pts+DeltaTime-Now, pFrame->pkt_pts+DeltaTime-Now);
+#endif
 
 				if(frameFinished)
 				{ // it must be true all the time else error
@@ -1072,6 +1082,9 @@ int VideoCallback(void *valthread)
 					}
 
 					//wait for the playback time
+#ifdef DEBUG_SYNC
+					fprintf(stderr, "VIDEO earlier =%lld ms\n",earlier);
+#endif
 					if (earlier > 0) {
 						usleep(MIN(earlier,1000) * 1000);
 //					} else if (earlier < 0) {
