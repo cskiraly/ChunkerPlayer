@@ -1007,8 +1007,6 @@ int VideoCallback(void *valthread)
 //			ChunkerPlayerStats_UpdateVideoSkipHistory(&(videoq.PacketHistory), VideoPkt.stream_index, pFrame->pict_type, VideoPkt.size, pFrame);
 
 		if(videoq.nb_packets>0) {
-			long long orig_pts = videoq.first_pkt->pkt.pts;	//the PTS of the packet entering the decoder
-
 			if (!queue_size_checked && videoq.last_pkt->pkt.pts - videoq.first_pkt->pkt.pts < decode_delay) {	//queue too short
 				DeltaTime += decode_delay - (videoq.last_pkt->pkt.pts - videoq.first_pkt->pkt.pts);
 				queue_size_checked = 1;	//make sure we do not increase the delay several times bacause of the same frame
@@ -1021,7 +1019,7 @@ int VideoCallback(void *valthread)
 				fprintf(stderr, "VIDEO delta =%lld ms; dt=%lld \n",(long long) pFrame->pkt_pts - last_pts, Now - Last);
 #endif
 				last_pts = pFrame->pkt_pts;
-				if (pFrame->pkt_pts) decode_delay = MAX(decode_delay, orig_pts - pFrame->pkt_pts);
+				if (pFrame->pkt_pts) decode_delay = MAX(decode_delay, VideoPkt.pts - pFrame->pkt_pts);	//TODO: base this on dts
 				decode_delay = MIN(decode_delay, 40 * 5);	//TODO, this workaround would not be needed if decode_delay would be based on DTS
 #ifdef DEBUG_SYNC
 				fprintf(stderr, "VIDEO t=%lld ms ptsin=%lld ptsout=%lld \n",Now, (long long)VideoPkt.pts+DeltaTime, pFrame->pkt_pts+DeltaTime);
