@@ -489,11 +489,11 @@ void UpdateOverlaySize(float aspect_ratio, int width, int height)
 	x = (width - w) / 2;
 	y = (height - h) / 2;
 	SDL_LockMutex(OverlayMutex);
+	if (MainScreen) SDL_FillRect(MainScreen, &OverlayRect, SDL_MapRGB(SDL_GetVideoSurface()->format, 0,0,0) );
 	OverlayRect.x = x;
 	OverlayRect.y = y;
 	OverlayRect.w = w;
 	OverlayRect.h = h;
-	// SDL_FillRect( SDL_GetVideoSurface(), NULL, SDL_MapRGB(SDL_GetVideoSurface()->format, 0,0,0) );
 	SDL_UpdateRect(MainScreen, 0, 0, 0, 0);
 	SDL_UnlockMutex(OverlayMutex);
 }
