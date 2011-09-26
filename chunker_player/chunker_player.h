@@ -54,6 +54,7 @@ int LogTraces;
 char NetworkID[255];
 char RepoAddress[2048];
 int qoe_led;
+int scale_with_sdl;
 
 #ifdef PSNR_PUBLICATION
 HANDLE repoclient;
