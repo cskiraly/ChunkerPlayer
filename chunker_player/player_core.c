@@ -707,8 +707,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 	}
 
 	if(q->nb_packets==0 && q->queueType==AUDIO) {
-//		QueueFillingMode=1;
-fprintf(stderr,"QUEUE: Get FillingMode ON\n");
+		QueueFillingMode=1;
 #ifdef DEBUG_QUEUE
 		printf("QUEUE: Get FillingMode ON\n");
 #endif
