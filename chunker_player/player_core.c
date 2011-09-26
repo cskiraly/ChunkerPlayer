@@ -1022,6 +1022,7 @@ int VideoCallback(void *valthread)
 #endif
 				last_pts = pFrame->pkt_pts;
 				if (pFrame->pkt_pts) decode_delay = MAX(decode_delay, orig_pts - pFrame->pkt_pts);
+				decode_delay = MIN(decode_delay, 40 * 5);	//TODO, this workaround would not be needed if decode_delay would be based on DTS
 #ifdef DEBUG_SYNC
 				fprintf(stderr, "VIDEO t=%lld ms ptsin=%lld ptsout=%lld \n",Now, (long long)VideoPkt.pts+DeltaTime, pFrame->pkt_pts+DeltaTime);
 				fprintf(stderr, "VIDEO delay =%lld ms ; %lld ms \n",(long long)VideoPkt.pts+DeltaTime-Now, pFrame->pkt_pts+DeltaTime-Now);
