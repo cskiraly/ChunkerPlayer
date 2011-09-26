@@ -1008,10 +1008,13 @@ int VideoCallback(void *valthread)
 
 		if(videoq.nb_packets>0) {
 			if (!queue_size_checked && videoq.last_pkt->pkt.pts - videoq.first_pkt->pkt.pts < decode_delay) {	//queue too short
+#ifdef DEBUG_SYNC
+				fprintf(stderr, "VIDEO queue too short,diff(%lld) < decode_delay(%lld), increasing delta from \n",videoq.last_pkt->pkt.pts - videoq.first_pkt->pkt.pts, decode_delay, DeltaTime);
+#endif
 				DeltaTime += decode_delay - (videoq.last_pkt->pkt.pts - videoq.first_pkt->pkt.pts);
 				queue_size_checked = 1;	//make sure we do not increase the delay several times bacause of the same frame
 			}
-			if (videoq.first_pkt->pkt.pts + DeltaTime - Now < decode_delay) {	//time to decode
+			if (videoq.first_pkt->pkt.pts + DeltaTime - Now < decode_delay) {	//time to decode, should be based on DTS
 			    if (PacketQueueGet(&videoq,&VideoPkt,0, NULL) > 0) {
 				queue_size_checked = 0;
 				avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &VideoPkt);
