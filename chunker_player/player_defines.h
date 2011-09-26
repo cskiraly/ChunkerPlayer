@@ -13,7 +13,7 @@
 #define MAX_TOLLERANCE 40
 #define AUDIO	1
 #define VIDEO	2
-#define QUEUE_MAX_GROW_FACTOR 1000
+#define QUEUE_MAX_GROW_FACTOR 200
 #define CHANNEL_SCORE_HISTORY_SIZE 1000
 
 #define FULLSCREEN_ICON_FILE "icons/fullscreen32.png"
