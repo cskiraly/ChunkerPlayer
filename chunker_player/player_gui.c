@@ -501,7 +501,7 @@ void UpdateOverlaySize(float aspect_ratio, int width, int height)
 	OverlayRect.h = h;
 	SDL_UpdateRect(MainScreen, 0, 0, 0, 0);
 
-	if (MainScreen && scale_with_sdl) {
+	if (MainScreen && !scale_with_sdl) {
 		ChunkerPlayerCore_SetupOverlay(w, h);
 	}
 

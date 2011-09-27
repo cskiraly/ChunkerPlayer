@@ -743,7 +743,7 @@ int SwitchChannel(SChannel* channel)
 	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
 	ChunkerPlayerGUI_ForceResize(channel->Width, channel->Height);
 
-	if (scale_with_sdl) {	//TODO: maybe move to GUI
+	if (!scale_with_sdl) {	//TODO: maybe move to GUI
 		int w=0, h=0;
 		ChunkerPlayerGUI_AspectRatioResize((float)channel->Ratio, channel->Width, channel->Height, &w, &h);
 		ChunkerPlayerCore_SetupOverlay(w, h);
