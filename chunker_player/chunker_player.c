@@ -149,6 +149,7 @@ int main(int argc, char *argv[])
 	QueueFillingMode=1;
 	LogTraces = 0;
 	qoe_led = 1;
+	scale_with_sdl = SCALE_WITH_SDL_DEFAULT;
 
 	NChannels = 0;
 	SelectedChannel = -1;
@@ -415,6 +416,9 @@ int main(int argc, char *argv[])
 							break;
 						case SDLK_q:
 							qoe_led = !qoe_led;
+							break;
+						case SDLK_x:
+							scale_with_sdl = !scale_with_sdl;
 							break;
 						case SDLK_f:
 							ChunkerPlayerGUI_ToggleFullscreen();
@@ -735,7 +739,14 @@ int SwitchChannel(SChannel* channel)
 	ChunkerPlayerGUI_SetChannelTitle(channel->Title);
 	ChunkerPlayerGUI_ForceResize(channel->Width, channel->Height);
 
-	ChunkerPlayerCore_SetupOverlay(channel->Width, channel->Height);
+	if (!scale_with_sdl) {	//TODO: maybe move to GUI
+		int w=0, h=0;
+		ChunkerPlayerGUI_AspectRatioResize((float)channel->Ratio, channel->Width, channel->Height, &w, &h);
+		ChunkerPlayerCore_SetupOverlay(w, h);
+	} else {
+		ChunkerPlayerCore_SetupOverlay(channel->Width, channel->Height);
+	}
+	
 	if(ChunkerPlayerCore_InitCodecs(channel->VideoCodec, channel->Width, channel->Height, channel->AudioCodec, channel->SampleRate, channel->AudioChannels) < 0)
 	{
 		printf("ERROR, COULD NOT INITIALIZE CODECS\n");
