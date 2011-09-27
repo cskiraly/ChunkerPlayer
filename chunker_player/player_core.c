@@ -1501,7 +1501,11 @@ void ChunkerPlayerCore_SetupOverlay(int width, int height)
 	
 	if(SilentMode)
 		return;
-		
+
+	//TODO: return with error if size is too small
+	width = MAX(width, 8);
+	height = MAX(height, 8);
+
 	SDL_LockMutex(OverlayMutex);
 	if(YUVOverlay != NULL)
 	{
