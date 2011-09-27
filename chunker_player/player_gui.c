@@ -450,6 +450,11 @@ void ChunkerPlayerGUI_AspectRatioResize(float aspect_ratio, int width, int heigh
 	AspectRatioResize(aspect_ratio, width, height, out_width, out_height);
 }
 
+static int align(unsigned int x, unsigned int m)
+{
+	return x - (x % m) ;
+}
+
 void AspectRatioResize(float aspect_ratio, int width, int height, int* out_width, int* out_height)
 {
 	int h,w;
@@ -463,8 +468,8 @@ void AspectRatioResize(float aspect_ratio, int width, int height, int* out_width
 		w = (int)((float)height*aspect_ratio);
 		h = height;
 	}
-	*out_width = w;
-	*out_height = h;
+	*out_width = align(w, 8);
+	*out_height = align(h, 8);
 }
 
 
