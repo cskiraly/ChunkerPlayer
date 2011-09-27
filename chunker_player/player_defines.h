@@ -10,6 +10,12 @@
 
 #define SDL_AUDIO_BUFFER_SIZE 0 //auto-set by SDL (to 46ms), or set by SDL_AUDIO_SAMPLES
 
+#ifdef __WIN32__
+#define SCALE_WITH_SDL_DEFAULT 0
+#else
+#define SCALE_WITH_SDL_DEFAULT 1
+#endif
+
 #define MAX_TOLLERANCE 40
 #define AUDIO	1
 #define VIDEO	2

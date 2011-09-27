@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
 	QueueFillingMode=1;
 	LogTraces = 0;
 	qoe_led = 1;
-	scale_with_sdl = 0;
+	scale_with_sdl = SCALE_WITH_SDL_DEFAULT;
 
 	NChannels = 0;
 	SelectedChannel = -1;
