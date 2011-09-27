@@ -1103,14 +1103,17 @@ int VideoCallback(void *valthread)
 					if(SilentMode)
 						continue;
 
-
+					SDL_LockMutex(OverlayMutex);
 					if (RenderFrame2Overlay(pFrame, pCodecCtx->width, pCodecCtx->height, YUVOverlay) < 0){
+						SDL_UnlockMutex(OverlayMutex);
 						continue;
 					}
 
 					if (RenderOverlay2Rect(YUVOverlay, ChunkerPlayerGUI_GetMainOverlayRect()) < 0) {
+						SDL_UnlockMutex(OverlayMutex);
 						continue;
 					}
+					SDL_UnlockMutex(OverlayMutex);
 
 					//redisplay logo
 					/**SDL_BlitSurface(image, NULL, MainScreen, &dest);*/
