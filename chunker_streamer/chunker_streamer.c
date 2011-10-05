@@ -712,7 +712,7 @@ restart:
 			if(avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet)>0)
 			{
 				// usleep(5000);
-				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOin pkt: dts %lld pts %lld\n", packet.dts, packet.pts);
+				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOin pkt: dts %lld pts %lld pts-dts %lld\n", packet.dts, packet.pts, packet.pts-packet.dts );
 				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pFrame->pkt_dts, pFrame->pkt_pts, pFrame->pts);
 				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode intype %d%s\n", pFrame->pict_type, pFrame->key_frame ? " (key)" : "");
 				pFrame->pts = av_rescale_q(pFrame->pkt_pts, pFormatCtx->streams[videoStream]->time_base, pCodecCtxEnc->time_base);
