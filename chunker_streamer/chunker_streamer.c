@@ -715,7 +715,13 @@ restart:
 				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOin pkt: dts %lld pts %lld pts-dts %lld\n", packet.dts, packet.pts, packet.pts-packet.dts );
 				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pFrame->pkt_dts, pFrame->pkt_pts, pFrame->pts);
 				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode intype %d%s\n", pFrame->pict_type, pFrame->key_frame ? " (key)" : "");
-				pFrame->pts = av_rescale_q(pFrame->pkt_pts, pFormatCtx->streams[videoStream]->time_base, pCodecCtxEnc->time_base);
+				if (pFrame->pkt_pts != AV_NOPTS_VALUE) {
+					pFrame->pts = av_rescale_q(pFrame->pkt_pts, pFormatCtx->streams[videoStream]->time_base, pCodecCtxEnc->time_base);
+				} else {	//try to figure out the pts //TODO: review this
+					if (pFrame->pkt_dts != AV_NOPTS_VALUE) {
+						pFrame->pts = av_rescale_q(pFrame->pkt_dts, pFormatCtx->streams[videoStream]->time_base, pCodecCtxEnc->time_base);
+					}
+				}
 				if(frameFinished)
 				{ // it must be true all the time else error
 				
@@ -818,10 +824,12 @@ restart:
 					//use pts if dts is invalid
 					if(pCodecCtxEnc->coded_frame->pts!=AV_NOPTS_VALUE)
 						target_pts = av_rescale_q(pCodecCtxEnc->coded_frame->pts, pCodecCtxEnc->time_base, pFormatCtx->streams[videoStream]->time_base);
-					else
+					else	//TODO: review this
 					{
-						fprintf(stderr, "VIDEOout: pts error\n");
-						exit(1);
+						av_free_packet(&packet);
+						continue;
+						//fprintf(stderr, "VIDEOout: pts error\n");
+						//exit(1);
 					}
 
 					if(offset_av)
