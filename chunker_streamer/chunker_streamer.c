@@ -767,6 +767,12 @@ restart:
 						} else {
 							memcpy(video_outbuf, packet.data, video_frame_size);
 						}
+
+						if (pFrame->pkt_pts != AV_NOPTS_VALUE) {
+							target_pts = pFrame->pkt_pts;
+						}else {	//TODO: review this
+							target_pts = pFrame->pkt_dts;
+						}
 					} else {
 
 					    if (pFrame->pkt_pts != AV_NOPTS_VALUE) {
