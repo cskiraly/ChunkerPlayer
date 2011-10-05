@@ -10,10 +10,6 @@
 #include <math.h>
 #include <getopt.h>
 #include <libswscale/swscale.h>
-#include "dbg.h"
-
-#define STREAMER_MAX(a,b) ((a>b)?(a):(b))
-#define STREAMER_MIN(a,b) ((a<b)?(a):(b))
 
 #define DEBUG
 #define DEBUG_AUDIO_FRAMES  false
@@ -21,6 +17,10 @@
 #define DEBUG_CHUNKER false
 #define DEBUG_ANOMALIES true
 #define DEBUG_TIMESTAMPING false
+#include "dbg.h"
+
+#define STREAMER_MAX(a,b) ((a>b)?(a):(b))
+#define STREAMER_MIN(a,b) ((a<b)?(a):(b))
 
 //#define DISPLAY_PSNR
 #define GET_PSNR(x) ((x==0) ? 0 : (-10.0*log(x)/log(10)))
