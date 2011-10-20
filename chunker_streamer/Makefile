@@ -1,7 +1,5 @@
 include ../common.mak
 
-LDLIBS += $(call ld-option, -lrt)
-
 OBJECTS += dbg.o
 
 ifeq ($(IO), httpevent)
@@ -26,6 +24,8 @@ LDLIBS += $(LOCAL_CONFUSE)/lib/libconfuse.a
 CPPFLAGS += $(LOCAL_FFMPEG_CPPFLAGS) $(LOCAL_COMMON_CPPFLAGS)
 LDFLAGS += $(LOCAL_FFMPEG_LDFLAGS) $(LOCAL_COMMON_LDFLAGS)
 LDLIBS += $(LOCAL_FFMPEG_LDLIBS) $(LOCAL_COMMON_LDLIBS)
+
+LDLIBS += $(call ld-option, -lrt)
 
 LDLIBS += $(DYNAMIC_LDLIBS)
 
