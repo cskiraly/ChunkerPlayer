@@ -133,6 +133,8 @@ static void print_usage(int argc, char *argv[])
     "\t[-q]: sync anomaly threshold ((default: -1=off).\n"
     "\t[-t]: QoE test mode\n\n"
 
+    "\t[--video_stream]:set video_stream ID in input\n"
+    "\t[--audio_stream]:set audio_stream ID in input\n"
     "\t[--avfilter]:set input filter (default: yadif\n"
     "\n"
     "Codec options:\n"
@@ -220,7 +222,6 @@ int main(int argc, char *argv[]) {
 	
 	static struct option long_options[] =
 	{
-		/* These options set a flag. */
 		{"audio_stream", required_argument, 0, 0},
 		{"video_stream", required_argument, 0, 0},
 		{"avfilter", required_argument, 0, 0},
