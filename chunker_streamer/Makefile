@@ -1,6 +1,8 @@
 include ../common.mak
 
 OBJECTS += dbg.o
+OBJECTS += chunker_filtering.o
+CPPFLAGS += -DUSE_AVFILTER
 
 ifeq ($(IO), httpevent)
 CPPFLAGS += -DHTTPIO

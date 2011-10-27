@@ -11,6 +11,10 @@
 #include <getopt.h>
 #include <libswscale/swscale.h>
 
+#ifdef USE_AVFILTER
+#include "chunker_filtering.h"
+#endif
+
 #define DEBUG
 #define DEBUG_AUDIO_FRAMES  false
 #define DEBUG_VIDEO_FRAMES  false
@@ -54,6 +58,8 @@ int max_b_frames = 3;
 bool vcopy = false;
 
 long delay_audio = 0; //delay audio by x millisec
+
+char *avfilter="yadif";
 
 // Constant number of frames per chunk
 int chunkFilledFramesStrategy(ExternalChunk *echunk, int chunkType)
@@ -126,6 +132,9 @@ static void print_usage(int argc, char *argv[])
     "\t[-p]: pts anomaly threshold (default: -1=off).\n"
     "\t[-q]: sync anomaly threshold ((default: -1=off).\n"
     "\t[-t]: QoE test mode\n\n"
+
+    "\t[--avfilter]:set input filter (default: yadif\n"
+    "\n"
     "Codec options:\n"
     "\t[-g GOP]: gop size\n"
     "\t[-b frames]: max number of consecutive b frames\n"
@@ -181,7 +190,8 @@ int main(int argc, char *argv[]) {
 	//a raw buffer for decoded uncompressed audio samples
 	int16_t *samples = NULL;
 	//a raw uncompressed video picture
-	AVFrame *pFrame = NULL;
+	AVFrame *pFrame1 = NULL;
+	AVFrame *pFrame2 = NULL;
 	AVFrame *scaledFrame = NULL;
 
 	AVFormatContext *pFormatCtx;
@@ -213,6 +223,7 @@ int main(int argc, char *argv[]) {
 		/* These options set a flag. */
 		{"audio_stream", required_argument, 0, 0},
 		{"video_stream", required_argument, 0, 0},
+		{"avfilter", required_argument, 0, 0},
 		{0, 0, 0, 0}
 	};
 	/* `getopt_long' stores the option index here. */
@@ -224,6 +235,7 @@ int main(int argc, char *argv[]) {
 			case 0: //for long options
 				if( strcmp( "audio_stream", long_options[option_index].name ) == 0 ) { audioStream = atoi(optarg); }
 				if( strcmp( "video_stream", long_options[option_index].name ) == 0 ) { videoStream = atoi(optarg); }
+				if( strcmp( "avfilter", long_options[option_index].name ) == 0 ) { avfilter = strdup(optarg); }
 				break;
 			case 'i':
 				sprintf(av_input, "%s", optarg);
@@ -571,9 +583,10 @@ restart:
 	}
 
 	// Allocate video in frame and out buffer
-	pFrame=avcodec_alloc_frame();
+	pFrame1=avcodec_alloc_frame();
+	pFrame2=avcodec_alloc_frame();
 	scaledFrame=avcodec_alloc_frame();
-	if(pFrame==NULL || scaledFrame == NULL) {
+	if(pFrame1==NULL || pFrame2==NULL || scaledFrame == NULL) {
 		fprintf(stderr, "INIT: Memory error alloc video frame!!!\n");
 		return -1;
 	}
@@ -657,6 +670,12 @@ restart:
 	FILE* videotrace = fopen(videotrace_filename, "w");
 	FILE* psnrtrace = fopen(psnr_filename, "w");
 
+#ifdef USE_AVFILTER
+	//init AVFilter
+	avfilter_register_all();
+	init_filters(avfilter, pCodecCtx);
+#endif
+
 	//main loop to read from the input file
 	while((av_read_frame(pFormatCtx, &packet)>=0) && !quit)
 	{
@@ -709,8 +728,11 @@ restart:
 			gettimeofday(&tmp_tv, NULL);
 			
 			//decode the video packet into a raw pFrame
-			if(avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet)>0)
+			if(avcodec_decode_video2(pCodecCtx, pFrame1, &frameFinished, &packet)>0)
 			{
+				AVFrame *pFrame;
+				pFrame = pFrame1;
+
 				// usleep(5000);
 				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOin pkt: dts %lld pts %lld pts-dts %lld\n", packet.dts, packet.pts, packet.pts-packet.dts );
 				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pFrame->pkt_dts, pFrame->pkt_pts, pFrame->pts);
@@ -730,6 +752,7 @@ restart:
 						pCodecCtxEnc->height);
 				}
 #endif
+
 
 					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: finished frame %d dts %lld pts %lld\n", frame->number, packet.dts, packet.pts);
 					if(frame->number==0) {
@@ -782,6 +805,14 @@ restart:
 							pFrame->pts = av_rescale_q(pFrame->pkt_dts, pFormatCtx->streams[videoStream]->time_base, pCodecCtxEnc->time_base);
 						}
 					    }
+
+#ifdef USE_AVFILTER
+					//apply avfilters
+					filter(pFrame,pFrame2);
+					pFrame = pFrame2;
+					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pFrame2->pkt_dts, pFrame2->pkt_pts, pFrame2->pts);
+					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode intype %d%s\n", pFrame2->pict_type, pFrame2->key_frame ? " (key)" : "");
+#endif
 
 					    if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width) {
 //						static AVPicture pict;
@@ -1183,7 +1214,8 @@ close:
 	free(cmeta);
 
 	// Free the YUV frame
-	av_free(pFrame);
+	av_free(pFrame1);
+	av_free(pFrame2);
 	av_free(scaledFrame);
 	av_free(samples);
   
@@ -1243,6 +1275,10 @@ close:
 
 #ifdef TCPIO
 	finalizeTCPChunkPusher();
+#endif
+
+#ifdef USE_AVFILTER
+	close_filters();
 #endif
 
 	return 0;

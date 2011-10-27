@@ -27,7 +27,7 @@ LOCAL_FFMPEG_CPPFLAGS = -I$(LOCAL_FFMPEG)/include
 ifdef WINDOWS
 LOCAL_FFMPEG_LDLIBS = $(LOCAL_FFMPEG)/lib/libavdevice.a $(LOCAL_FFMPEG)/lib/libavformat.a $(LOCAL_FFMPEG)/lib/libavcodec.a $(LOCAL_FFMPEG)/lib/libavutil.a $(LOCAL_FFMPEG)/lib/libswscale.a -lws2_32
 else
-LOCAL_FFMPEG_LDLIBS = $(LOCAL_FFMPEG)/lib/libavdevice.a $(LOCAL_FFMPEG)/lib/libavformat.a $(LOCAL_FFMPEG)/lib/libavcodec.a $(LOCAL_FFMPEG)/lib/libavutil.a $(LOCAL_FFMPEG)/lib/libswscale.a
+LOCAL_FFMPEG_LDLIBS = $(LOCAL_FFMPEG)/lib/libavdevice.a $(LOCAL_FFMPEG)/lib/libavformat.a $(LOCAL_FFMPEG)/lib/libavcodec.a $(LOCAL_FFMPEG)/lib/libavutil.a $(LOCAL_FFMPEG)/lib/libswscale.a $(LOCAL_FFMPEG)/lib/libavfilter.a
 endif
 
 LOCAL_COMMON_CPPFLAGS = -I$(LOCAL_X264)/include -I$(LOCAL_BZ2)/include -I$(LOCAL_Z)/include -I$(LOCAL_MP3LAME)/include
