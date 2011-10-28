@@ -968,7 +968,7 @@ restart:
 						//saveChunkOnFile(chunk);
 						//Send the chunk to an external transport/player
 						sendChunk(chunk);
-						dcprintf(DEBUG_CHUNKER, "VIDEO: sent chunk video %d, prio:%f\n", chunk->seq, chunk->priority);
+						dctprintf(DEBUG_CHUNKER, "VIDEO: sent chunk video %d, prio:%f, size %d\n", chunk->seq, chunk->priority, chunk->len);
 						chunk->seq = 0; //signal that we need an increase
 						//initChunk(chunk, &seq_current_chunk);
 					}
@@ -1134,7 +1134,7 @@ restart:
 					//saveChunkOnFile(chunkaudio);
 					//Send the chunk to an external transport/player
 					sendChunk(chunkaudio);
-					dcprintf(DEBUG_CHUNKER, "AUDIO: just sent chunk audio %d\n", chunkaudio->seq);
+					dctprintf(DEBUG_CHUNKER, "AUDIO: just sent chunk audio %d\n", chunkaudio->seq);
 					chunkaudio->seq = 0; //signal that we need an increase
 					//initChunk(chunkaudio, &seq_current_chunk);
 				}
