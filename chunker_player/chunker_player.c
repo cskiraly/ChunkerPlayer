@@ -32,7 +32,7 @@
 #include <windows.h>
 #endif
 
-#ifndef _WIN32
+#ifdef __linux__
 #include <X11/Xlib.h>
 #endif
 
@@ -146,7 +146,7 @@ int initIPCReceiver(Port)
 int main(int argc, char *argv[])
 {
 	srand ( time(NULL) );
-#ifndef _WIN32
+#ifdef __linux__
 	XInitThreads();
 #endif
 	// some initializations
