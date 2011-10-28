@@ -99,6 +99,7 @@ LDLIBS += $(DYNAMIC_LDLIBS) -lmingw32 $(LOCAL_ABS_SDL)/lib/libSDLmain.a $(LOCAL_
 else
 LDLIBS += $(DYNAMIC_LDLIBS)
 LDLIBS += $(call ld-option, -lrt)
+LDLIBS += $(call ld-option, -lX11)
 endif
 
 LINKER = $(CC)

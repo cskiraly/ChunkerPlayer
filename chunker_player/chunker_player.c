@@ -32,6 +32,10 @@
 #include <windows.h>
 #endif
 
+#ifdef __linux__
+#include <X11/Xlib.h>
+#endif
+
 int NChannels;
 char StreamerFilename[255];
 char *ConfFilename = NULL;
@@ -142,6 +146,9 @@ int initIPCReceiver(Port)
 int main(int argc, char *argv[])
 {
 	srand ( time(NULL) );
+#ifdef __linux__
+	XInitThreads();
+#endif
 	// some initializations
 	SilentMode = 0;
 	queue_filling_threshold = 5;
