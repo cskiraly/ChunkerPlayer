@@ -751,16 +751,6 @@ restart:
 				
 					frame->number = ++contFrameVideo;
 
-#ifdef VIDEO_DEINTERLACE
-				if (!vcopy) {
-					avpicture_deinterlace(
-						(AVPicture*) pFrame,
-						(const AVPicture*) pFrame,
-						pCodecCtxEnc->pix_fmt,
-						pCodecCtxEnc->width,
-						pCodecCtxEnc->height);
-				}
-#endif
 
 
 					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: finished frame %d dts %"PRId64" pts %"PRId64"\n", frame->number, packet.dts, packet.pts);
@@ -815,12 +805,22 @@ restart:
 						}
 					    }
 
+#ifdef VIDEO_DEINTERLACE
+					    avpicture_deinterlace(
+							(AVPicture*) pFrame,
+							(const AVPicture*) pFrame,
+							pCodecCtxEnc->pix_fmt,
+							pCodecCtxEnc->width,
+							pCodecCtxEnc->height);
+				}
+#endif
+
 #ifdef USE_AVFILTER
-					//apply avfilters
-					filter(pFrame,pFrame2);
-					pFrame = pFrame2;
-					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pFrame2->pkt_dts, pFrame2->pkt_pts, pFrame2->pts);
-					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode intype %d%s\n", pFrame2->pict_type, pFrame2->key_frame ? " (key)" : "");
+					    //apply avfilters
+					    filter(pFrame,pFrame2);
+					    pFrame = pFrame2;
+					    dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pFrame2->pkt_dts, pFrame2->pkt_pts, pFrame2->pts);
+					    dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode intype %d%s\n", pFrame2->pict_type, pFrame2->key_frame ? " (key)" : "");
 #endif
 
 					    if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width) {
