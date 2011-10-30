@@ -1013,7 +1013,7 @@ restart:
 							//the next frame because in this case we only have video
 							//frames, hence it would immediately be the next thing to do
 							if(sleep > 0) {
-								dcprintf(DEBUG_ANOMALIES, "\n\tREADLOOP: going to sleep for %ld microseconds\n", sleep);
+								dcprintf(DEBUG_TIMESTAMPING,"\n\tREADLOOP: going to sleep for %ld microseconds\n", sleep);
 								usleep(sleep);
 							}
 
@@ -1027,7 +1027,7 @@ restart:
 		{
 			if(sleep > 0)
 			{
-				dcprintf(DEBUG_ANOMALIES, "\n\tREADLOOP: going to sleep for %ld microseconds\n", sleep);
+				dcprintf(DEBUG_TIMESTAMPING, "\n\tREADLOOP: going to sleep for %ld microseconds\n", sleep);
 				usleep(sleep);
 			}
 			
@@ -1166,8 +1166,8 @@ restart:
 							maxAudioInterval = usec;
 
 						lateTime -= (maxDelay - usec);
-						dcprintf(DEBUG_ANOMALIES,"\tmaxDelay=%ld, maxAudioInterval=%ld\n", ((long)maxDelay), ((long) maxAudioInterval));
-						dcprintf(DEBUG_ANOMALIES,"\tlast audio frame interval=%ld; lateTime=%ld\n", ((long)usec), ((long)lateTime));
+						dcprintf(DEBUG_TIMESTAMPING,"\tmaxDelay=%ld, maxAudioInterval=%ld\n", ((long)maxDelay), ((long) maxAudioInterval));
+						dcprintf(DEBUG_TIMESTAMPING,"\tlast audio frame interval=%ld; lateTime=%ld\n", ((long)usec), ((long)lateTime));
 
 						if((lateTime+maxAudioInterval) < 0)
 							sleep = (lateTime+maxAudioInterval)*-1;
