@@ -10,8 +10,10 @@
 #include <math.h>
 #include <getopt.h>
 #include <libswscale/swscale.h>
+#include <libavutil/opt.h>
 
 #ifdef USE_AVFILTER
+#include <libavfilter/avfilter.h>
 #include "chunker_filtering.h"
 #endif
 
