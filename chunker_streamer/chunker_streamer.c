@@ -735,8 +735,8 @@ restart:
 				pFrame = pFrame1;
 
 				// usleep(5000);
-				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOin pkt: dts %lld pts %lld pts-dts %lld\n", packet.dts, packet.pts, packet.pts-packet.dts );
-				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pFrame->pkt_dts, pFrame->pkt_pts, pFrame->pts);
+				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOin pkt: dts %"PRId64" pts %"PRId64" pts-dts %"PRId64"\n", packet.dts, packet.pts, packet.pts-packet.dts );
+				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pFrame->pkt_dts, pFrame->pkt_pts, pFrame->pts);
 				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode intype %d%s\n", pFrame->pict_type, pFrame->key_frame ? " (key)" : "");
 				if(frameFinished)
 				{ // it must be true all the time else error
@@ -755,7 +755,7 @@ restart:
 #endif
 
 
-					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: finished frame %d dts %lld pts %lld\n", frame->number, packet.dts, packet.pts);
+					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: finished frame %d dts %"PRId64" pts %"PRId64"\n", frame->number, packet.dts, packet.pts);
 					if(frame->number==0) {
 						if(packet.dts==AV_NOPTS_VALUE)
 						{
@@ -811,7 +811,7 @@ restart:
 					//apply avfilters
 					filter(pFrame,pFrame2);
 					pFrame = pFrame2;
-					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pFrame2->pkt_dts, pFrame2->pkt_pts, pFrame2->pts);
+					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pFrame2->pkt_dts, pFrame2->pkt_pts, pFrame2->pts);
 					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode intype %d%s\n", pFrame2->pict_type, pFrame2->key_frame ? " (key)" : "");
 #endif
 
@@ -856,7 +856,7 @@ restart:
 					}
 
 					if(!vcopy && pCodecCtxEnc->coded_frame) {
-						dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOout: pkt_dts %lld pkt_pts %lld frame.pts %lld\n", pCodecCtxEnc->coded_frame->pkt_dts, pCodecCtxEnc->coded_frame->pkt_pts, pCodecCtxEnc->coded_frame->pts);
+						dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOout: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pCodecCtxEnc->coded_frame->pkt_dts, pCodecCtxEnc->coded_frame->pkt_pts, pCodecCtxEnc->coded_frame->pts);
 						dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOout: outtype: %d%s\n", pCodecCtxEnc->coded_frame->pict_type, pCodecCtxEnc->coded_frame->key_frame ? " (key)" : "");
 					}
 #ifdef DISPLAY_PSNR
@@ -878,7 +878,7 @@ restart:
 						if(FirstTimeVideo && target_pts>0) {
 							ptsvideo1 = target_pts;
 							FirstTimeVideo = 0;
-							dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: SET PTS BASE OFFSET %lld\n", ptsvideo1);
+							dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: SET PTS BASE OFFSET %"PRId64"\n", ptsvideo1);
 						}
 					}
 					else //we want to compensate audio and video offset for this source
@@ -891,7 +891,7 @@ restart:
 							else
 								ptsvideo1 = target_pts;
 							FirstTimeVideo = 0;
-							dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO LIVE: SET PTS BASE OFFSET %lld\n", ptsvideo1);
+							dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO LIVE: SET PTS BASE OFFSET %"PRId64"\n", ptsvideo1);
 						}
 					}
 					//compute the new video timestamp in milliseconds
@@ -900,7 +900,7 @@ restart:
 						// store timestamp in useconds for next frame sleep
 						newTime_video = newTime*1000;
 					}
-					dcprintf(DEBUG_TIMESTAMPING, "VIDEO: NEWTIMESTAMP %ld\n", newTime);
+					dcprintf(DEBUG_TIMESTAMPING, "VIDEO: NEWTIMESTAMP %lld\n", newTime);
 					if(newTime<0) {
 						dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: SKIPPING FRAME\n");
 						newtime_anomalies_counter++;
@@ -910,7 +910,7 @@ restart:
 						continue; //SKIP THIS FRAME, bad timestamp
 					}
 					
-					//~ printf("pCodecCtxEnc->error[0]=%lld\n", pFrame->error[0]);
+					//~ printf("pCodecCtxEnc->error[0]=%"PRId64"\n", pFrame->error[0]);
 	
 					frame->timestamp.tv_sec = (long long)newTime/1000;
 					frame->timestamp.tv_usec = newTime%1000;
@@ -952,7 +952,7 @@ restart:
 #endif
 
 					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: encapsulated frame size:%d type:%d\n", frame->size, frame->type);
-					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: timestamped sec %d usec:%d\n", frame->timestamp.tv_sec, frame->timestamp.tv_usec);
+					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: timestamped sec %ld usec:%ld\n", (long)frame->timestamp.tv_sec, (long)frame->timestamp.tv_usec);
 					//contFrameVideo++; //lets increase the numbering of the frames
 
 					if(update_chunk(chunk, frame, video_outbuf) == -1) {
@@ -1081,7 +1081,7 @@ restart:
 					if(FirstTimeAudio && packet.dts>0) {
 						ptsaudio1 = packet.dts;
 						FirstTimeAudio = 0;
-						dcprintf(stderr, DEBUG_AUDIO_FRAMES, "AUDIO: SET PTS BASE OFFSET %lld\n", ptsaudio1);
+						dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: SET PTS BASE OFFSET %"PRId64"\n", ptsaudio1);
 					}
 				}
 				else //we want to compensate audio and video offset for this source
@@ -1094,7 +1094,7 @@ restart:
 						else
 							ptsaudio1 = packet.dts;
 						FirstTimeAudio = 0;
-						dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO LIVE: SET PTS BASE OFFSET %f\n", ptsaudio1);
+						dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO LIVE: SET PTS BASE OFFSET %"PRId64"\n", ptsaudio1);
 					}
 				}
 				//compute the new audio timestamps in milliseconds
@@ -1103,7 +1103,7 @@ restart:
 					// store timestamp in useconds for next frame sleep
 					newTime_audio = newTime*1000;
 				}
-				dcprintf(DEBUG_TIMESTAMPING, "AUDIO: NEWTIMESTAMP %d\n", newTime);
+				dcprintf(DEBUG_TIMESTAMPING, "AUDIO: NEWTIMESTAMP %lld\n", newTime);
 				if(newTime<0) {
 					dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: SKIPPING FRAME\n");
 					newtime_anomalies_counter++;
@@ -1116,9 +1116,9 @@ restart:
 				frame->timestamp.tv_usec = (newTime + delay_audio)%1000;
 				frame->size = audio_frame_size;
 				frame->type = 5; // 5 is audio type
-				dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: pts %lld duration %d timebase %d %lld dts %d\n", packet.pts, (int)packet.duration, pFormatCtx->streams[audioStream]->time_base.num, pFormatCtx->streams[audioStream]->time_base.den, packet.dts);
-				dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: timestamp sec:%d usec:%d\n", frame->timestamp.tv_sec, frame->timestamp.tv_usec);
-				dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: deltaaudio %lld\n", delta_audio);	
+				dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: pts %"PRId64" duration %d timebase %d %d dts %"PRId64"\n", packet.pts, packet.duration, pFormatCtx->streams[audioStream]->time_base.num, pFormatCtx->streams[audioStream]->time_base.den, packet.dts);
+				dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: timestamp sec:%ld usec:%ld\n", (long)frame->timestamp.tv_sec, (long)frame->timestamp.tv_usec);
+				dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: deltaaudio %"PRId64"\n", delta_audio);	
 				contFrameAudio++;
 
 				if(update_chunk(chunkaudio, frame, audio_outbuf) == -1) {
