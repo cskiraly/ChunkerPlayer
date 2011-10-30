@@ -1,5 +1,6 @@
 /*
  *  Copyright (c) 2009-2011 Carmelo Daniele, Dario Marchese, Diego Reforgiato, Giuseppe Tropea
+ *  Copyright (c) 2010-2011 Csaba Kiraly
  *  developed for the Napa-Wine EU project. See www.napa-wine.eu
  *
  *  This is free software; see lgpl-2.1.txt
@@ -16,6 +17,10 @@
 #include <libavfilter/avfilter.h>
 #include "chunker_filtering.h"
 #endif
+
+#include "chunk_pusher.h"
+
+static struct output* output;
 
 #define DEBUG
 #define DEBUG_AUDIO_FRAMES  false
@@ -39,10 +44,7 @@ int seq_current_chunk = 1; //chunk numbering starts from 1; HINT do i need more 
 
 void SaveFrame(AVFrame *pFrame, int width, int height);
 void SaveEncodedFrame(Frame* frame, uint8_t *video_outbuf);
-int pushChunkTcp(ExternalChunk *echunk);
-void initTCPPush(char* ip, int port);
 int update_chunk(ExternalChunk *chunk, Frame *frame, uint8_t *outbuf);
-void finalizeTCPChunkPusher();
 void bit32_encoded_push(uint32_t v, uint8_t *p);
 
 int video_record_count = 0;
@@ -148,12 +150,12 @@ static void print_usage(int argc, char *argv[])
     );
   }
 
-int sendChunk(ExternalChunk *chunk) {
+int sendChunk(struct output *output, ExternalChunk *chunk) {
 #ifdef HTTPIO
 						return pushChunkHttp(chunk, outside_world_url);
 #endif
 #ifdef TCPIO
-						return pushChunkTcp(chunk);
+						return pushChunkTcp(output, chunk);
 #endif
 #ifdef UDPIO
 						return pushChunkUDP(chunk);
@@ -652,7 +654,11 @@ restart:
 		return -2;
 	}
 	
-	initTCPPush(peer_ip, peer_port);
+	output = initTCPPush(peer_ip, peer_port);
+	if (!output) {
+		fprintf(stderr, "Error initializing output module, exiting\n");
+		exit(1);
+	}
 #endif
 #ifdef UDPIO
 	static char peer_ip[16];
@@ -969,7 +975,7 @@ restart:
 						//SAVE ON FILE
 						//saveChunkOnFile(chunk);
 						//Send the chunk to an external transport/player
-						sendChunk(chunk);
+						sendChunk(output, chunk);
 						dctprintf(DEBUG_CHUNKER, "VIDEO: sent chunk video %d, prio:%f, size %d\n", chunk->seq, chunk->priority, chunk->len);
 						chunk->seq = 0; //signal that we need an increase
 						//initChunk(chunk, &seq_current_chunk);
@@ -1135,7 +1141,7 @@ restart:
 					//SAVE ON FILE
 					//saveChunkOnFile(chunkaudio);
 					//Send the chunk to an external transport/player
-					sendChunk(chunkaudio);
+					sendChunk(output, chunkaudio);
 					dctprintf(DEBUG_CHUNKER, "AUDIO: just sent chunk audio %d\n", chunkaudio->seq);
 					chunkaudio->seq = 0; //signal that we need an increase
 					//initChunk(chunkaudio, &seq_current_chunk);
@@ -1190,7 +1196,7 @@ close:
 		//SAVE ON FILE
 		//saveChunkOnFile(chunk);
 		//Send the chunk to an external transport/player
-		sendChunk(chunk);
+		sendChunk(output, chunk);
 		dcprintf(DEBUG_CHUNKER, "CHUNKER: SENDING LAST VIDEO CHUNK\n");
 		chunk->seq = 0; //signal that we need an increase just in case we will restart
 	}
@@ -1198,7 +1204,7 @@ close:
 		//SAVE ON FILE     
 		//saveChunkOnFile(chunkaudio);
 		//Send the chunk via http to an external transport/player
-		sendChunk(chunkaudio);
+		sendChunk(output, chunkaudio);
 		dcprintf(DEBUG_CHUNKER, "CHUNKER: SENDING LAST AUDIO CHUNK\n");
 		chunkaudio->seq = 0; //signal that we need an increase just in case we will restart
 	}
@@ -1277,7 +1283,7 @@ close:
 	}
 
 #ifdef TCPIO
-	finalizeTCPChunkPusher();
+	finalizeTCPChunkPusher(output);
 #endif
 
 #ifdef USE_AVFILTER
