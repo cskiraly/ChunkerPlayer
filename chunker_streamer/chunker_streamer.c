@@ -349,6 +349,152 @@ long long pts2ms(int64_t pts, AVRational time_base)
 	return pts * 1000 * time_base.num / time_base.den;
 }
 
+AVCodecContext *openVideoEncoder(const char *video_codec, int video_bitrate, int dest_width, int dest_height, AVRational time_base, const char *codec_options) {
+
+	AVCodec *pCodecEnc;
+	AVCodecContext *pCodecCtxEnc;
+
+	//setup video output encoder
+	if (strcmp(video_codec, "copy") == 0) {
+		return NULL;
+	}
+
+	pCodecEnc = avcodec_find_encoder_by_name(video_codec);
+	if (pCodecEnc) {
+		fprintf(stderr, "INIT: Setting VIDEO codecID to: %d\n",pCodecEnc->id);
+	} else {
+		fprintf(stderr, "INIT: Unknown OUT VIDEO codec: %s!\n", video_codec);
+		return NULL; // Codec not found
+	}
+
+	pCodecCtxEnc=avcodec_alloc_context();
+	pCodecCtxEnc->codec_type = CODEC_TYPE_VIDEO;
+	pCodecCtxEnc->codec_id = pCodecEnc->id;
+
+	pCodecCtxEnc->bit_rate = video_bitrate;
+	//~ pCodecCtxEnc->qmin = 30;
+	//~ pCodecCtxEnc->qmax = 30;
+	//times 20 follows the defaults, was not needed in previous versions of libavcodec
+//	pCodecCtxEnc->crf = 20.0f;
+	// resolution must be a multiple of two 
+	pCodecCtxEnc->width = dest_width;
+	pCodecCtxEnc->height = dest_height;
+	// frames per second 
+	//~ pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
+	//printf("pCodecCtx->time_base=%d/%d\n", pCodecCtx->time_base.num, pCodecCtx->time_base.den);
+	pCodecCtxEnc->time_base= time_base;//(AVRational){1,25};
+	pCodecCtxEnc->gop_size = gop_size; // emit one intra frame every gop_size frames 
+	pCodecCtxEnc->max_b_frames = max_b_frames;
+	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
+	pCodecCtxEnc->flags |= CODEC_FLAG_PSNR;
+	//~ pCodecCtxEnc->flags |= CODEC_FLAG_QSCALE;
+
+	//some generic quality tuning
+	pCodecCtxEnc->mb_decision = FF_MB_DECISION_RD;
+
+	//some rate control parameters for streaming, taken from ffserver.c
+	{
+        /* Bitrate tolerance is less for streaming */
+	AVCodecContext *av = pCodecCtxEnc;
+        if (av->bit_rate_tolerance == 0)
+            av->bit_rate_tolerance = FFMAX(av->bit_rate / 4,
+                      (int64_t)av->bit_rate*av->time_base.num/av->time_base.den);
+        //if (av->qmin == 0)
+        //    av->qmin = 3;
+        //if (av->qmax == 0)
+        //    av->qmax = 31;
+        //if (av->max_qdiff == 0)
+        //    av->max_qdiff = 3;
+        //av->qcompress = 0.5;
+        //av->qblur = 0.5;
+
+        //if (!av->nsse_weight)
+        //    av->nsse_weight = 8;
+
+        //av->frame_skip_cmp = FF_CMP_DCTMAX;
+        //if (!av->me_method)
+        //    av->me_method = ME_EPZS;
+        //av->rc_buffer_aggressivity = 1.0;
+
+        //if (!av->rc_eq)
+        //    av->rc_eq = "tex^qComp";
+        //if (!av->i_quant_factor)
+        //    av->i_quant_factor = -0.8;
+        //if (!av->b_quant_factor)
+        //    av->b_quant_factor = 1.25;
+        //if (!av->b_quant_offset)
+        //    av->b_quant_offset = 1.25;
+        if (!av->rc_max_rate)
+            av->rc_max_rate = av->bit_rate * 2;
+
+        if (av->rc_max_rate && !av->rc_buffer_size) {
+            av->rc_buffer_size = av->rc_max_rate;
+        }
+	}
+	//end of code taken fromffserver.c
+
+  switch (pCodecEnc->id) {
+    case CODEC_ID_H264 :
+	// Fast Profile
+	// libx264-fast.ffpreset preset 
+	pCodecCtxEnc->coder_type = FF_CODER_TYPE_AC; // coder = 1 -> enable CABAC
+	pCodecCtxEnc->flags |= CODEC_FLAG_LOOP_FILTER; // flags=+loop -> deblock
+	pCodecCtxEnc->me_cmp|= 1; // cmp=+chroma, where CHROMA = 1
+        pCodecCtxEnc->partitions |= X264_PART_I8X8|X264_PART_I4X4|X264_PART_P8X8|X264_PART_B8X8;	// partitions=+parti8x8+parti4x4+partp8x8+partb8x8
+	pCodecCtxEnc->me_method=ME_HEX; // me_method=hex
+	pCodecCtxEnc->me_subpel_quality = 6; // subq=7
+	pCodecCtxEnc->me_range = 16; // me_range=16
+	//pCodecCtxEnc->gop_size = 250; // g=250
+	//pCodecCtxEnc->keyint_min = 25; // keyint_min=25
+	pCodecCtxEnc->scenechange_threshold = 40; // sc_threshold=40
+	pCodecCtxEnc->i_quant_factor = 0.71; // i_qfactor=0.71
+	pCodecCtxEnc->b_frame_strategy = 1; // b_strategy=1
+	pCodecCtxEnc->qcompress = 0.6; // qcomp=0.6
+	pCodecCtxEnc->qmin = 10; // qmin=10
+	pCodecCtxEnc->qmax = 51; // qmax=51
+	pCodecCtxEnc->max_qdiff = 4; // qdiff=4
+	//pCodecCtxEnc->max_b_frames = 3; // bf=3
+	pCodecCtxEnc->refs = 2; // refs=3
+	//pCodecCtxEnc->directpred = 1; // directpred=1
+	pCodecCtxEnc->directpred = 3; // directpred=1 in preset -> "directpred", "direct mv prediction mode - 0 (none), 1 (spatial), 2 (temporal), 3 (auto)"
+	//pCodecCtxEnc->trellis = 1; // trellis=1
+	pCodecCtxEnc->flags2 |= CODEC_FLAG2_BPYRAMID|CODEC_FLAG2_MIXED_REFS|CODEC_FLAG2_WPRED|CODEC_FLAG2_8X8DCT|CODEC_FLAG2_FASTPSKIP;	// flags2=+bpyramid+mixed_refs+wpred+dct8x8+fastpskip
+	pCodecCtxEnc->weighted_p_pred = 2; // wpredp=2
+
+	// libx264-main.ffpreset preset
+	//pCodecCtxEnc->flags2|=CODEC_FLAG2_8X8DCT;
+	//pCodecCtxEnc->flags2^=CODEC_FLAG2_8X8DCT; // flags2=-dct8x8
+	//pCodecCtxEnc->crf = 22;
+
+#ifdef STREAMER_X264_USE_SSIM
+	pCodecCtxEnc->flags2 |= CODEC_FLAG2_SSIM;
+#endif
+
+	//pCodecCtxEnc->weighted_p_pred=2; //maps wpredp=2; weighted prediction analysis method
+	// pCodecCtxEnc->rc_min_rate = 0;
+	// pCodecCtxEnc->rc_max_rate = video_bitrate*2;
+	// pCodecCtxEnc->rc_buffer_size = 0;
+	break;
+    case CODEC_ID_MPEG4 :
+	break;
+    default:
+	fprintf(stderr, "INIT: Unsupported OUT VIDEO codec: %s!\n", video_codec);
+  }
+
+  if ((av_set_options_string(pCodecCtxEnc, codec_options, "=", ",")) < 0) {
+    fprintf(stderr, "Error parsing options string: '%s'\n", codec_options);
+    return NULL;
+  }
+
+  if(avcodec_open(pCodecCtxEnc, pCodecEnc)<0) {
+    fprintf(stderr, "INIT: could not open OUT VIDEO codecEnc\n");
+    return NULL; // Could not open codec
+  }
+
+ return pCodecCtxEnc;
+}
+
+
 int main(int argc, char *argv[]) {
 	signal(SIGINT, sigproc);
 	
@@ -574,154 +720,19 @@ restart:
 	dest_width = (dest_width > 0) ? dest_width : pCodecCtx->width;
 	dest_height = (dest_height > 0) ? dest_height : pCodecCtx->height;
 
-	//setup video output encoder
- if (strcmp(video_codec, "copy") == 0) {
-	vcopy = true;
- } else {
-	pCodecEnc = avcodec_find_encoder_by_name(video_codec);
-	if (pCodecEnc) {
-		fprintf(stderr, "INIT: Setting VIDEO codecID to: %d\n",pCodecEnc->id);
-	} else {
-		fprintf(stderr, "INIT: Unknown OUT VIDEO codec: %s!\n", video_codec);
-		return -1; // Codec not found
+	pCodecCtxEnc = openVideoEncoder(video_codec, video_bitrate, dest_width, dest_height, pCodecCtx->time_base, codec_options);
+	if (!pCodecCtxEnc) {
+		return -1;
 	}
-
-	pCodecCtxEnc=avcodec_alloc_context();
-	pCodecCtxEnc->codec_type = CODEC_TYPE_VIDEO;
-	pCodecCtxEnc->codec_id = pCodecEnc->id;
-
-	pCodecCtxEnc->bit_rate = video_bitrate;
-	//~ pCodecCtxEnc->qmin = 30;
-	//~ pCodecCtxEnc->qmax = 30;
-	//times 20 follows the defaults, was not needed in previous versions of libavcodec
-//	pCodecCtxEnc->crf = 20.0f;
-	// resolution must be a multiple of two 
-	pCodecCtxEnc->width = dest_width;
-	pCodecCtxEnc->height = dest_height;
-	// frames per second 
-	//~ pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
-	//printf("pCodecCtx->time_base=%d/%d\n", pCodecCtx->time_base.num, pCodecCtx->time_base.den);
-	pCodecCtxEnc->time_base= pCodecCtx->time_base;//(AVRational){1,25};
-	pCodecCtxEnc->gop_size = gop_size; // emit one intra frame every gop_size frames 
-	pCodecCtxEnc->max_b_frames = max_b_frames;
-	pCodecCtxEnc->pix_fmt = PIX_FMT_YUV420P;
-	pCodecCtxEnc->flags |= CODEC_FLAG_PSNR;
-	//~ pCodecCtxEnc->flags |= CODEC_FLAG_QSCALE;
-
-	//some generic quality tuning
-	pCodecCtxEnc->mb_decision = FF_MB_DECISION_RD;
-
-	//some rate control parameters for streaming, taken from ffserver.c
-	{
-        /* Bitrate tolerance is less for streaming */
-	AVCodecContext *av = pCodecCtxEnc;
-        if (av->bit_rate_tolerance == 0)
-            av->bit_rate_tolerance = FFMAX(av->bit_rate / 4,
-                      (int64_t)av->bit_rate*av->time_base.num/av->time_base.den);
-        //if (av->qmin == 0)
-        //    av->qmin = 3;
-        //if (av->qmax == 0)
-        //    av->qmax = 31;
-        //if (av->max_qdiff == 0)
-        //    av->max_qdiff = 3;
-        //av->qcompress = 0.5;
-        //av->qblur = 0.5;
-
-        //if (!av->nsse_weight)
-        //    av->nsse_weight = 8;
-
-        //av->frame_skip_cmp = FF_CMP_DCTMAX;
-        //if (!av->me_method)
-        //    av->me_method = ME_EPZS;
-        //av->rc_buffer_aggressivity = 1.0;
-
-        //if (!av->rc_eq)
-        //    av->rc_eq = "tex^qComp";
-        //if (!av->i_quant_factor)
-        //    av->i_quant_factor = -0.8;
-        //if (!av->b_quant_factor)
-        //    av->b_quant_factor = 1.25;
-        //if (!av->b_quant_offset)
-        //    av->b_quant_offset = 1.25;
-        if (!av->rc_max_rate)
-            av->rc_max_rate = av->bit_rate * 2;
-
-        if (av->rc_max_rate && !av->rc_buffer_size) {
-            av->rc_buffer_size = av->rc_max_rate;
-        }
-	}
-	//end of code taken fromffserver.c
-
-  switch (pCodecEnc->id) {
-    case CODEC_ID_H264 :
-	// Fast Profile
-	// libx264-fast.ffpreset preset 
-	pCodecCtxEnc->coder_type = FF_CODER_TYPE_AC; // coder = 1 -> enable CABAC
-	pCodecCtxEnc->flags |= CODEC_FLAG_LOOP_FILTER; // flags=+loop -> deblock
-	pCodecCtxEnc->me_cmp|= 1; // cmp=+chroma, where CHROMA = 1
-        pCodecCtxEnc->partitions |= X264_PART_I8X8|X264_PART_I4X4|X264_PART_P8X8|X264_PART_B8X8;	// partitions=+parti8x8+parti4x4+partp8x8+partb8x8
-	pCodecCtxEnc->me_method=ME_HEX; // me_method=hex
-	pCodecCtxEnc->me_subpel_quality = 6; // subq=7
-	pCodecCtxEnc->me_range = 16; // me_range=16
-	//pCodecCtxEnc->gop_size = 250; // g=250
-	//pCodecCtxEnc->keyint_min = 25; // keyint_min=25
-	pCodecCtxEnc->scenechange_threshold = 40; // sc_threshold=40
-	pCodecCtxEnc->i_quant_factor = 0.71; // i_qfactor=0.71
-	pCodecCtxEnc->b_frame_strategy = 1; // b_strategy=1
-	pCodecCtxEnc->qcompress = 0.6; // qcomp=0.6
-	pCodecCtxEnc->qmin = 10; // qmin=10
-	pCodecCtxEnc->qmax = 51; // qmax=51
-	pCodecCtxEnc->max_qdiff = 4; // qdiff=4
-	//pCodecCtxEnc->max_b_frames = 3; // bf=3
-	pCodecCtxEnc->refs = 2; // refs=3
-	//pCodecCtxEnc->directpred = 1; // directpred=1
-	pCodecCtxEnc->directpred = 3; // directpred=1 in preset -> "directpred", "direct mv prediction mode - 0 (none), 1 (spatial), 2 (temporal), 3 (auto)"
-	//pCodecCtxEnc->trellis = 1; // trellis=1
-	pCodecCtxEnc->flags2 |= CODEC_FLAG2_BPYRAMID|CODEC_FLAG2_MIXED_REFS|CODEC_FLAG2_WPRED|CODEC_FLAG2_8X8DCT|CODEC_FLAG2_FASTPSKIP;	// flags2=+bpyramid+mixed_refs+wpred+dct8x8+fastpskip
-	pCodecCtxEnc->weighted_p_pred = 2; // wpredp=2
-
-	// libx264-main.ffpreset preset
-	//pCodecCtxEnc->flags2|=CODEC_FLAG2_8X8DCT;
-	//pCodecCtxEnc->flags2^=CODEC_FLAG2_8X8DCT; // flags2=-dct8x8
-	//pCodecCtxEnc->crf = 22;
-
-#ifdef STREAMER_X264_USE_SSIM
-	pCodecCtxEnc->flags2 |= CODEC_FLAG2_SSIM;
-#endif
-
-	//pCodecCtxEnc->weighted_p_pred=2; //maps wpredp=2; weighted prediction analysis method
-	// pCodecCtxEnc->rc_min_rate = 0;
-	// pCodecCtxEnc->rc_max_rate = video_bitrate*2;
-	// pCodecCtxEnc->rc_buffer_size = 0;
-	break;
-    case CODEC_ID_MPEG4 :
-	break;
-    default:
-	fprintf(stderr, "INIT: Unsupported OUT VIDEO codec: %s!\n", video_codec);
-  }
-
-  if ((av_set_options_string(pCodecCtxEnc, codec_options, "=", ",")) < 0) {
-    fprintf(stderr, "Error parsing options string: '%s'\n", codec_options);
-    exit(1);
-  }
 
 	fprintf(stderr, "INIT: VIDEO timebase OUT:%d %d IN: %d %d\n", pCodecCtxEnc->time_base.num, pCodecCtxEnc->time_base.den, pCodecCtx->time_base.num, pCodecCtx->time_base.den);
- }
 
 	if(pCodec==NULL) {
 		fprintf(stderr, "INIT: Unsupported IN VIDEO pcodec!\n");
 		return -1; // Codec not found
 	}
-	if(!vcopy && pCodecEnc==NULL) {
-		fprintf(stderr, "INIT: Unsupported OUT VIDEO pcodecenc!\n");
-		return -1; // Codec not found
-	}
 	if(avcodec_open(pCodecCtx, pCodec)<0) {
 		fprintf(stderr, "INIT: could not open IN VIDEO codec\n");
-		return -1; // Could not open codec
-	}
-	if(!vcopy && avcodec_open(pCodecCtxEnc, pCodecEnc)<0) {
-		fprintf(stderr, "INIT: could not open OUT VIDEO codecEnc\n");
 		return -1; // Could not open codec
 	}
 	if(audioStream!=-1) {
