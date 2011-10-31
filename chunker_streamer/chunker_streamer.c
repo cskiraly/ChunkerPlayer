@@ -24,7 +24,7 @@ struct outstream {
 	struct output *output;
 	ExternalChunk *chunk;
 };
-struct outstream outstream;
+struct outstream outstream[2];
 
 #define DEBUG
 #define DEBUG_AUDIO_FRAMES  false
@@ -342,6 +342,11 @@ void addFrameToOutstream(struct outstream *os, Frame *frame, uint8_t *video_outb
 						chunk->seq = 0; //signal that we need an increase
 						//initChunk(chunk, &seq_current_chunk);
 					}
+}
+
+long long pts2ms(int64_t pts, AVRational time_base)
+{
+	return pts * 1000 * time_base.num / time_base.den;
 }
 
 int main(int argc, char *argv[]) {
@@ -783,14 +788,22 @@ restart:
 	}
 
 	//create an empty first video chunk
-	outstream.chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
-	if(!outstream.chunk) {
+	outstream[0].chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
+	if(!outstream[0].chunk) {
 		fprintf(stderr, "INIT: Memory error alloc chunk!!!\n");
 		return -1;
 	}
-	outstream.chunk->data = NULL;
-	outstream.chunk->seq = 0;
-	dcprintf(DEBUG_CHUNKER, "INIT: chunk video %d\n", outstream.chunk->seq);
+	outstream[0].chunk->data = NULL;
+	outstream[0].chunk->seq = 0;
+	dcprintf(DEBUG_CHUNKER, "INIT: chunk video %d\n", outstream[0].chunk->seq);
+	outstream[1].chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
+	if(!outstream[1].chunk) {
+		fprintf(stderr, "INIT: Memory error alloc chunk!!!\n");
+		return -1;
+	}
+	outstream[1].chunk->data = NULL;
+	outstream[1].chunk->seq = 0;
+	dcprintf(DEBUG_CHUNKER, "INIT: chunk video %d\n", outstream[1].chunk->seq);
 	//create empty first audio chunk
 
 	chunkaudio = (ExternalChunk *)malloc(sizeof(ExternalChunk));
@@ -825,8 +838,13 @@ restart:
 		return -2;
 	}
 	
-	outstream.output = initTCPPush(peer_ip, peer_port);
-	if (!outstream.output) {
+	outstream[0].output = initTCPPush(peer_ip, peer_port);
+	if (!outstream[0].output) {
+		fprintf(stderr, "Error initializing output module, exiting\n");
+		exit(1);
+	}
+	outstream[1].output = initTCPPush(peer_ip, peer_port+1);
+	if (!outstream[1].output) {
 		fprintf(stderr, "Error initializing output module, exiting\n");
 		exit(1);
 	}
@@ -951,7 +969,28 @@ restart:
 					}
 					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: deltavideo : %d\n", (int)delta_video);
 
-					if(vcopy) {
+					//set initial timestamp
+					if(FirstTimeVideo && pFrame->pkt_pts>0) {
+						if(offset_av) {
+							ptsvideo1 = pFrame->pkt_pts;
+							FirstTimeVideo = 0;
+							dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: SET PTS BASE OFFSET %"PRId64"\n", ptsvideo1);
+						} else { //we want to compensate audio and video offset for this source
+							//maintain the offset between audio pts and video pts
+							//because in case of live source they have the same numbering
+							if(ptsaudio1 > 0) //if we have already seen some audio frames...
+								ptsvideo1 = ptsaudio1;
+							else
+								ptsvideo1 = pFrame->pkt_pts;
+							FirstTimeVideo = 0;
+							dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO LIVE: SET PTS BASE OFFSET %"PRId64"\n", ptsvideo1);
+						}
+					}
+
+					// store timestamp in useconds for next frame sleep
+					newTime_video = pts2ms(pFrame->pkt_pts - ptsvideo1, pFormatCtx->streams[videoStream]->time_base)*1000;
+
+					if(true) {
 						video_frame_size = packet.size;
 						if (video_frame_size > video_outbuf_size) {
 							fprintf(stderr, "VIDEO: error, outbuf too small, SKIPPING\n");;
@@ -966,55 +1005,22 @@ restart:
 						}else {	//TODO: review this
 							target_pts = pFrame->pkt_dts;
 						}
-					} else {
+						createFrame(frame, pts2ms(target_pts - ptsvideo1, pFormatCtx->streams[videoStream]->time_base), video_frame_size, 
+					            pFrame->pict_type);
+						addFrameToOutstream(&outstream[0], frame, video_outbuf);
+					}
+					if(true) {
 						video_frame_size = transcodeFrame(video_outbuf, video_outbuf_size, &target_pts, pFrame, pFormatCtx->streams[videoStream]->time_base, pCodecCtx, pCodecCtxEnc);
 						if (video_frame_size <= 0) {
 							av_free_packet(&packet);
 							contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
 							continue;
 						}
+						createFrame(frame, pts2ms(target_pts - ptsvideo1, pFormatCtx->streams[videoStream]->time_base), video_frame_size, 
+					            (unsigned char)pCodecCtxEnc->coded_frame->pict_type);
+						addFrameToOutstream(&outstream[1], frame, video_outbuf);
 					}
 
-					if(offset_av)
-					{
-						if(FirstTimeVideo && target_pts>0) {
-							ptsvideo1 = target_pts;
-							FirstTimeVideo = 0;
-							dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: SET PTS BASE OFFSET %"PRId64"\n", ptsvideo1);
-						}
-					}
-					else //we want to compensate audio and video offset for this source
-					{
-						if(FirstTimeVideo && target_pts>0) {
-							//maintain the offset between audio pts and video pts
-							//because in case of live source they have the same numbering
-							if(ptsaudio1 > 0) //if we have already seen some audio frames...
-								ptsvideo1 = ptsaudio1;
-							else
-								ptsvideo1 = target_pts;
-							FirstTimeVideo = 0;
-							dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO LIVE: SET PTS BASE OFFSET %"PRId64"\n", ptsvideo1);
-						}
-					}
-					//compute the new video timestamp in milliseconds
-					if(frame->number>0) {
-						newTime = (target_pts - ptsvideo1) * 1000 * pFormatCtx->streams[videoStream]->time_base.num / pFormatCtx->streams[videoStream]->time_base.den;
-						// store timestamp in useconds for next frame sleep
-						newTime_video = newTime*1000;
-					}
-					dcprintf(DEBUG_TIMESTAMPING, "VIDEO: NEWTIMESTAMP %lld\n", newTime);
-					if(newTime<0) {
-						dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: SKIPPING FRAME\n");
-						newtime_anomalies_counter++;
-						dcprintf(DEBUG_ANOMALIES, "READLOOP: NEWTIME negative video timestamp anomaly detected number %d\n", newtime_anomalies_counter);
-						contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
-						av_free_packet(&packet);
-						continue; //SKIP THIS FRAME, bad timestamp
-					}
-
-					createFrame(frame, newTime, video_frame_size, 
-					            vcopy ? pFrame->pict_type : (unsigned char)pCodecCtxEnc->coded_frame->pict_type);
-					addFrameToOutstream(&outstream, frame, video_outbuf);
 
 					//compute how long it took to encode video frame
 					gettimeofday(&now_tv, NULL);
@@ -1173,7 +1179,8 @@ restart:
 					//SAVE ON FILE
 					//saveChunkOnFile(chunkaudio);
 					//Send the chunk to an external transport/player
-					sendChunk(outstream.output, chunkaudio);
+					sendChunk(outstream[0].output, chunkaudio);
+					sendChunk(outstream[1].output, chunkaudio);
 					dctprintf(DEBUG_CHUNKER, "AUDIO: just sent chunk audio %d\n", chunkaudio->seq);
 					chunkaudio->seq = 0; //signal that we need an increase
 					//initChunk(chunkaudio, &seq_current_chunk);
@@ -1224,19 +1231,19 @@ restart:
 		fclose(psnrtrace);
 
 close:
-	if(outstream.chunk->seq != 0 && outstream.chunk->frames_num>0) {
+	if(outstream[0].chunk->seq != 0 && outstream[0].chunk->frames_num>0) {
 		//SAVE ON FILE
 		//saveChunkOnFile(chunk);
 		//Send the chunk to an external transport/player
-		sendChunk(outstream.output, outstream.chunk);
+		sendChunk(outstream[0].output, outstream[0].chunk);
 		dcprintf(DEBUG_CHUNKER, "CHUNKER: SENDING LAST VIDEO CHUNK\n");
-		outstream.chunk->seq = 0; //signal that we need an increase just in case we will restart
+		outstream[0].chunk->seq = 0; //signal that we need an increase just in case we will restart
 	}
 	if(chunkaudio->seq != 0 && chunkaudio->frames_num>0) {
 		//SAVE ON FILE     
 		//saveChunkOnFile(chunkaudio);
 		//Send the chunk via http to an external transport/player
-		sendChunk(outstream.output, chunkaudio);
+		sendChunk(outstream[0].output, chunkaudio);
 		dcprintf(DEBUG_CHUNKER, "CHUNKER: SENDING LAST AUDIO CHUNK\n");
 		chunkaudio->seq = 0; //signal that we need an increase just in case we will restart
 	}
@@ -1246,7 +1253,7 @@ close:
 	finalizeChunkPusher();
 #endif
 
-	free(outstream.chunk);
+	free(outstream[0].chunk);
 	free(chunkaudio);
 	free(frame);
 	av_free(video_outbuf);
@@ -1312,7 +1319,8 @@ close:
 	}
 
 #ifdef TCPIO
-	finalizeTCPChunkPusher(outstream.output);
+	finalizeTCPChunkPusher(outstream[0].output);
+	finalizeTCPChunkPusher(outstream[1].output);
 #endif
 
 #ifdef USE_AVFILTER
