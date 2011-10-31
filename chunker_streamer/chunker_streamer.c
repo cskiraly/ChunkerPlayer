@@ -23,6 +23,7 @@
 struct outstream {
 	struct output *output;
 	ExternalChunk *chunk;
+	AVCodecContext *pCodecCtxEnc;
 };
 struct outstream outstream[2];
 
@@ -532,8 +533,8 @@ int main(int argc, char *argv[]) {
 	AVFrame *pFrame1 = NULL;
 
 	AVFormatContext *pFormatCtx;
-	AVCodecContext  *pCodecCtx = NULL ,*pCodecCtxEnc = NULL ,*aCodecCtxEnc = NULL ,*aCodecCtx = NULL;
-	AVCodec         *pCodec = NULL ,*pCodecEnc = NULL ,*aCodec = NULL ,*aCodecEnc = NULL;
+	AVCodecContext  *pCodecCtx = NULL ,*aCodecCtxEnc = NULL ,*aCodecCtx = NULL;
+	AVCodec         *pCodec = NULL ,*aCodec = NULL ,*aCodecEnc = NULL;
 	AVPacket         packet;
 
 	//stuff needed to compute the right timestamps
@@ -720,12 +721,31 @@ restart:
 	dest_width = (dest_width > 0) ? dest_width : pCodecCtx->width;
 	dest_height = (dest_height > 0) ? dest_height : pCodecCtx->height;
 
-	pCodecCtxEnc = openVideoEncoder(video_codec, video_bitrate, dest_width, dest_height, pCodecCtx->time_base, codec_options);
-	if (!pCodecCtxEnc) {
+	//create an empty first video chunk
+	outstream[0].chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
+	if(!outstream[0].chunk) {
+		fprintf(stderr, "INIT: Memory error alloc chunk!!!\n");
+		return -1;
+	}
+	outstream[0].chunk->data = NULL;
+	outstream[0].chunk->seq = 0;
+	dcprintf(DEBUG_CHUNKER, "INIT: chunk video %d\n", outstream[0].chunk->seq);
+	outstream[0].pCodecCtxEnc = NULL;
+
+	outstream[1].chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
+	if(!outstream[1].chunk) {
+		fprintf(stderr, "INIT: Memory error alloc chunk!!!\n");
+		return -1;
+	}
+	outstream[1].chunk->data = NULL;
+	outstream[1].chunk->seq = 0;
+	dcprintf(DEBUG_CHUNKER, "INIT: chunk video %d\n", outstream[1].chunk->seq);
+	outstream[1].pCodecCtxEnc = openVideoEncoder(video_codec, video_bitrate, dest_width, dest_height, pCodecCtx->time_base, codec_options);
+	if (!outstream[1].pCodecCtxEnc) {
 		return -1;
 	}
 
-	fprintf(stderr, "INIT: VIDEO timebase OUT:%d %d IN: %d %d\n", pCodecCtxEnc->time_base.num, pCodecCtxEnc->time_base.den, pCodecCtx->time_base.num, pCodecCtx->time_base.den);
+	fprintf(stderr, "INIT: VIDEO timebase OUT:%d %d IN: %d %d\n", outstream[1].pCodecCtxEnc->time_base.num, outstream[1].pCodecCtxEnc->time_base.den, pCodecCtx->time_base.num, pCodecCtx->time_base.den);
 
 	if(pCodec==NULL) {
 		fprintf(stderr, "INIT: Unsupported IN VIDEO pcodec!\n");
@@ -798,23 +818,6 @@ restart:
 		return -1;
 	}
 
-	//create an empty first video chunk
-	outstream[0].chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
-	if(!outstream[0].chunk) {
-		fprintf(stderr, "INIT: Memory error alloc chunk!!!\n");
-		return -1;
-	}
-	outstream[0].chunk->data = NULL;
-	outstream[0].chunk->seq = 0;
-	dcprintf(DEBUG_CHUNKER, "INIT: chunk video %d\n", outstream[0].chunk->seq);
-	outstream[1].chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
-	if(!outstream[1].chunk) {
-		fprintf(stderr, "INIT: Memory error alloc chunk!!!\n");
-		return -1;
-	}
-	outstream[1].chunk->data = NULL;
-	outstream[1].chunk->seq = 0;
-	dcprintf(DEBUG_CHUNKER, "INIT: chunk video %d\n", outstream[1].chunk->seq);
 	//create empty first audio chunk
 
 	chunkaudio = (ExternalChunk *)malloc(sizeof(ExternalChunk));
@@ -1021,14 +1024,14 @@ restart:
 						addFrameToOutstream(&outstream[0], frame, video_outbuf);
 					}
 					if(true) {
-						video_frame_size = transcodeFrame(video_outbuf, video_outbuf_size, &target_pts, pFrame, pFormatCtx->streams[videoStream]->time_base, pCodecCtx, pCodecCtxEnc);
+						video_frame_size = transcodeFrame(video_outbuf, video_outbuf_size, &target_pts, pFrame, pFormatCtx->streams[videoStream]->time_base, pCodecCtx, outstream[1].pCodecCtxEnc);
 						if (video_frame_size <= 0) {
 							av_free_packet(&packet);
 							contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
 							continue;
 						}
 						createFrame(frame, pts2ms(target_pts - ptsvideo1, pFormatCtx->streams[videoStream]->time_base), video_frame_size, 
-					            (unsigned char)pCodecCtxEnc->coded_frame->pict_type);
+					            (unsigned char)outstream[1].pCodecCtxEnc->coded_frame->pict_type);
 						addFrameToOutstream(&outstream[1], frame, video_outbuf);
 					}
 
@@ -1276,8 +1279,8 @@ close:
 	av_free(samples);
   
 	// Close the codec
-	if (!vcopy) avcodec_close(pCodecCtx);
-	if (!vcopy) avcodec_close(pCodecCtxEnc);
+	avcodec_close(pCodecCtx);
+	avcodec_close(outstream[1].pCodecCtxEnc);
 
 	if(audioStream!=-1) {
 		avcodec_close(aCodecCtx);
