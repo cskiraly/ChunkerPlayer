@@ -20,7 +20,11 @@
 
 #include "chunk_pusher.h"
 
-static struct output* output;
+struct outstream {
+	struct output *output;
+	ExternalChunk *chunk;
+};
+struct outstream outstream;
 
 #define DEBUG
 #define DEBUG_AUDIO_FRAMES  false
@@ -162,6 +166,184 @@ int sendChunk(struct output *output, ExternalChunk *chunk) {
 #endif
 }
 
+
+int transcodeFrame(uint8_t *video_outbuf, int video_outbuf_size, int64_t *target_pts, AVFrame *pFrame, AVRational time_base, AVCodecContext *pCodecCtx, AVCodecContext *pCodecCtxEnc)
+{
+	int video_frame_size = 0;
+	AVFrame *pFrame2 = NULL;
+	AVFrame *scaledFrame = NULL;
+	pFrame2=avcodec_alloc_frame();
+	scaledFrame=avcodec_alloc_frame();
+	if(pFrame2==NULL || scaledFrame==NULL) {
+		fprintf(stderr, "INIT: Memory error alloc video frame!!!\n");
+		if(pFrame2) av_free(pFrame2);
+		if(scaledFrame) av_free(scaledFrame);
+		return -1;
+	}
+	int scaledFrame_buf_size = avpicture_get_size( PIX_FMT_YUV420P, pCodecCtxEnc->width, pCodecCtxEnc->height);
+	uint8_t* scaledFrame_buffer = (uint8_t *) av_malloc( scaledFrame_buf_size * sizeof( uint8_t ) );
+	avpicture_fill( (AVPicture*) scaledFrame, scaledFrame_buffer, PIX_FMT_YUV420P, pCodecCtxEnc->width, pCodecCtxEnc->height);
+	if(!video_outbuf || !scaledFrame_buffer) {
+		fprintf(stderr, "INIT: Memory error alloc video_outbuf!!!\n");
+		return -1;
+	}
+
+					    if (pFrame->pkt_pts != AV_NOPTS_VALUE) {
+						pFrame->pts = av_rescale_q(pFrame->pkt_pts, time_base, pCodecCtxEnc->time_base);
+					    } else {	//try to figure out the pts //TODO: review this
+						if (pFrame->pkt_dts != AV_NOPTS_VALUE) {
+							pFrame->pts = av_rescale_q(pFrame->pkt_dts, time_base, pCodecCtxEnc->time_base);
+						}
+					    }
+
+#ifdef VIDEO_DEINTERLACE
+					    avpicture_deinterlace(
+							(AVPicture*) pFrame,
+							(const AVPicture*) pFrame,
+							pCodecCtxEnc->pix_fmt,
+							pCodecCtxEnc->width,
+							pCodecCtxEnc->height);
+#endif
+
+#ifdef USE_AVFILTER
+					    //apply avfilters
+					    filter(pFrame,pFrame2);
+					    pFrame = pFrame2;
+					    dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pFrame2->pkt_dts, pFrame2->pkt_pts, pFrame2->pts);
+					    dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode intype %d%s\n", pFrame2->pict_type, pFrame2->key_frame ? " (key)" : "");
+#endif
+
+					    if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width) {
+//						static AVPicture pict;
+						static struct SwsContext *img_convert_ctx = NULL;
+
+						pFrame->pict_type = 0;
+						if(img_convert_ctx == NULL)
+						{
+							img_convert_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, PIX_FMT_YUV420P, pCodecCtxEnc->width, pCodecCtxEnc->height, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
+							if(img_convert_ctx == NULL) {
+								fprintf(stderr, "Cannot initialize the conversion context!\n");
+								exit(1);
+							}
+						}
+						sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, pCodecCtx->height, scaledFrame->data, scaledFrame->linesize);
+						scaledFrame->pts = pFrame->pts;
+						scaledFrame->pict_type = 0;
+						video_frame_size = avcodec_encode_video(pCodecCtxEnc, video_outbuf, video_outbuf_size, scaledFrame);
+					    } else {
+						pFrame->pict_type = 0;
+						video_frame_size = avcodec_encode_video(pCodecCtxEnc, video_outbuf, video_outbuf_size, pFrame);
+					    }
+
+					    //use pts if dts is invalid
+					    if(pCodecCtxEnc->coded_frame->pts!=AV_NOPTS_VALUE)
+						*target_pts = av_rescale_q(pCodecCtxEnc->coded_frame->pts, pCodecCtxEnc->time_base, time_base);
+					    else {	//TODO: review this
+						if(pFrame2) av_free(pFrame2);
+						if(scaledFrame) av_free(scaledFrame);
+						if(scaledFrame_buffer) av_free(scaledFrame_buffer);
+						return -1;
+					    }
+
+					if(video_frame_size > 0) {
+					    if(pCodecCtxEnc->coded_frame) {
+						dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOout: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pCodecCtxEnc->coded_frame->pkt_dts, pCodecCtxEnc->coded_frame->pkt_pts, pCodecCtxEnc->coded_frame->pts);
+						dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOout: outtype: %d%s\n", pCodecCtxEnc->coded_frame->pict_type, pCodecCtxEnc->coded_frame->key_frame ? " (key)" : "");
+					    }
+#ifdef DISPLAY_PSNR
+					    static double ist_psnr = 0;
+					    static double cum_psnr = 0;
+					    static int psnr_samples = 0;
+					    if(pCodecCtxEnc->coded_frame) {
+						if(pCodecCtxEnc->flags&CODEC_FLAG_PSNR) {
+							ist_psnr = GET_PSNR(pCodecCtxEnc->coded_frame->error[0]/(pCodecCtxEnc->width*pCodecCtxEnc->height*255.0*255.0));
+							psnr_samples++;
+							cum_psnr += ist_psnr;
+							fprintf(stderr, "PSNR: ist %.4f avg: %.4f\n", ist_psnr, cum_psnr / (double)psnr_samples);
+						}
+					    }
+#endif
+					}
+
+	if(pFrame2) av_free(pFrame2);
+	if(scaledFrame) av_free(scaledFrame);
+	if(scaledFrame_buffer) av_free(scaledFrame_buffer);
+	return video_frame_size;
+}
+
+
+void createFrame(struct Frame *frame, long long newTime, int video_frame_size, int pict_type)
+{
+
+					frame->timestamp.tv_sec = (long long)newTime/1000;
+					frame->timestamp.tv_usec = newTime%1000;
+					frame->size = video_frame_size;
+					/* pict_type maybe 1 (I), 2 (P), 3 (B), 5 (AUDIO)*/
+					frame->type = pict_type;
+
+
+/* should be on some other place
+//					if (!vcopy) dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: original codec frame number %d vs. encoded %d vs. packed %d\n", pCodecCtx->frame_number, pCodecCtxEnc->frame_number, frame->number);
+//					if (!vcopy) dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: duration %d timebase %d %d container timebase %d\n", (int)packet.duration, pCodecCtxEnc->time_base.den, pCodecCtxEnc->time_base.num, pCodecCtx->time_base.den);
+
+#ifdef YUV_RECORD_ENABLED
+					if(!vcopy && ChunkerStreamerTestMode)
+					{
+						if(videotrace)
+							fprintf(videotrace, "%d %d %d\n", frame->number, pict_type, frame->size);
+
+						SaveFrame(pFrame, dest_width, dest_height);
+
+						++savedVideoFrames;
+						SaveEncodedFrame(frame, video_outbuf);
+
+						if(!firstSavedVideoFrame)
+							firstSavedVideoFrame = frame->number;
+
+						char tmp_filename[255];
+						sprintf(tmp_filename, "yuv_data/streamer_out_context.txt");
+						FILE* tmp = fopen(tmp_filename, "w");
+						if(tmp)
+						{
+							fprintf(tmp, "width = %d\nheight = %d\ntotal_frames_saved = %d\ntotal_frames_decoded = %d\nfirst_frame_number = %ld\nlast_frame_number = %d\n"
+								,dest_width, dest_height
+								,savedVideoFrames, savedVideoFrames, firstSavedVideoFrame, frame->number);
+							fclose(tmp);
+						}
+					}
+#endif
+*/
+
+					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: encapsulated frame size:%d type:%d\n", frame->size, frame->type);
+					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: timestamped sec %ld usec:%ld\n", (long)frame->timestamp.tv_sec, (long)frame->timestamp.tv_usec);
+}
+
+
+void addFrameToOutstream(struct outstream *os, Frame *frame, uint8_t *video_outbuf)
+{
+
+	ExternalChunk *chunk = os->chunk;
+	struct output *output = os->output;
+
+					if(update_chunk(chunk, frame, video_outbuf) == -1) {
+						fprintf(stderr, "VIDEO: unable to update chunk %d. Exiting.\n", chunk->seq);
+						exit(-1);
+					}
+
+					if(chunkFilled(chunk, VIDEO_CHUNK)) { // is chunk filled using current strategy?
+						//calculate priority
+						chunk->priority /= chunk->frames_num;
+
+						//SAVE ON FILE
+						//saveChunkOnFile(chunk);
+						//Send the chunk to an external transport/player
+						sendChunk(output, chunk);
+						dctprintf(DEBUG_CHUNKER, "VIDEO: sent chunk video %d, prio:%f, size %d\n", chunk->seq, chunk->priority, chunk->len);
+						chunk->seq = 0; //signal that we need an increase
+						//initChunk(chunk, &seq_current_chunk);
+					}
+}
+
 int main(int argc, char *argv[]) {
 	signal(SIGINT, sigproc);
 	
@@ -197,8 +379,6 @@ int main(int argc, char *argv[]) {
 	int16_t *samples = NULL;
 	//a raw uncompressed video picture
 	AVFrame *pFrame1 = NULL;
-	AVFrame *pFrame2 = NULL;
-	AVFrame *scaledFrame = NULL;
 
 	AVFormatContext *pFormatCtx;
 	AVCodecContext  *pCodecCtx = NULL ,*pCodecCtxEnc = NULL ,*aCodecCtxEnc = NULL ,*aCodecCtx = NULL;
@@ -217,7 +397,6 @@ int main(int argc, char *argv[]) {
 
 	//Napa-Wine specific Frame and Chunk structures for transport
 	Frame *frame = NULL;
-	ExternalChunk *chunk = NULL;
 	ExternalChunk *chunkaudio = NULL;
 	
 	char av_input[1024];
@@ -589,21 +768,12 @@ restart:
 
 	// Allocate video in frame and out buffer
 	pFrame1=avcodec_alloc_frame();
-	pFrame2=avcodec_alloc_frame();
-	scaledFrame=avcodec_alloc_frame();
-	if(pFrame1==NULL || pFrame2==NULL || scaledFrame == NULL) {
+	if(pFrame1==NULL) {
 		fprintf(stderr, "INIT: Memory error alloc video frame!!!\n");
 		return -1;
 	}
 	video_outbuf_size = STREAMER_MAX_VIDEO_BUFFER_SIZE;
 	video_outbuf = av_malloc(video_outbuf_size);
-	int scaledFrame_buf_size = avpicture_get_size( PIX_FMT_YUV420P, dest_width, dest_height);
-	uint8_t* scaledFrame_buffer = (uint8_t *) av_malloc( scaledFrame_buf_size * sizeof( uint8_t ) );
-	avpicture_fill( (AVPicture*) scaledFrame, scaledFrame_buffer, PIX_FMT_YUV420P, dest_width, dest_height);
-	if(!video_outbuf || !scaledFrame_buffer) {
-		fprintf(stderr, "INIT: Memory error alloc video_outbuf!!!\n");
-		return -1;
-	}
 
 	//allocate Napa-Wine transport
 	frame = (Frame *)malloc(sizeof(Frame));
@@ -611,17 +781,18 @@ restart:
 		fprintf(stderr, "INIT: Memory error alloc Frame!!!\n");
 		return -1;
 	}
+
 	//create an empty first video chunk
-	chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
-	if(!chunk) {
+	outstream.chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
+	if(!outstream.chunk) {
 		fprintf(stderr, "INIT: Memory error alloc chunk!!!\n");
 		return -1;
 	}
-	chunk->data = NULL;
-	chunk->seq = 0;
-	//initChunk(chunk, &seq_current_chunk); if i init them now i get out of sequence
-	dcprintf(DEBUG_CHUNKER, "INIT: chunk video %d\n", chunk->seq);
+	outstream.chunk->data = NULL;
+	outstream.chunk->seq = 0;
+	dcprintf(DEBUG_CHUNKER, "INIT: chunk video %d\n", outstream.chunk->seq);
 	//create empty first audio chunk
+
 	chunkaudio = (ExternalChunk *)malloc(sizeof(ExternalChunk));
 	if(!chunkaudio) {
 		fprintf(stderr, "INIT: Memory error alloc chunkaudio!!!\n");
@@ -654,8 +825,8 @@ restart:
 		return -2;
 	}
 	
-	output = initTCPPush(peer_ip, peer_port);
-	if (!output) {
+	outstream.output = initTCPPush(peer_ip, peer_port);
+	if (!outstream.output) {
 		fprintf(stderr, "Error initializing output module, exiting\n");
 		exit(1);
 	}
@@ -796,90 +967,13 @@ restart:
 							target_pts = pFrame->pkt_dts;
 						}
 					} else {
-
-					    if (pFrame->pkt_pts != AV_NOPTS_VALUE) {
-						pFrame->pts = av_rescale_q(pFrame->pkt_pts, pFormatCtx->streams[videoStream]->time_base, pCodecCtxEnc->time_base);
-					    } else {	//try to figure out the pts //TODO: review this
-						if (pFrame->pkt_dts != AV_NOPTS_VALUE) {
-							pFrame->pts = av_rescale_q(pFrame->pkt_dts, pFormatCtx->streams[videoStream]->time_base, pCodecCtxEnc->time_base);
-						}
-					    }
-
-#ifdef VIDEO_DEINTERLACE
-					    avpicture_deinterlace(
-							(AVPicture*) pFrame,
-							(const AVPicture*) pFrame,
-							pCodecCtxEnc->pix_fmt,
-							pCodecCtxEnc->width,
-							pCodecCtxEnc->height);
-				}
-#endif
-
-#ifdef USE_AVFILTER
-					    //apply avfilters
-					    filter(pFrame,pFrame2);
-					    pFrame = pFrame2;
-					    dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pFrame2->pkt_dts, pFrame2->pkt_pts, pFrame2->pts);
-					    dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode intype %d%s\n", pFrame2->pict_type, pFrame2->key_frame ? " (key)" : "");
-#endif
-
-					    if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width) {
-//						static AVPicture pict;
-						static struct SwsContext *img_convert_ctx = NULL;
-						
-						pFrame->pict_type = 0;
-						if(img_convert_ctx == NULL)
-						{
-							img_convert_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, PIX_FMT_YUV420P, dest_width, dest_height, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
-							if(img_convert_ctx == NULL) {
-								fprintf(stderr, "Cannot initialize the conversion context!\n");
-								exit(1);
-							}
-						}
-						sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, pCodecCtx->height, scaledFrame->data, scaledFrame->linesize);
-						scaledFrame->pts = pFrame->pts;
-						scaledFrame->pict_type = 0;
-						video_frame_size = avcodec_encode_video(pCodecCtxEnc, video_outbuf, video_outbuf_size, scaledFrame);
-					    } else {
-						pFrame->pict_type = 0;
-						video_frame_size = avcodec_encode_video(pCodecCtxEnc, video_outbuf, video_outbuf_size, pFrame);
-					    }
-
-					    //use pts if dts is invalid
-					    if(pCodecCtxEnc->coded_frame->pts!=AV_NOPTS_VALUE)
-						target_pts = av_rescale_q(pCodecCtxEnc->coded_frame->pts, pCodecCtxEnc->time_base, pFormatCtx->streams[videoStream]->time_base);
-					    else {	//TODO: review this
-						av_free_packet(&packet);
-						continue;
-						//fprintf(stderr, "VIDEOout: pts error\n");
-						//exit(1);
-					    }
-					}
-
-					if(video_frame_size <= 0)
-					{
-						contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
-						av_free_packet(&packet);
-						continue;
-					}
-
-					if(!vcopy && pCodecCtxEnc->coded_frame) {
-						dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOout: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pCodecCtxEnc->coded_frame->pkt_dts, pCodecCtxEnc->coded_frame->pkt_pts, pCodecCtxEnc->coded_frame->pts);
-						dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOout: outtype: %d%s\n", pCodecCtxEnc->coded_frame->pict_type, pCodecCtxEnc->coded_frame->key_frame ? " (key)" : "");
-					}
-#ifdef DISPLAY_PSNR
-					static double ist_psnr = 0;
-					static double cum_psnr = 0;
-					static int psnr_samples = 0;
-					if(!vcopy && pCodecCtxEnc->coded_frame) {
-						if(pCodecCtxEnc->flags&CODEC_FLAG_PSNR) {
-							ist_psnr = GET_PSNR(pCodecCtxEnc->coded_frame->error[0]/(pCodecCtxEnc->width*pCodecCtxEnc->height*255.0*255.0));
-							psnr_samples++;
-							cum_psnr += ist_psnr;
-							fprintf(stderr, "PSNR: ist %.4f avg: %.4f\n", ist_psnr, cum_psnr / (double)psnr_samples);
+						video_frame_size = transcodeFrame(video_outbuf, video_outbuf_size, &target_pts, pFrame, pFormatCtx->streams[videoStream]->time_base, pCodecCtx, pCodecCtxEnc);
+						if (video_frame_size <= 0) {
+							av_free_packet(&packet);
+							contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
+							continue;
 						}
 					}
-#endif
 
 					if(offset_av)
 					{
@@ -917,69 +1011,10 @@ restart:
 						av_free_packet(&packet);
 						continue; //SKIP THIS FRAME, bad timestamp
 					}
-					
-					//~ printf("pCodecCtxEnc->error[0]=%"PRId64"\n", pFrame->error[0]);
-	
-					frame->timestamp.tv_sec = (long long)newTime/1000;
-					frame->timestamp.tv_usec = newTime%1000;
-					frame->size = video_frame_size;
-					/* pict_type maybe 1 (I), 2 (P), 3 (B), 5 (AUDIO)*/
-					frame->type = vcopy ? pFrame->pict_type : (unsigned char)pCodecCtxEnc->coded_frame->pict_type;
 
-					if (!vcopy) dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: original codec frame number %d vs. encoded %d vs. packed %d\n", pCodecCtx->frame_number, pCodecCtxEnc->frame_number, frame->number);
-					if (!vcopy) dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: duration %d timebase %d %d container timebase %d\n", (int)packet.duration, pCodecCtxEnc->time_base.den, pCodecCtxEnc->time_base.num, pCodecCtx->time_base.den);
-
-#ifdef YUV_RECORD_ENABLED
-					if(!vcopy && ChunkerStreamerTestMode)
-					{
-						if(videotrace)
-							fprintf(videotrace, "%d %d %d\n", frame->number, pFrame->pict_type, frame->size);
-
-						if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width)
-							SaveFrame(scaledFrame, dest_width, dest_height);
-						else
-							SaveFrame(pFrame, dest_width, dest_height);
-
-						++savedVideoFrames;
-						SaveEncodedFrame(frame, video_outbuf);
-
-						if(!firstSavedVideoFrame)
-							firstSavedVideoFrame = frame->number;
-						
-						char tmp_filename[255];
-						sprintf(tmp_filename, "yuv_data/streamer_out_context.txt");
-						FILE* tmp = fopen(tmp_filename, "w");
-						if(tmp)
-						{
-							fprintf(tmp, "width = %d\nheight = %d\ntotal_frames_saved = %d\ntotal_frames_decoded = %d\nfirst_frame_number = %ld\nlast_frame_number = %d\n"
-								,dest_width, dest_height
-								,savedVideoFrames, savedVideoFrames, firstSavedVideoFrame, frame->number);
-							fclose(tmp);
-						}
-					}
-#endif
-
-					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: encapsulated frame size:%d type:%d\n", frame->size, frame->type);
-					dcprintf(DEBUG_VIDEO_FRAMES, "VIDEO: timestamped sec %ld usec:%ld\n", (long)frame->timestamp.tv_sec, (long)frame->timestamp.tv_usec);
-					//contFrameVideo++; //lets increase the numbering of the frames
-
-					if(update_chunk(chunk, frame, video_outbuf) == -1) {
-						fprintf(stderr, "VIDEO: unable to update chunk %d. Exiting.\n", chunk->seq);
-						exit(-1);
-					}
-
-					if(chunkFilled(chunk, VIDEO_CHUNK)) { // is chunk filled using current strategy?
-						//calculate priority
-						chunk->priority /= chunk->frames_num;
-
-						//SAVE ON FILE
-						//saveChunkOnFile(chunk);
-						//Send the chunk to an external transport/player
-						sendChunk(output, chunk);
-						dctprintf(DEBUG_CHUNKER, "VIDEO: sent chunk video %d, prio:%f, size %d\n", chunk->seq, chunk->priority, chunk->len);
-						chunk->seq = 0; //signal that we need an increase
-						//initChunk(chunk, &seq_current_chunk);
-					}
+					createFrame(frame, newTime, video_frame_size, 
+					            vcopy ? pFrame->pict_type : (unsigned char)pCodecCtxEnc->coded_frame->pict_type);
+					addFrameToOutstream(&outstream, frame, video_outbuf);
 
 					//compute how long it took to encode video frame
 					gettimeofday(&now_tv, NULL);
@@ -1019,12 +1054,9 @@ restart:
 
 						}
 					}
-
 				}
 			}
-		}
-		else if(packet.stream_index==audioStream)
-		{
+		} else if(packet.stream_index==audioStream) {
 			if(sleep > 0)
 			{
 				dcprintf(DEBUG_TIMESTAMPING, "\n\tREADLOOP: going to sleep for %ld microseconds\n", sleep);
@@ -1141,7 +1173,7 @@ restart:
 					//SAVE ON FILE
 					//saveChunkOnFile(chunkaudio);
 					//Send the chunk to an external transport/player
-					sendChunk(output, chunkaudio);
+					sendChunk(outstream.output, chunkaudio);
 					dctprintf(DEBUG_CHUNKER, "AUDIO: just sent chunk audio %d\n", chunkaudio->seq);
 					chunkaudio->seq = 0; //signal that we need an increase
 					//initChunk(chunkaudio, &seq_current_chunk);
@@ -1192,19 +1224,19 @@ restart:
 		fclose(psnrtrace);
 
 close:
-	if(chunk->seq != 0 && chunk->frames_num>0) {
+	if(outstream.chunk->seq != 0 && outstream.chunk->frames_num>0) {
 		//SAVE ON FILE
 		//saveChunkOnFile(chunk);
 		//Send the chunk to an external transport/player
-		sendChunk(output, chunk);
+		sendChunk(outstream.output, outstream.chunk);
 		dcprintf(DEBUG_CHUNKER, "CHUNKER: SENDING LAST VIDEO CHUNK\n");
-		chunk->seq = 0; //signal that we need an increase just in case we will restart
+		outstream.chunk->seq = 0; //signal that we need an increase just in case we will restart
 	}
 	if(chunkaudio->seq != 0 && chunkaudio->frames_num>0) {
 		//SAVE ON FILE     
 		//saveChunkOnFile(chunkaudio);
 		//Send the chunk via http to an external transport/player
-		sendChunk(output, chunkaudio);
+		sendChunk(outstream.output, chunkaudio);
 		dcprintf(DEBUG_CHUNKER, "CHUNKER: SENDING LAST AUDIO CHUNK\n");
 		chunkaudio->seq = 0; //signal that we need an increase just in case we will restart
 	}
@@ -1214,18 +1246,15 @@ close:
 	finalizeChunkPusher();
 #endif
 
-	free(chunk);
+	free(outstream.chunk);
 	free(chunkaudio);
 	free(frame);
 	av_free(video_outbuf);
-	av_free(scaledFrame_buffer);
 	av_free(audio_outbuf);
 	free(cmeta);
 
 	// Free the YUV frame
 	av_free(pFrame1);
-	av_free(pFrame2);
-	av_free(scaledFrame);
 	av_free(samples);
   
 	// Close the codec
@@ -1283,7 +1312,7 @@ close:
 	}
 
 #ifdef TCPIO
-	finalizeTCPChunkPusher(output);
+	finalizeTCPChunkPusher(outstream.output);
 #endif
 
 #ifdef USE_AVFILTER
