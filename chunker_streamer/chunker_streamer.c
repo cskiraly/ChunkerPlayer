@@ -646,6 +646,32 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 
+#ifdef TCPIO
+	static char peer_ip[16];
+	static int peer_port;
+	int res = sscanf(outside_world_url, "tcp://%15[0-9.]:%d", peer_ip, &peer_port);
+	if (res < 2) {
+		fprintf(stderr,"error parsing output url: %s\n", outside_world_url);
+		return -2;
+	}
+	
+	outstream[0].output = initTCPPush(peer_ip, peer_port);
+	if (!outstream[0].output) {
+		fprintf(stderr, "Error initializing output module, exiting\n");
+		exit(1);
+	}
+	outstream[1].output = initTCPPush(peer_ip, peer_port+1);
+	if (!outstream[1].output) {
+		fprintf(stderr, "Error initializing output module, exiting\n");
+		exit(1);
+	}
+	outstream[2].output = initTCPPush(peer_ip, peer_port+2);
+	if (!outstream[2].output) {
+		fprintf(stderr, "Error initializing output module, exiting\n");
+		exit(1);
+	}
+#endif
+
 restart:
 	// read the configuration file
 	cmeta = chunkerInit();
@@ -856,31 +882,6 @@ restart:
 	long long maxVDecodeTime = 0;
 //	unsigned char lastIFrameDistance = 0;
 
-#ifdef TCPIO
-	static char peer_ip[16];
-	static int peer_port;
-	int res = sscanf(outside_world_url, "tcp://%15[0-9.]:%d", peer_ip, &peer_port);
-	if (res < 2) {
-		fprintf(stderr,"error parsing output url: %s\n", outside_world_url);
-		return -2;
-	}
-	
-	outstream[0].output = initTCPPush(peer_ip, peer_port);
-	if (!outstream[0].output) {
-		fprintf(stderr, "Error initializing output module, exiting\n");
-		exit(1);
-	}
-	outstream[1].output = initTCPPush(peer_ip, peer_port+1);
-	if (!outstream[1].output) {
-		fprintf(stderr, "Error initializing output module, exiting\n");
-		exit(1);
-	}
-	outstream[2].output = initTCPPush(peer_ip, peer_port+2);
-	if (!outstream[2].output) {
-		fprintf(stderr, "Error initializing output module, exiting\n");
-		exit(1);
-	}
-#endif
 #ifdef UDPIO
 	static char peer_ip[16];
 	static int peer_port;
