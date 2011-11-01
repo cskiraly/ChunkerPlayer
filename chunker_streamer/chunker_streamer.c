@@ -25,7 +25,7 @@ struct outstream {
 	ExternalChunk *chunk;
 	AVCodecContext *pCodecCtxEnc;
 };
-struct outstream outstream[2];
+struct outstream outstream[3];
 
 #define DEBUG
 #define DEBUG_AUDIO_FRAMES  false
@@ -745,6 +745,19 @@ restart:
 		return -1;
 	}
 
+	outstream[2].chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
+	if(!outstream[2].chunk) {
+		fprintf(stderr, "INIT: Memory error alloc chunk!!!\n");
+		return -1;
+	}
+	outstream[2].chunk->data = NULL;
+	outstream[2].chunk->seq = 0;
+	dcprintf(DEBUG_CHUNKER, "INIT: chunk video %d\n", outstream[2].chunk->seq);
+	outstream[2].pCodecCtxEnc = openVideoEncoder(video_codec, video_bitrate/3, (dest_width/4)*2, (dest_height/4)*2, pCodecCtx->time_base, codec_options);	// (w/4)*2, since libx264 requires width,height to be even
+	if (!outstream[2].pCodecCtxEnc) {
+		return -1;
+	}
+
 	fprintf(stderr, "INIT: VIDEO timebase OUT:%d %d IN: %d %d\n", outstream[1].pCodecCtxEnc->time_base.num, outstream[1].pCodecCtxEnc->time_base.den, pCodecCtx->time_base.num, pCodecCtx->time_base.den);
 
 	if(pCodec==NULL) {
@@ -859,6 +872,11 @@ restart:
 	}
 	outstream[1].output = initTCPPush(peer_ip, peer_port+1);
 	if (!outstream[1].output) {
+		fprintf(stderr, "Error initializing output module, exiting\n");
+		exit(1);
+	}
+	outstream[2].output = initTCPPush(peer_ip, peer_port+2);
+	if (!outstream[2].output) {
 		fprintf(stderr, "Error initializing output module, exiting\n");
 		exit(1);
 	}
@@ -1034,6 +1052,17 @@ restart:
 					            (unsigned char)outstream[1].pCodecCtxEnc->coded_frame->pict_type);
 						addFrameToOutstream(&outstream[1], frame, video_outbuf);
 					}
+					if(true) {
+						video_frame_size = transcodeFrame(video_outbuf, video_outbuf_size, &target_pts, pFrame, pFormatCtx->streams[videoStream]->time_base, pCodecCtx, outstream[2].pCodecCtxEnc);
+						if (video_frame_size <= 0) {
+							av_free_packet(&packet);
+							contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
+							continue;
+						}
+						createFrame(frame, pts2ms(target_pts - ptsvideo1, pFormatCtx->streams[videoStream]->time_base), video_frame_size, 
+					            (unsigned char)outstream[2].pCodecCtxEnc->coded_frame->pict_type);
+						addFrameToOutstream(&outstream[2], frame, video_outbuf);
+					}
 
 
 					//compute how long it took to encode video frame
@@ -1195,6 +1224,7 @@ restart:
 					//Send the chunk to an external transport/player
 					sendChunk(outstream[0].output, chunkaudio);
 					sendChunk(outstream[1].output, chunkaudio);
+					sendChunk(outstream[2].output, chunkaudio);
 					dctprintf(DEBUG_CHUNKER, "AUDIO: just sent chunk audio %d\n", chunkaudio->seq);
 					chunkaudio->seq = 0; //signal that we need an increase
 					//initChunk(chunkaudio, &seq_current_chunk);
@@ -1281,6 +1311,7 @@ close:
 	// Close the codec
 	avcodec_close(pCodecCtx);
 	avcodec_close(outstream[1].pCodecCtxEnc);
+	avcodec_close(outstream[2].pCodecCtxEnc);
 
 	if(audioStream!=-1) {
 		avcodec_close(aCodecCtx);
@@ -1335,6 +1366,7 @@ close:
 #ifdef TCPIO
 	finalizeTCPChunkPusher(outstream[0].output);
 	finalizeTCPChunkPusher(outstream[1].output);
+	finalizeTCPChunkPusher(outstream[2].output);
 #endif
 
 #ifdef USE_AVFILTER
