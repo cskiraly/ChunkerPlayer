@@ -219,13 +219,10 @@ int transcodeFrame(uint8_t *video_outbuf, int video_outbuf_size, int64_t *target
 						static struct SwsContext *img_convert_ctx = NULL;
 
 						pFrame->pict_type = 0;
-						if(img_convert_ctx == NULL)
-						{
-							img_convert_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, PIX_FMT_YUV420P, pCodecCtxEnc->width, pCodecCtxEnc->height, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
-							if(img_convert_ctx == NULL) {
-								fprintf(stderr, "Cannot initialize the conversion context!\n");
-								exit(1);
-							}
+						img_convert_ctx = sws_getCachedContext(img_convert_ctx, pCodecCtx->width, pCodecCtx->height, PIX_FMT_YUV420P, pCodecCtxEnc->width, pCodecCtxEnc->height, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
+						if(img_convert_ctx == NULL) {
+							fprintf(stderr, "Cannot initialize the conversion context!\n");
+							exit(1);
 						}
 						sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, pCodecCtx->height, scaledFrame->data, scaledFrame->linesize);
 						scaledFrame->pts = pFrame->pts;
