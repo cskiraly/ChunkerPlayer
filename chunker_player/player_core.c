@@ -1,5 +1,6 @@
 /*
  *  Copyright (c) 2009-2011 Carmelo Daniele, Dario Marchese, Diego Reforgiato, Giuseppe Tropea
+ *  Copyright (c) 2010-2011 Csaba Kiraly
  *  developed for the Napa-Wine EU project. See www.napa-wine.eu
  *
  *  This is free software; see lgpl-2.1.txt
@@ -1231,10 +1232,11 @@ void ChunkerPlayerCore_Stop()
 	* Sleep two buffers' worth of audio before closing, in order
 	*  to allow the playback to finish. This isn't always enough;
 	*   perhaps SDL needs a way to explicitly wait for device drain?
+	* Doesn't seem to be necessary -> disabled
 	*/
-	int delay = 2 * 1000 * CurrentAudioSamples / CurrentAudioFreq;
+	//int delay = 2 * 1000 * CurrentAudioSamples / CurrentAudioFreq;
 	// printf("SDL_Delay(%d)\n", delay*10);
-	SDL_Delay(delay*10);
+	//SDL_Delay(delay*10);
 }
 
 void ChunkerPlayerCore_Finalize()
