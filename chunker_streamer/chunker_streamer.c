@@ -1033,7 +1033,11 @@ restart:
 					}
 
 					// store timestamp in useconds for next frame sleep
-					newTime_video = pts2ms(pFrame->pkt_pts - ptsvideo1, pFormatCtx->streams[videoStream]->time_base)*1000;
+					if (pFrame->pkt_pts != AV_NOPTS_VALUE) {
+						newTime_video = pts2ms(pFrame->pkt_pts - ptsvideo1, pFormatCtx->streams[videoStream]->time_base)*1000;
+					} else {
+						newTime_video = pts2ms(pFrame->pkt_dts - ptsvideo1, pFormatCtx->streams[videoStream]->time_base)*1000;	//TODO: a better estimate is needed
+					}
 					dcprintf(DEBUG_VIDEO_FRAMES, "Setting v:%lld\n", newTime_video);
 
 					if(true) {	//copy channel
