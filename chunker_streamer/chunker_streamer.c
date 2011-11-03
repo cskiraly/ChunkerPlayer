@@ -215,8 +215,8 @@ int transcodeFrame(uint8_t *video_outbuf, int video_outbuf_size, int64_t *target
 					    //apply avfilters
 					    filter(pFrame,pFrame2);
 					    pFrame = pFrame2;
-					    dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pFrame2->pkt_dts, pFrame2->pkt_pts, pFrame2->pts);
-					    dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode intype %d%s\n", pFrame2->pict_type, pFrame2->key_frame ? " (key)" : "");
+					    dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOfilter: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pFrame2->pkt_dts, pFrame2->pkt_pts, pFrame2->pts);
+					    dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOfilter intype %d%s\n", pFrame2->pict_type, pFrame2->key_frame ? " (key)" : "");
 #endif
 
 					    if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width) {
@@ -908,10 +908,10 @@ restart:
 		//detect if a strange number of anomalies is occurring
 		if(ptsvideo1 < 0 || ptsvideo1 > packet.dts || ptsaudio1 < 0 || ptsaudio1 > packet.dts) {
 			pts_anomalies_counter++;
-			dcprintf(DEBUG_ANOMALIES, "READLOOP: pts BASE anomaly detected number %d (a:%"PRId64" v:%"PRId64" dts:%"PRId64")\n", pts_anomalies_counter, ptsaudio1, ptsvideo1, packet.dts);
+			dctprintf(DEBUG_ANOMALIES, "READLOOP: pts BASE anomaly detected number %d (a:%"PRId64" v:%"PRId64" dts:%"PRId64")\n", pts_anomalies_counter, ptsaudio1, ptsvideo1, packet.dts);
 			if(pts_anomaly_threshold >=0 && live_source) { //reset just in case of live source
 				if(pts_anomalies_counter > pts_anomaly_threshold) {
-					dcprintf(DEBUG_ANOMALIES, "READLOOP: too many pts BASE anomalies. resetting pts base\n");
+					dctprintf(DEBUG_ANOMALIES, "READLOOP: too many pts BASE anomalies. resetting pts base\n");
 					av_free_packet(&packet);
 					goto close;
 				}
@@ -922,12 +922,12 @@ restart:
 		//if video and audio stamps differ more than 5sec
 		if( newTime_video - newTime_audio > 5000000 || newTime_video - newTime_audio < -5000000 ) {
 			newtime_anomalies_counter++;
-			dcprintf(DEBUG_ANOMALIES, "READLOOP: NEWTIME audio video differ anomaly detected number %d (a:%lld, v:%lld)\n", newtime_anomalies_counter, newTime_audio, newTime_video);
+			dctprintf(DEBUG_ANOMALIES, "READLOOP: NEWTIME audio video differ anomaly detected number %d (a:%lld, v:%lld)\n", newtime_anomalies_counter, newTime_audio, newTime_video);
 		}
 
 		if(newtime_anomaly_threshold >=0 && newtime_anomalies_counter > newtime_anomaly_threshold) {
 			if(live_source) { //restart just in case of live source
-				dcprintf(DEBUG_ANOMALIES, "READLOOP: too many NEGATIVE TIMESTAMPS anomalies. Restarting.\n");
+				dctprintf(DEBUG_ANOMALIES, "READLOOP: too many NEGATIVE TIMESTAMPS anomalies. Restarting.\n");
 				av_free_packet(&packet);
 				goto close;
 			}
@@ -954,15 +954,17 @@ restart:
 			gettimeofday(&tmp_tv, NULL);
 			
 			//decode the video packet into a raw pFrame
+
 			if(avcodec_decode_video2(pCodecCtx, pFrame1, &frameFinished, &packet)>0)
 			{
 				AVFrame *pFrame;
 				pFrame = pFrame1;
 
 				// usleep(5000);
-				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOin pkt: dts %"PRId64" pts %"PRId64" pts-dts %"PRId64"\n", packet.dts, packet.pts, packet.pts-packet.dts );
+				dctprintf(DEBUG_VIDEO_FRAMES, "VIDEOin pkt: dts %"PRId64" pts %"PRId64" pts-dts %"PRId64"\n", packet.dts, packet.pts, packet.pts-packet.dts );
 				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pFrame->pkt_dts, pFrame->pkt_pts, pFrame->pts);
 				dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOdecode intype %d%s\n", pFrame->pict_type, pFrame->key_frame ? " (key)" : "");
+
 				if(frameFinished)
 				{ // it must be true all the time else error
 				
@@ -1017,6 +1019,7 @@ restart:
 
 					// store timestamp in useconds for next frame sleep
 					newTime_video = pts2ms(pFrame->pkt_pts - ptsvideo1, pFormatCtx->streams[videoStream]->time_base)*1000;
+					dcprintf(DEBUG_VIDEO_FRAMES, "Setting v:%lld\n", newTime_video);
 
 					if(true) {	//copy channel
 						video_frame_size = packet.size;
@@ -1181,7 +1184,7 @@ restart:
 				if(newTime<0) {
 					dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: SKIPPING FRAME\n");
 					newtime_anomalies_counter++;
-					dcprintf(DEBUG_ANOMALIES, "READLOOP: NEWTIME negative audio timestamp anomaly detected number %d (a:%lld)\n", newtime_anomalies_counter, newTime*1000);
+					dctprintf(DEBUG_ANOMALIES, "READLOOP: NEWTIME negative audio timestamp anomaly detected number %d (a:%lld)\n", newtime_anomalies_counter, newTime*1000);
 					av_free_packet(&packet);
 					continue; //SKIP THIS FRAME, bad timestamp
 				}
