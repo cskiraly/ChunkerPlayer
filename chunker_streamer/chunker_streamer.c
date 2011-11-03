@@ -172,17 +172,46 @@ int sendChunk(struct output *output, ExternalChunk *chunk) {
 #endif
 }
 
+AVFrame *preprocessFrame(AVFrame *pFrame) {
+#ifdef USE_AVFILTER
+	AVFrame *pFrame2 = NULL;
+	pFrame2=avcodec_alloc_frame();
+	if(pFrame2==NULL) {
+		fprintf(stderr, "INIT: Memory error alloc video frame!!!\n");
+		if(pFrame2) av_free(pFrame2);
+		return -1;
+	}
+#endif
+
+#ifdef VIDEO_DEINTERLACE
+	avpicture_deinterlace(
+		(AVPicture*) pFrame,
+		(const AVPicture*) pFrame,
+		pCodecCtxEnc->pix_fmt,
+		pCodecCtxEnc->width,
+		pCodecCtxEnc->height);
+#endif
+
+#ifdef USE_AVFILTER
+	//apply avfilters
+	filter(pFrame,pFrame2);
+	dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOfilter: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pFrame2->pkt_dts, pFrame2->pkt_pts, pFrame2->pts);
+	dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOfilter intype %d%s\n", pFrame2->pict_type, pFrame2->key_frame ? " (key)" : "");
+	return pFrame2;
+#else
+	return NULL;
+#endif
+}
+
 
 int transcodeFrame(uint8_t *video_outbuf, int video_outbuf_size, int64_t *target_pts, AVFrame *pFrame, AVRational time_base, AVCodecContext *pCodecCtx, AVCodecContext *pCodecCtxEnc)
 {
 	int video_frame_size = 0;
-	AVFrame *pFrame2 = NULL;
 	AVFrame *scaledFrame = NULL;
-	pFrame2=avcodec_alloc_frame();
+	AVFrame *pFrame2 = NULL;
 	scaledFrame=avcodec_alloc_frame();
-	if(pFrame2==NULL || scaledFrame==NULL) {
+	if(scaledFrame==NULL) {
 		fprintf(stderr, "INIT: Memory error alloc video frame!!!\n");
-		if(pFrame2) av_free(pFrame2);
 		if(scaledFrame) av_free(scaledFrame);
 		return -1;
 	}
@@ -202,22 +231,8 @@ int transcodeFrame(uint8_t *video_outbuf, int video_outbuf_size, int64_t *target
 						}
 					    }
 
-#ifdef VIDEO_DEINTERLACE
-					    avpicture_deinterlace(
-							(AVPicture*) pFrame,
-							(const AVPicture*) pFrame,
-							pCodecCtxEnc->pix_fmt,
-							pCodecCtxEnc->width,
-							pCodecCtxEnc->height);
-#endif
-
-#ifdef USE_AVFILTER
-					    //apply avfilters
-					    filter(pFrame,pFrame2);
-					    pFrame = pFrame2;
-					    dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOfilter: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pFrame2->pkt_dts, pFrame2->pkt_pts, pFrame2->pts);
-					    dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOfilter intype %d%s\n", pFrame2->pict_type, pFrame2->key_frame ? " (key)" : "");
-#endif
+					    pFrame2 = preprocessFrame(pFrame);
+					    if (pFrame2) pFrame = pFrame2;
 
 					    if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width) {
 //						static AVPicture pict;
