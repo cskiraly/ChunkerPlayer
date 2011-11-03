@@ -908,7 +908,7 @@ restart:
 		//detect if a strange number of anomalies is occurring
 		if(ptsvideo1 < 0 || ptsvideo1 > packet.dts || ptsaudio1 < 0 || ptsaudio1 > packet.dts) {
 			pts_anomalies_counter++;
-			dcprintf(DEBUG_ANOMALIES, "READLOOP: pts BASE anomaly detected number %d\n", pts_anomalies_counter);
+			dcprintf(DEBUG_ANOMALIES, "READLOOP: pts BASE anomaly detected number %d (a:%"PRId64" v:%"PRId64" dts:%"PRId64")\n", pts_anomalies_counter, ptsaudio1, ptsvideo1, packet.dts);
 			if(pts_anomaly_threshold >=0 && live_source) { //reset just in case of live source
 				if(pts_anomalies_counter > pts_anomaly_threshold) {
 					dcprintf(DEBUG_ANOMALIES, "READLOOP: too many pts BASE anomalies. resetting pts base\n");
@@ -922,7 +922,7 @@ restart:
 		//if video and audio stamps differ more than 5sec
 		if( newTime_video - newTime_audio > 5000000 || newTime_video - newTime_audio < -5000000 ) {
 			newtime_anomalies_counter++;
-			dcprintf(DEBUG_ANOMALIES, "READLOOP: NEWTIME audio video differ anomaly detected number %d\n", newtime_anomalies_counter);
+			dcprintf(DEBUG_ANOMALIES, "READLOOP: NEWTIME audio video differ anomaly detected number %d (a:%lld, v:%lld)\n", newtime_anomalies_counter, newTime_audio, newTime_video);
 		}
 
 		if(newtime_anomaly_threshold >=0 && newtime_anomalies_counter > newtime_anomaly_threshold) {
@@ -1181,7 +1181,7 @@ restart:
 				if(newTime<0) {
 					dcprintf(DEBUG_AUDIO_FRAMES, "AUDIO: SKIPPING FRAME\n");
 					newtime_anomalies_counter++;
-					dcprintf(DEBUG_ANOMALIES, "READLOOP: NEWTIME negative audio timestamp anomaly detected number %d\n", newtime_anomalies_counter);
+					dcprintf(DEBUG_ANOMALIES, "READLOOP: NEWTIME negative audio timestamp anomaly detected number %d (a:%lld)\n", newtime_anomalies_counter, newTime*1000);
 					av_free_packet(&packet);
 					continue; //SKIP THIS FRAME, bad timestamp
 				}
