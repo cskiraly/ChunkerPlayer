@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
 	quit = 0;
 	QueueFillingMode=1;
 	LogTraces = 0;
-	qoe_led = 1;
+	qoe_led = 0;
 	scale_with_sdl = SCALE_WITH_SDL_DEFAULT;
 
 	NChannels = 0;
