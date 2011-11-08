@@ -1065,7 +1065,7 @@ restart:
 						if (video_frame_size <= 0) {
 							av_free_packet(&packet);
 							contFrameVideo = STREAMER_MAX(contFrameVideo-1, 0);
-							continue;
+							continue;	//TODO: this seems wrong, continuing the internal cycle
 						}
 						createFrame(frame, pts2ms(target_pts - ptsvideo1, pFormatCtx->streams[videoStream]->time_base), video_frame_size,
 					            (unsigned char)outstream[i].pCodecCtxEnc->coded_frame->pict_type);
