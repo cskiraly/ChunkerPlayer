@@ -208,7 +208,6 @@ int transcodeFrame(uint8_t *video_outbuf, int video_outbuf_size, int64_t *target
 {
 	int video_frame_size = 0;
 	AVFrame *scaledFrame = NULL;
-	AVFrame *pFrame2 = NULL;
 	scaledFrame=avcodec_alloc_frame();
 	if(scaledFrame==NULL) {
 		fprintf(stderr, "INIT: Memory error alloc video frame!!!\n");
@@ -223,16 +222,7 @@ int transcodeFrame(uint8_t *video_outbuf, int video_outbuf_size, int64_t *target
 		return -1;
 	}
 
-					    if (pFrame->pkt_pts != AV_NOPTS_VALUE) {
-						pFrame->pts = av_rescale_q(pFrame->pkt_pts, time_base, pCodecCtxEnc->time_base);
-					    } else {	//try to figure out the pts //TODO: review this
-						if (pFrame->pkt_dts != AV_NOPTS_VALUE) {
-							pFrame->pts = av_rescale_q(pFrame->pkt_dts, time_base, pCodecCtxEnc->time_base);
-						}
-					    }
 
-					    pFrame2 = preprocessFrame(pFrame);
-					    if (pFrame2) pFrame = pFrame2;
 
 					    if(pCodecCtx->height != pCodecCtxEnc->height || pCodecCtx->width != pCodecCtxEnc->width) {
 //						static AVPicture pict;
@@ -257,7 +247,6 @@ int transcodeFrame(uint8_t *video_outbuf, int video_outbuf_size, int64_t *target
 					    if(pCodecCtxEnc->coded_frame->pts!=AV_NOPTS_VALUE)
 						*target_pts = av_rescale_q(pCodecCtxEnc->coded_frame->pts, pCodecCtxEnc->time_base, time_base);
 					    else {	//TODO: review this
-						if(pFrame2) av_free(pFrame2);
 						if(scaledFrame) av_free(scaledFrame);
 						if(scaledFrame_buffer) av_free(scaledFrame_buffer);
 						return -1;
@@ -283,7 +272,6 @@ int transcodeFrame(uint8_t *video_outbuf, int video_outbuf_size, int64_t *target
 #endif
 					}
 
-	if(pFrame2) av_free(pFrame2);
 	if(scaledFrame) av_free(scaledFrame);
 	if(scaledFrame_buffer) av_free(scaledFrame_buffer);
 	return video_frame_size;
@@ -982,7 +970,8 @@ restart:
 
 				if(frameFinished)
 				{ // it must be true all the time else error
-				
+					AVFrame *pFrame2 = NULL;
+
 					frame->number = ++contFrameVideo;
 
 
@@ -1059,6 +1048,18 @@ restart:
 					            pFrame->pict_type);
 						addFrameToOutstream(&outstream[0], frame, video_outbuf);
 					}
+
+					if (pFrame->pkt_pts != AV_NOPTS_VALUE) {
+						pFrame->pts = av_rescale_q(pFrame->pkt_pts, pFormatCtx->streams[videoStream]->time_base, outstream[1].pCodecCtxEnc->time_base);
+					} else {	//try to figure out the pts //TODO: review this
+						if (pFrame->pkt_dts != AV_NOPTS_VALUE) {
+							pFrame->pts = av_rescale_q(pFrame->pkt_dts, pFormatCtx->streams[videoStream]->time_base, outstream[1].pCodecCtxEnc->time_base);
+						}
+					}
+
+					pFrame2 = preprocessFrame(pFrame);
+					if (pFrame2) pFrame = pFrame2;
+
 					for (i=1; i < 1 + qualitylevels + (indexchannel?1:0); i++) {
 						video_frame_size = transcodeFrame(video_outbuf, video_outbuf_size, &target_pts, pFrame, pFormatCtx->streams[videoStream]->time_base, pCodecCtx, outstream[i].pCodecCtxEnc);
 						if (video_frame_size <= 0) {
@@ -1110,6 +1111,7 @@ restart:
 
 						}
 					}
+					if(pFrame2) av_free(pFrame2);
 				}
 			}
 		} else if(packet.stream_index==audioStream) {
