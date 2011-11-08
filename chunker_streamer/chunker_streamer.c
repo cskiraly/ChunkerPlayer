@@ -149,9 +149,9 @@ static void print_usage(int argc, char *argv[])
     "\t[--video_stream]:set video_stream ID in input\n"
     "\t[--audio_stream]:set audio_stream ID in input\n"
     "\t[--avfilter]:set input filter (default: yadif\n"
-    "\t[--no-indexchannel]: turn off generation of index channel\n"
     "\t[--qualitylevels]:set number of quality levels\n"
     "\t[--passthrough 0/1]: turn off/on generation of passthrough channel\n"
+    "\t[--indexchannel 0/1]: turn off/on generation of index channel\n"
     "\n"
     "Codec options:\n"
     "\t[-g GOP]: gop size\n"
@@ -567,8 +567,7 @@ int main(int argc, char *argv[]) {
 		{"audio_stream", required_argument, 0, 0},
 		{"video_stream", required_argument, 0, 0},
 		{"avfilter", required_argument, 0, 0},
-		{"indexchannel", no_argument, &indexchannel, 1},
-		{"no-indexchannel", no_argument, &indexchannel, 0},
+		{"indexchannel", required_argument, 0, 0},
 		{"passthrough", required_argument, 0, 0},
 		{"qualitylevels", required_argument, 0, 'Q'},
 		{0, 0, 0, 0}
@@ -583,6 +582,7 @@ int main(int argc, char *argv[]) {
 				if( strcmp( "audio_stream", long_options[option_index].name ) == 0 ) { audioStream = atoi(optarg); }
 				if( strcmp( "video_stream", long_options[option_index].name ) == 0 ) { videoStream = atoi(optarg); }
 				if( strcmp( "avfilter", long_options[option_index].name ) == 0 ) { avfilter = strdup(optarg); }
+				if( strcmp( "indexchannel", long_options[option_index].name ) == 0 ) { indexchannel = atoi(optarg); }
 				if( strcmp( "passthrough", long_options[option_index].name ) == 0 ) { passthrough = atoi(optarg); }
 				break;
 			case 'i':
