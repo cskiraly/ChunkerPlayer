@@ -431,7 +431,7 @@ AVCodecContext *openVideoEncoder(const char *video_codec, int video_bitrate, int
         //if (!av->b_quant_offset)
         //    av->b_quant_offset = 1.25;
         if (!av->rc_max_rate)
-            av->rc_max_rate = av->bit_rate * 2;
+            av->rc_max_rate = av->bit_rate * 1;
 
         if (av->rc_max_rate && !av->rc_buffer_size) {
             av->rc_buffer_size = av->rc_max_rate;
