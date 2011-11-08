@@ -179,7 +179,7 @@ AVFrame *preprocessFrame(AVFrame *pFrame) {
 	if(pFrame2==NULL) {
 		fprintf(stderr, "INIT: Memory error alloc video frame!!!\n");
 		if(pFrame2) av_free(pFrame2);
-		return -1;
+		return NULL;
 	}
 #endif
 
