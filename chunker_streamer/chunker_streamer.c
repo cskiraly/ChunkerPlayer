@@ -29,6 +29,7 @@ struct outstream {
 struct outstream outstream[1+QUALITYLEVELS_MAX+1];
 int qualitylevels = 3;
 int indexchannel = 1;
+int passthrough = 1;
 
 #define DEBUG
 #define DEBUG_AUDIO_FRAMES  false
@@ -150,6 +151,7 @@ static void print_usage(int argc, char *argv[])
     "\t[--avfilter]:set input filter (default: yadif\n"
     "\t[--no-indexchannel]: turn off generation of index channel\n"
     "\t[--qualitylevels]:set number of quality levels\n"
+    "\t[--passthrough 0/1]: turn off/on generation of passthrough channel\n"
     "\n"
     "Codec options:\n"
     "\t[-g GOP]: gop size\n"
@@ -567,6 +569,7 @@ int main(int argc, char *argv[]) {
 		{"avfilter", required_argument, 0, 0},
 		{"indexchannel", no_argument, &indexchannel, 1},
 		{"no-indexchannel", no_argument, &indexchannel, 0},
+		{"passthrough", required_argument, 0, 0},
 		{"qualitylevels", required_argument, 0, 'Q'},
 		{0, 0, 0, 0}
 	};
@@ -580,6 +583,7 @@ int main(int argc, char *argv[]) {
 				if( strcmp( "audio_stream", long_options[option_index].name ) == 0 ) { audioStream = atoi(optarg); }
 				if( strcmp( "video_stream", long_options[option_index].name ) == 0 ) { videoStream = atoi(optarg); }
 				if( strcmp( "avfilter", long_options[option_index].name ) == 0 ) { avfilter = strdup(optarg); }
+				if( strcmp( "passthrough", long_options[option_index].name ) == 0 ) { passthrough = atoi(optarg); }
 				break;
 			case 'i':
 				sprintf(av_input, "%s", optarg);
@@ -670,7 +674,7 @@ int main(int argc, char *argv[]) {
 		return -2;
 	}
 
-	for (i=0; i < 1 + qualitylevels + (indexchannel?1:0); i++) {
+	for (i=0; i < (passthrough?1:0) + qualitylevels + (indexchannel?1:0); i++) {
 		outstream[i].output = initTCPPush(peer_ip, peer_port+i);
 		if (!outstream[i].output) {
 			fprintf(stderr, "Error initializing output module, exiting\n");
@@ -755,7 +759,7 @@ restart:
 	dest_height = (dest_height > 0) ? dest_height : pCodecCtx->height;
 
 	//initialize outstream structures
-	for (i=0; i < 1 + qualitylevels + (indexchannel?1:0); i++) {
+	for (i=0; i < (passthrough?1:0) + qualitylevels + (indexchannel?1:0); i++) {
 		outstream[i].chunk = (ExternalChunk *)malloc(sizeof(ExternalChunk));
 		if(!outstream[i].chunk) {
 			fprintf(stderr, "INIT: Memory error alloc chunk!!!\n");
@@ -766,8 +770,8 @@ restart:
 		dcprintf(DEBUG_CHUNKER, "INIT: chunk video %d\n", outstream[i].chunk->seq);
 		outstream[i].pCodecCtxEnc = NULL;
 	}
-	outstream[0].pCodecCtxEnc = NULL;
-	for (i=1,j=1,k=1; i < 1 + qualitylevels; i++) {
+	if (passthrough) outstream[0].pCodecCtxEnc = NULL;
+	for (i=(passthrough?1:0),j=1,k=1; i < (passthrough?1:0) + qualitylevels; i++) {
 		outstream[i].pCodecCtxEnc = openVideoEncoder(video_codec, video_bitrate/j, (dest_width/k/2)*2, (dest_height/k/2)*2, pCodecCtx->time_base, codec_options);	// (w/2)*2, since libx264 requires width,height to be even
 		if (!outstream[i].pCodecCtxEnc) {
 			return -1;
@@ -776,13 +780,13 @@ restart:
 		k*=2;	//reduce dimensions to 1/2
 	}
 	if (indexchannel) {
-		outstream[qualitylevels + 1].pCodecCtxEnc = openVideoEncoder(video_codec, 50000, 160, 120, pCodecCtx->time_base, codec_options);
-		if (!outstream[qualitylevels + 1].pCodecCtxEnc) {
+		outstream[(passthrough?1:0) + qualitylevels].pCodecCtxEnc = openVideoEncoder(video_codec, 50000, 160, 120, pCodecCtx->time_base, codec_options);
+		if (!outstream[(passthrough?1:0) + qualitylevels].pCodecCtxEnc) {
 			return -1;
 		}
 	}
 
-	fprintf(stderr, "INIT: VIDEO timebase OUT:%d %d IN: %d %d\n", outstream[1].pCodecCtxEnc->time_base.num, outstream[1].pCodecCtxEnc->time_base.den, pCodecCtx->time_base.num, pCodecCtx->time_base.den);
+	//fprintf(stderr, "INIT: VIDEO timebase OUT:%d %d IN: %d %d\n", outstream[1].pCodecCtxEnc->time_base.num, outstream[1].pCodecCtxEnc->time_base.den, pCodecCtx->time_base.num, pCodecCtx->time_base.den);
 
 	if(pCodec==NULL) {
 		fprintf(stderr, "INIT: Unsupported IN VIDEO pcodec!\n");
@@ -1029,7 +1033,7 @@ restart:
 					}
 					dcprintf(DEBUG_VIDEO_FRAMES, "Setting v:%lld\n", newTime_video);
 
-					if(true) {	//copy channel
+					if(passthrough) {	//copy channel
 						video_frame_size = packet.size;
 						if (video_frame_size > video_outbuf_size) {
 							fprintf(stderr, "VIDEO: error, outbuf too small, SKIPPING\n");;
@@ -1050,17 +1054,17 @@ restart:
 					}
 
 					if (pFrame->pkt_pts != AV_NOPTS_VALUE) {
-						pFrame->pts = av_rescale_q(pFrame->pkt_pts, pFormatCtx->streams[videoStream]->time_base, outstream[1].pCodecCtxEnc->time_base);
+						pFrame->pts = av_rescale_q(pFrame->pkt_pts, pFormatCtx->streams[videoStream]->time_base, outstream[(passthrough?1:0)].pCodecCtxEnc->time_base);
 					} else {	//try to figure out the pts //TODO: review this
 						if (pFrame->pkt_dts != AV_NOPTS_VALUE) {
-							pFrame->pts = av_rescale_q(pFrame->pkt_dts, pFormatCtx->streams[videoStream]->time_base, outstream[1].pCodecCtxEnc->time_base);
+							pFrame->pts = av_rescale_q(pFrame->pkt_dts, pFormatCtx->streams[videoStream]->time_base, outstream[(passthrough?1:0)].pCodecCtxEnc->time_base);
 						}
 					}
 
 					pFrame2 = preprocessFrame(pFrame);
 					if (pFrame2) pFrame = pFrame2;
 
-					for (i=1; i < 1 + qualitylevels + (indexchannel?1:0); i++) {
+					for (i=(passthrough?1:0); i < (passthrough?1:0) + qualitylevels + (indexchannel?1:0); i++) {
 						video_frame_size = transcodeFrame(video_outbuf, video_outbuf_size, &target_pts, pFrame, pFormatCtx->streams[videoStream]->time_base, pCodecCtx, outstream[i].pCodecCtxEnc);
 						if (video_frame_size <= 0) {
 							av_free_packet(&packet);
@@ -1231,7 +1235,7 @@ restart:
 					//SAVE ON FILE
 					//saveChunkOnFile(chunkaudio);
 					//Send the chunk to an external transport/player
-					for (i=0; i < 1 + qualitylevels; i++) {	//do not send audio to the index channel
+					for (i=0; i < (passthrough?1:0) + qualitylevels; i++) {	//do not send audio to the index channel
 						sendChunk(outstream[i].output, chunkaudio);
 					}
 					dctprintf(DEBUG_CHUNKER, "AUDIO: just sent chunk audio %d\n", chunkaudio->seq);
@@ -1284,14 +1288,14 @@ restart:
 		fclose(psnrtrace);
 
 close:
-	for (i=0; i < 1 + qualitylevels + (indexchannel?1:0); i++) {
+	for (i=0; i < (passthrough?1:0) + qualitylevels + (indexchannel?1:0); i++) {
 		if(outstream[i].chunk->seq != 0 && outstream[i].chunk->frames_num>0) {
 			sendChunk(outstream[i].output, outstream[0].chunk);
 			dcprintf(DEBUG_CHUNKER, "CHUNKER: SENDING LAST VIDEO CHUNK\n");
 			outstream[i].chunk->seq = 0; //signal that we need an increase just in case we will restart
 		}
 	}
-	for (i=0; i < 1 + qualitylevels; i++) {
+	for (i=0; i < (passthrough?1:0) + qualitylevels; i++) {
 		if(chunkaudio->seq != 0 && chunkaudio->frames_num>0) {
 			sendChunk(outstream[i].output, chunkaudio);
 			dcprintf(DEBUG_CHUNKER, "CHUNKER: SENDING LAST AUDIO CHUNK\n");
@@ -1304,7 +1308,7 @@ close:
 	finalizeChunkPusher();
 #endif
 
-	for (i=0; i < 1 + qualitylevels + (indexchannel?1:0); i++) {
+	for (i=0; i < (passthrough?1:0) + qualitylevels + (indexchannel?1:0); i++) {
 		free(outstream[i].chunk);
 	}
 	free(chunkaudio);
@@ -1319,7 +1323,7 @@ close:
   
 	// Close the codec
 	avcodec_close(pCodecCtx);
-	for (i=1; i < 1 + qualitylevels + (indexchannel?1:0); i++) {
+	for (i=(passthrough?1:0); i < (passthrough?1:0) + qualitylevels + (indexchannel?1:0); i++) {
 		avcodec_close(outstream[i].pCodecCtxEnc);
 	}
 
@@ -1374,7 +1378,7 @@ close:
 	}
 
 #ifdef TCPIO
-	for (i=0; i < 1 + qualitylevels + (indexchannel?1:0); i++) {
+	for (i=0; i < (passthrough?1:0) + qualitylevels + (indexchannel?1:0); i++) {
 		finalizeTCPChunkPusher(outstream[i].output);
 	}
 #endif
