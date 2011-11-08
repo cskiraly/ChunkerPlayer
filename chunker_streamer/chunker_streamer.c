@@ -402,7 +402,7 @@ AVCodecContext *openVideoEncoder(const char *video_codec, int video_bitrate, int
 	{
         /* Bitrate tolerance is less for streaming */
 	AVCodecContext *av = pCodecCtxEnc;
-        if (av->bit_rate_tolerance == 0)
+        //if (av->bit_rate_tolerance == 0)	//ffmeg sets the dafult to 4M independent of other parameters, for some reason
             av->bit_rate_tolerance = FFMAX(av->bit_rate / 4,
                       (int64_t)av->bit_rate*av->time_base.num/av->time_base.den);
         //if (av->qmin == 0)
