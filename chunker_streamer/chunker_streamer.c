@@ -12,6 +12,7 @@
 #include <getopt.h>
 #include <libswscale/swscale.h>
 #include <libavutil/opt.h>
+#include "libav-compat.h"
 
 #ifdef USE_AVFILTER
 #include <libavfilter/avfilter.h>
