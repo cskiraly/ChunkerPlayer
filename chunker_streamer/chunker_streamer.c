@@ -27,9 +27,9 @@ struct outstream {
 };
 #define QUALITYLEVELS_MAX 9
 struct outstream outstream[1+QUALITYLEVELS_MAX+1];
-int qualitylevels = 3;
-int indexchannel = 1;
-int passthrough = 1;
+int qualitylevels = 1;
+int indexchannel = 0;
+int passthrough = 0;
 
 #define DEBUG
 #define DEBUG_AUDIO_FRAMES  false
