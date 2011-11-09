@@ -540,7 +540,7 @@ int main(int argc, char *argv[]) {
 	//a raw uncompressed video picture
 	AVFrame *pFrame1 = NULL;
 
-	AVFormatContext *pFormatCtx;
+	AVFormatContext *pFormatCtx = NULL;
 	AVCodecContext  *pCodecCtx = NULL ,*aCodecCtxEnc = NULL ,*aCodecCtx = NULL;
 	AVCodec         *pCodec = NULL ,*aCodec = NULL ,*aCodecEnc = NULL;
 	AVPacket         packet;
@@ -708,14 +708,16 @@ restart:
 	av_register_all();
 
 	// Open input file
-	if(av_open_input_file(&pFormatCtx, av_input, NULL, 0, NULL) != 0) {
-		fprintf(stdout, "INIT: Couldn't open video file. Exiting.\n");
-		exit(-1);
+	if (!pFormatCtx) {	// do not reopen if it is already open after a restart
+		if (av_open_input_file(&pFormatCtx, av_input, NULL, 0, NULL) != 0) {
+			fprintf(stderr, "INIT: Couldn't open video file. Exiting.\n");
+			exit(-1);
+		}
 	}
 
 	// Retrieve stream information
 	if(av_find_stream_info(pFormatCtx) < 0) {
-		fprintf(stdout, "INIT: Couldn't find stream information. Exiting.\n");
+		fprintf(stderr, "INIT: Couldn't find stream information. Exiting.\n");
 		exit(-1);
 	}
 
@@ -733,7 +735,7 @@ restart:
 	}
 
 	if(videoStream==-1 || audioStream==-1) {	// TODO: refine to work with 1 or the other
-		fprintf(stdout, "INIT: Didn't find audio and video streams. Exiting.\n");
+		fprintf(stderr, "INIT: Didn't find audio and video streams. Exiting.\n");
 		exit(-1);
 	}
 
@@ -1337,7 +1339,10 @@ close:
 	}
   
 	// Close the video file
-	av_close_input_file(pFormatCtx);
+	if (strcmp(av_input, "/dev/stdin") != 0) {	//TODO: implement better check for stdin
+		av_close_input_file(pFormatCtx);
+		pFormatCtx = NULL;
+	}
 
 	if(LOOP_MODE) {
 		//we want video to continue, but the av_read_frame stopped
