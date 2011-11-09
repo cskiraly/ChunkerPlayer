@@ -1327,6 +1327,9 @@ close:
 	for (i=(passthrough?1:0); i < (passthrough?1:0) + qualitylevels + (indexchannel?1:0); i++) {
 		avcodec_close(outstream[i].pCodecCtxEnc);
 	}
+#ifdef USE_AVFILTER
+	close_filters();
+#endif
 
 	if(audioStream!=-1) {
 		avcodec_close(aCodecCtx);
@@ -1384,9 +1387,6 @@ close:
 	}
 #endif
 
-#ifdef USE_AVFILTER
-	close_filters();
-#endif
 
 	return 0;
 }
