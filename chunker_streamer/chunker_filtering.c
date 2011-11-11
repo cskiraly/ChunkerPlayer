@@ -103,13 +103,16 @@ int filter(AVFrame* src, AVFrame *dst)
 
     /* pull filtered pictures from the filtergraph */
     ret = avfilter_poll_frame(buffersink_ctx->inputs[0]);
-    if (ret) {
+    if (ret > 0) {
         av_vsink_buffer_get_video_buffer_ref(buffersink_ctx, &picref, 0);
         if (picref) {
             avfilter_fill_frame_from_video_buffer_ref(dst, picref);
             dst->pts = picref->pts;
             avfilter_unref_buffer(picref);
         }
+    }
+    if (ret != 1) {
+        av_log(NULL, AV_LOG_WARNING, "filter unexpected number of immediately available frames: %d\n", ret);
     }
 
     return ret;

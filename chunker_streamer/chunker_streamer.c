@@ -175,6 +175,11 @@ int sendChunk(struct output *output, ExternalChunk *chunk) {
 #endif
 }
 
+/*
+ * pre-process a video Frame with the configured filters (stateful!)
+ * pFrame: next frame of the stream
+ * returns: NULL on error, the same pointer if NOP, otherwise a newly allocated Frame
+ */
 AVFrame *preprocessFrame(AVFrame *pFrame) {
 #ifdef USE_AVFILTER
 	AVFrame *pFrame2 = NULL;
@@ -197,12 +202,14 @@ AVFrame *preprocessFrame(AVFrame *pFrame) {
 
 #ifdef USE_AVFILTER
 	//apply avfilters
-	filter(pFrame,pFrame2);
+	if (filter(pFrame,pFrame2) <= 0) {
+		return NULL;
+	}
 	dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOfilter: pkt_dts %"PRId64" pkt_pts %"PRId64" frame.pts %"PRId64"\n", pFrame2->pkt_dts, pFrame2->pkt_pts, pFrame2->pts);
 	dcprintf(DEBUG_VIDEO_FRAMES, "VIDEOfilter intype %d%s\n", pFrame2->pict_type, pFrame2->key_frame ? " (key)" : "");
 	return pFrame2;
 #else
-	return NULL;
+	return pFrame;
 #endif
 }
 
@@ -1065,7 +1072,16 @@ restart:
 					}
 
 					pFrame2 = preprocessFrame(pFrame);
-					if (pFrame2) pFrame = pFrame2;
+					if (!pFrame2) {
+						dcprintf(DEBUG_VIDEO_FRAMES, "no otput from preprocessing Frame\n");
+						av_free_packet(&packet);
+						continue;
+					} else if (pFrame2 == pFrame) {	// handle the case of NOP preprocess
+						pFrame = pFrame2;
+						pFrame2 = NULL;
+					} else {
+						pFrame = pFrame2;
+					}
 
 					for (i=(passthrough?1:0); i < (passthrough?1:0) + qualitylevels + (indexchannel?1:0); i++) {
 						video_frame_size = transcodeFrame(video_outbuf, video_outbuf_size, &target_pts, pFrame, pFormatCtx->streams[videoStream]->time_base, pCodecCtx, outstream[i].pCodecCtxEnc);
