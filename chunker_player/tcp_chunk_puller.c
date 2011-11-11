@@ -104,19 +104,15 @@ static int AcceptThreadProc(void* params)
 			continue;
 		}
 		fprintf(stderr,"TCP-INPUT-MODULE: accept: fd =%d\n", fd);
-		if(socket_fd == -1)
-		{
-			socket_fd = fd;
-			isReceving = 1;
-		}
-		else
+		if(socket_fd != -1)
 		{
 			isReceving = 0;
 			fprintf(stderr,"TCP-INPUT-MODULE: waiting for receive thread to terminate...\n");
 			SDL_WaitThread(RecvThread, NULL);
 			fprintf(stderr,"TCP-INPUT-MODULE: receive thread terminated\n");
-			socket_fd = fd;
 		}
+		socket_fd = fd;
+		isReceving = 1;
 		if((RecvThread = SDL_CreateThread(&RecvThreadProc, NULL)) == 0)
 		{
 			fprintf(stderr,"TCP-INPUT-MODULE: could not start receveing thread!!\n");
