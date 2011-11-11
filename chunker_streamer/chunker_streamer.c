@@ -713,24 +713,24 @@ restart:
 			fprintf(stderr, "INIT: Couldn't open video file. Exiting.\n");
 			exit(-1);
 		}
-	}
 
-	// Retrieve stream information
-	if(av_find_stream_info(pFormatCtx) < 0) {
-		fprintf(stderr, "INIT: Couldn't find stream information. Exiting.\n");
-		exit(-1);
-	}
-
-	// Dump information about file onto standard error
-	av_dump_format(pFormatCtx, 0, av_input, 0);
-
-	// Find the video and audio stream numbers
-	for(i=0; i<pFormatCtx->nb_streams; i++) {
-		if(pFormatCtx->streams[i]->codec->codec_type==CODEC_TYPE_VIDEO && videoStream<0) {
-			videoStream=i;
+		// Retrieve stream information
+		if(av_find_stream_info(pFormatCtx) < 0) {
+			fprintf(stderr, "INIT: Couldn't find stream information. Exiting.\n");
+			exit(-1);
 		}
-		if(pFormatCtx->streams[i]->codec->codec_type==CODEC_TYPE_AUDIO && audioStream<0) {
-			audioStream=i;
+
+		// Dump information about file onto standard error
+		av_dump_format(pFormatCtx, 0, av_input, 0);
+
+		// Find the video and audio stream numbers
+		for(i=0; i<pFormatCtx->nb_streams; i++) {
+			if(pFormatCtx->streams[i]->codec->codec_type==CODEC_TYPE_VIDEO && videoStream<0) {
+				videoStream=i;
+			}
+			if(pFormatCtx->streams[i]->codec->codec_type==CODEC_TYPE_AUDIO && audioStream<0) {
+				audioStream=i;
+			}
 		}
 	}
 
@@ -1348,9 +1348,9 @@ close:
 		//we want video to continue, but the av_read_frame stopped
 		//lets wait a 5 secs, and cycle in again
 		usleep(5000000);
-		dcprintf(DEBUG_CHUNKER, "CHUNKER: WAITING 5 secs FOR LIVE SOURCE TO SKIP ERRORS AND RESTARTING\n");
-		videoStream = -1;
-		audioStream = -1;
+		dprintf("CHUNKER: WAITING 5 secs FOR LIVE SOURCE TO SKIP ERRORS AND RESTARTING\n");
+		//videoStream = -1;	//we assume this remains the same (also needed when set explicitly)
+		//audioStream = -1;	//we assume this remains the same (also needed when set explicitly)
 		FirstTimeAudio=1;
 		FirstTimeVideo=1;
 		pts_anomalies_counter=0;
