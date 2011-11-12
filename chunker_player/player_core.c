@@ -483,6 +483,7 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	char audio_stats[255], video_stats[255];
 
 	// Register all formats and codecs
+	av_log_set_level(AV_LOG_WARNING);
 	avcodec_init();
 	av_register_all();
 
@@ -493,6 +494,8 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 	if (ChunkerPlayerCore_InitVideoCodecs(v_codec, width, height) < 0) {
 		return -1;
 	}
+
+	av_log_set_level(AV_LOG_FATAL);
 
 	sprintf(audio_stats, "waiting for incoming audio packets...");
 	sprintf(video_stats, "waiting for incoming video packets...");
