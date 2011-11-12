@@ -29,13 +29,13 @@ struct chunker_metadata *chunkerInit() {
 	fprintf(stderr, "CONFIG: Calling chunkerInit...\n");
 	cmeta = (ChunkerMetadata *)malloc(sizeof(ChunkerMetadata));
 	if(cmeta == NULL) {
-		fprintf(stdout, "CONFIG: Error in memory for cmeta. Exiting.\n");
+		fprintf(stderr, "CONFIG: Error in memory for cmeta. Exiting.\n");
 		exit(-1);
 	}
 
 	cfg = cfg_init(opts, CFGF_NONE);
 	if(cfg_parse(cfg, "chunker.conf") == CFG_PARSE_ERROR) {
-		fprintf(stdout, "CONFIG: Error in parsing config file chunker.conf. Exiting.\n");
+		fprintf(stderr, "CONFIG: Error in parsing config file chunker.conf. Exiting.\n");
 		exit(-1);
 	}
 
@@ -44,34 +44,34 @@ struct chunker_metadata *chunkerInit() {
 		cmeta->strategy = 0;
 		cmeta->framesPerChunk[0] = cfg_getint(cfg, "audioFramesPerChunk");
 		cmeta->framesPerChunk[1] = cfg_getint(cfg, "videoFramesPerChunk");
-		fprintf(stdout, "CONFIG: Will pack %d AUDIO FRAMES or %d VIDEO FRAMES in each chunk\n", cmeta->framesPerChunk[0], cmeta->framesPerChunk[1]);
+		fprintf(stderr, "CONFIG: Will pack %d AUDIO FRAMES or %d VIDEO FRAMES in each chunk\n", cmeta->framesPerChunk[0], cmeta->framesPerChunk[1]);
 	}
 	else if(!(strcmp(cfg_getstr(cfg, "strategyType"), "size"))) {
 		// each chunk of approx same size of bytes
 		cmeta->strategy = 1;
 		cmeta->targetChunkSize = cfg_getint(cfg, "targetChunkSize");
-		fprintf(stdout, "CONFIG: Will pack %d BYTES in each chunk\n", cmeta->targetChunkSize);
+		fprintf(stderr, "CONFIG: Will pack %d BYTES in each chunk\n", cmeta->targetChunkSize);
 	}
 	else {
-		fprintf(stdout, "CONFIG: Unknown strategyType in config file chunker.conf. Exiting.\n");
+		fprintf(stderr, "CONFIG: Unknown strategyType in config file chunker.conf. Exiting.\n");
 		exit(-1);
 	}
 
 	if(!(strcmp(cfg_getstr(cfg, "chunkID"), "sequence"))) {
 		// the chunkID is an increasing sequence of integers
 		cmeta->cid = 0;
-		fprintf(stdout, "CONFIG: Will give increasing SEQUENCE of integers as chunk IDs\n");
+		fprintf(stderr, "CONFIG: Will give increasing SEQUENCE of integers as chunk IDs\n");
 	}
 	else if(!(strcmp(cfg_getstr(cfg, "chunkID"), "starttime"))) {
 		// the chunkID is the chunk start time
 		cmeta->cid = 1;
-		fprintf(stdout, "CONFIG: Will give TIMESTAMP of start time as chunk IDs\n");
+		fprintf(stderr, "CONFIG: Will give TIMESTAMP of start time as chunk IDs\n");
 	}
 	else if(!(strcmp(cfg_getstr(cfg, "chunkID"), "monotonic"))) {
 		// the chunkID is always increasing also over different runs
 		//because it's based on the gettimeofday()
 		cmeta->cid = 2;
-		fprintf(stdout, "CONFIG: Will give MONOTONIC INCREASING time of day as chunk IDs\n");
+		fprintf(stderr, "CONFIG: Will give MONOTONIC INCREASING time of day as chunk IDs\n");
 		struct timeval tv;
 		uint64_t start_time;
 		gettimeofday(&tv, NULL);
@@ -80,12 +80,12 @@ struct chunker_metadata *chunkerInit() {
 		cmeta->base_chunkid_sequence_offset = start_time % INT_MAX; //TODO: verify 32/64 bit;
 	}
 	else {
-		fprintf(stdout, "CONFIG: Unknown chunkID in config file chunker.conf. Exiting.\n");
+		fprintf(stderr, "CONFIG: Unknown chunkID in config file chunker.conf. Exiting.\n");
 		exit(-1);
 	}
 
 	strcpy(cmeta->outside_world_url, cfg_getstr(cfg, "outsideWorldUrl"));
-	fprintf(stdout, "CONFIG: Chunk destination is %s\n", cmeta->outside_world_url);
+	fprintf(stderr, "CONFIG: Chunk destination is %s\n", cmeta->outside_world_url);
 	cfg_free(cfg);
 
 	return cmeta;
