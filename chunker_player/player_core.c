@@ -92,6 +92,9 @@ char VideoFrameSkipRateLogFilename[256];
 long int decoded_vframes;
 long int LastSavedVFrame;
 
+int tcrop = 0;
+int bcrop = 0;
+
 void SaveFrame(AVFrame *pFrame, int width, int height);
 int VideoCallback(void *valthread);
 int CollectStatisticsThread(void *params);
@@ -495,7 +498,7 @@ int ChunkerPlayerCore_InitCodecs(char *v_codec, int width, int height, char *aud
 		return -1;
 	}
 
-	av_log_set_level(AV_LOG_FATAL);
+	av_log_set_level(AV_LOG_ERROR);
 
 	sprintf(audio_stats, "waiting for incoming audio packets...");
 	sprintf(video_stats, "waiting for incoming video packets...");
@@ -829,6 +832,12 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 	return audio_pkt_size;
 }
 
+
+void ChunkerPlayerCore_SetYCrop(int t, int b){
+	tcrop = t;
+	bcrop = b;
+}
+
 // Render a Frame to a YUV Overlay. Note that the Overlay is already bound to an SDL Surface
 // Note that width, height would not be needed in new ffmpeg versions where this info is contained in AVFrame
 // see: [FFmpeg-devel] [PATCH] lavc: add width and height fields to AVFrame
@@ -1085,7 +1094,7 @@ int VideoCallback(void *valthread)
 						continue;
 
 					SDL_LockMutex(OverlayMutex);
-					if (RenderFrame2Overlay(pFrame, pCodecCtx->width, pCodecCtx->height, 0, 0, YUVOverlay) < 0){
+					if (RenderFrame2Overlay(pFrame, pCodecCtx->width, pCodecCtx->height, tcrop, bcrop, YUVOverlay) < 0){
 						SDL_UnlockMutex(OverlayMutex);
 						continue;
 					}
