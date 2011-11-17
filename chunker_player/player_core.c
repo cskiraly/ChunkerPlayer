@@ -832,9 +832,10 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 // Render a Frame to a YUV Overlay. Note that the Overlay is already bound to an SDL Surface
 // Note that width, height would not be needed in new ffmpeg versions where this info is contained in AVFrame
 // see: [FFmpeg-devel] [PATCH] lavc: add width and height fields to AVFrame
-int RenderFrame2Overlay(AVFrame *pFrame, int frame_width, int frame_height, SDL_Overlay *YUVOverlay)
+int RenderFrame2Overlay(AVFrame *pFrame, int frame_width, int frame_height, int tcrop, int bcrop,  SDL_Overlay *YUVOverlay)
 {
 	AVPicture pict;
+	unsigned int ycrop = 50;
 	static struct SwsContext *img_convert_ctx = NULL;	//if the function is used for more streams, this could be made part of some context passed as a parameter (to optimize performance)
 
 					if(SDL_LockYUVOverlay(YUVOverlay) < 0) {
@@ -849,14 +850,14 @@ int RenderFrame2Overlay(AVFrame *pFrame, int frame_width, int frame_height, SDL_
 					pict.linesize[1] = YUVOverlay->pitches[2];
 					pict.linesize[2] = YUVOverlay->pitches[1];
 
-					img_convert_ctx = sws_getCachedContext(img_convert_ctx, frame_width, frame_height, PIX_FMT_YUV420P, YUVOverlay->w, YUVOverlay->h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
+					img_convert_ctx = sws_getCachedContext(img_convert_ctx, frame_width, frame_height - tcrop - bcrop, PIX_FMT_YUV420P, YUVOverlay->w, YUVOverlay->h, PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
 					if(img_convert_ctx == NULL) {
 						fprintf(stderr, "Cannot initialize the conversion context!\n");
 						exit(1);
 					}
 
 					// let's draw the data (*yuv[3]) on a SDL screen (*screen)
-					sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, 0, frame_height, pict.data, pict.linesize);
+					sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize, -tcrop, frame_height - bcrop, pict.data, pict.linesize);
 					SDL_UnlockYUVOverlay(YUVOverlay);
 
 	return 0;
@@ -1084,7 +1085,7 @@ int VideoCallback(void *valthread)
 						continue;
 
 					SDL_LockMutex(OverlayMutex);
-					if (RenderFrame2Overlay(pFrame, pCodecCtx->width, pCodecCtx->height, YUVOverlay) < 0){
+					if (RenderFrame2Overlay(pFrame, pCodecCtx->width, pCodecCtx->height, 0, 0, YUVOverlay) < 0){
 						SDL_UnlockMutex(OverlayMutex);
 						continue;
 					}
