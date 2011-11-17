@@ -10,9 +10,19 @@
 
 #define SCREEN_BOTTOM_PADDING (BUTTONS_LAYER_OFFSET + BUTTONS_CONTAINER_HEIGHT + STATS_BOX_HEIGHT)
 
+struct aspect {
+	float aspect_ratio;
+	float ycrop;
+};
+
+static struct aspect ratio;
+static struct aspect ratios[] = {{DEFAULT_RATIO, 0}, {4.0/3.0, 0}, {16.0/9.0, 0},
+ {16.0/9.0, 2.0/12.0}, {16.0/9.0, 1.0/5.0}, {16.0/9.0, 3.0/12.0}, {16.0/9.0, 4.0/12.0}};
+static int ratios_index;
+
 SDL_Cursor *InitSystemCursor(const char *image[]);
 void AspectRatioResize(float aspect_ratio, int width, int height, int* out_width, int* out_height);
-void UpdateOverlaySize(float aspect_ratio, int width, int height);
+void UpdateOverlaySize(struct aspect aspect_ratio, int width, int height);
 void RedrawButtons();
 void RedrawChannelName();
 void RedrawStats();
@@ -25,10 +35,6 @@ static char VideoStatsText[255];
 
 static Uint32 last_mousemotion;
 #define MOUSE_HIDE_DELAY 2000
-
-static float ratio;
-static float ratios[] = {DEFAULT_RATIO, 4.0/3.0, 16.0/9.0};
-static int ratios_index;
 
 SDL_Rect OverlayRect;
 SDL_Surface *ChannelTitleSurface = NULL;
@@ -85,7 +91,7 @@ static const char *handXPM[] = {
 int ChunkerPlayerGUI_Init()
 {
 	// some initializations
-	ratio = DEFAULT_RATIO;
+	ratio = ratios[0];
 	FullscreenWidth = 0;
 	FullscreenHeight = 0;
 	Audio_ON = 1;
@@ -485,12 +491,12 @@ SDL_Rect *ChunkerPlayerGUI_GetMainOverlayRect()
 /**
  * Updates the overlay surface size, mantaining the aspect ratio
  */
-void UpdateOverlaySize(float aspect_ratio, int width, int height)
+void UpdateOverlaySize(struct aspect a, int width, int height)
 {
 	// height -= (BUTTONS_LAYER_OFFSET + BUTTONS_CONTAINER_HEIGHT);
 	height -= SCREEN_BOTTOM_PADDING;
 	int h = 0, w = 0, x, y;
-	AspectRatioResize(aspect_ratio, width, height, &w, &h);
+	AspectRatioResize(a.aspect_ratio, width, height, &w, &h);
 	x = (width - w) / 2;
 	y = (height - h) / 2;
 	SDL_LockMutex(OverlayMutex);
@@ -504,6 +510,9 @@ void UpdateOverlaySize(float aspect_ratio, int width, int height)
 	if (MainScreen && !scale_with_sdl) {
 		ChunkerPlayerCore_SetupOverlay(w, h);
 	}
+
+	//handle crop
+	ChunkerPlayerCore_SetYCrop(a.ycrop*h/2, a.ycrop*h/2);
 
 	SDL_UnlockMutex(OverlayMutex);
 }
@@ -930,14 +939,6 @@ void RedrawStats()
 	SDL_UnlockMutex(OverlayMutex);
 }
 
-void ChunkerPlayerGUI_SetupOverlayRect(int w, int h, float r)
-{
-	ratio = r;
-	int w2, h2;
-	GetScreenSizeFromOverlay(w, h, &w2, &h2);
-	UpdateOverlaySize(ratio, w2, h2);
-}
-
 void ChunkerPlayerGUI_ForceResize(int width, int height)
 {
 	FullscreenMode = 0;
@@ -984,9 +985,9 @@ void ChunkerPlayerGUI_ChannelSwitched()
 
 void ChunkerPlayerGUI_SetChannelRatio(float r)
 {
-  ratios[0] = r;
+  ratios[0].aspect_ratio = r;
   ratios_index = 0;
-  ratio = ratios[ratios_index];
+  ratio = ratios[0];
 }
 
 void ChunkerPlayerGUI_ChangeRatio()
@@ -994,7 +995,7 @@ void ChunkerPlayerGUI_ChangeRatio()
 	ratios_index = (ratios_index + 1) % (sizeof(ratios) / sizeof(ratios[0]));
 	ratio = ratios[ratios_index];
 
-fprintf(stderr, "resizing to %f\n", ratio);
+fprintf(stderr, "resizing to ratio:%f crop:%f\n", ratio.aspect_ratio, ratio.ycrop);
 	if (!FullscreenMode) {
 		UpdateOverlaySize(ratio, window_width, window_height);
 	} else {
