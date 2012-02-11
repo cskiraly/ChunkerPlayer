@@ -106,7 +106,7 @@ else
 		cd "$BASE_UL_DIR/$EXTERN_DIR"
 		rm -r -f zlib
 		#get and compile latest zlib library
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://zlib.net/zlib-1.2.5.tar.gz; tar xzf zlib-1.2.5.tar.gz; mv zlib-1.2.5 zlib; rm -f zlib-1.2.5.tar.gz
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://zlib.net/fossils/zlib-1.2.5.tar.gz; tar xzf zlib-1.2.5.tar.gz; mv zlib-1.2.5 zlib; rm -f zlib-1.2.5.tar.gz
 		cd zlib
 		#make and install in local folder
 		./configure --prefix="$LOCAL_Z"
