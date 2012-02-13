@@ -109,7 +109,7 @@ else
 		$WGET_OR_CURL $WGET_OR_CURLOPT http://zlib.net/fossils/zlib-1.2.5.tar.gz; tar xzf zlib-1.2.5.tar.gz; mv zlib-1.2.5 zlib; rm -f zlib-1.2.5.tar.gz
 		cd zlib
 		#make and install in local folder
-		./configure --prefix="$LOCAL_Z"
+		./configure --prefix="$LOCAL_Z" --libdir="$LOCAL_Z"/lib
 		$MAKE && $MAKE install || exit 1
 	fi
 
@@ -179,7 +179,7 @@ if [ -n "$MINGW" ]; then
 		#build from sources
 		$WGET_OR_CURL $WGET_OR_CURLOPT http://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.13.tar.gz
 		tar zxvf libiconv-1.13.tar.gz; mv libiconv-1.13 libiconv; rm -f libiconv-1.13.tar.gz; cd libiconv
-		./configure --enable-static ${HOSTARCH:+--host=$HOSTARCH} --prefix=$LOCAL_LIBICONV
+		./configure --enable-static ${HOSTARCH:+--host=$HOSTARCH} --prefix=$LOCAL_LIBICONV --libdir=$LOCAL_LIBICONV/lib
 		make
 		make install
 	fi
@@ -256,7 +256,7 @@ else
 	$WGET_OR_CURL $WGET_OR_CURLOPT http://downloads.sourceforge.net/project/libpng/libpng14/older-releases/1.4.4/libpng-1.4.4.tar.gz
 	tar zxvf libpng-1.4.4.tar.gz; rm -f libpng-1.4.4.tar.gz
 	mv libpng-1.4.4 libpng; cd libpng;
-	CFLAGS=-I$LOCAL_Z/include CPPFLAGS=-I$LOCAL_Z/include LDFLAGS=-L$LOCAL_Z/lib sh configure  ${HOSTARCH:+--host=$HOSTARCH} --prefix=$LOCAL_LIBPNG
+	CFLAGS=-I$LOCAL_Z/include CPPFLAGS=-I$LOCAL_Z/include LDFLAGS=-L$LOCAL_Z/lib sh configure  ${HOSTARCH:+--host=$HOSTARCH} --prefix=$LOCAL_LIBPNG --libdir=$LOCAL_LIBPNG/lib
 	make
 	make install
 fi
@@ -292,7 +292,7 @@ if [ -n "$BUILD_X264" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_X264" ]; then
 	fi	
 
 	#make and install in local folder
-	./configure --prefix="$TEMP_X264" ${HOSTARCH:+--host=$HOSTARCH}
+	./configure --prefix="$TEMP_X264" --libdir="$TEMP_X264"/lib ${HOSTARCH:+--host=$HOSTARCH}
 	$MAKE && $MAKE install || exit 1
 fi
 fi
@@ -321,7 +321,7 @@ if [ -n "$BUILD_MP3LAME" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MP3LAME" ]; then
 	fi	
 
 	#make and install in local folder
-	./configure --disable-gtktest --disable-frontend --prefix="$TEMP_MP3LAME" ${HOSTARCH:+--host=$HOSTARCH}
+	./configure --disable-gtktest --disable-frontend --prefix="$TEMP_MP3LAME" --libdir="$TEMP_MP3LAME"/lib ${HOSTARCH:+--host=$HOSTARCH}
 	$MAKE && $MAKE install || exit 1
 fi
 fi
@@ -376,9 +376,9 @@ if [ -n "$BUILD_FFMPEG" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_FFMPEG" ]; then
 		sed -i -e 's/^SDL_CONFIG=/[ -z "$SDL_CONFIG" ] \&\& SDL_CONFIG=/g' ./configure;
 		sed -i -e 's/check_cflags \+-Werror=missing-prototypes/#\0/g' configure;
 	
-		./configure $HOSTARCH_OLDSTYLE --enable-gpl --enable-nonfree --enable-version3 --disable-pthreads $FFMPEG_CONFIG --extra-cflags="$FFMPEG_EXTRA_CFLAGS -I$LOCAL_BZ2/include  -I$LOCAL_Z/include" --extra-ldflags="-L$TEMP_X264/lib -L$TEMP_MP3LAME/lib -L$LOCAL_BZ2/lib -L$LOCAL_Z/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$TEMP_FFMPEG"
+		./configure $HOSTARCH_OLDSTYLE --enable-gpl --enable-nonfree --enable-version3 --disable-pthreads $FFMPEG_CONFIG --extra-cflags="$FFMPEG_EXTRA_CFLAGS -I$LOCAL_BZ2/include  -I$LOCAL_Z/include" --extra-ldflags="-L$TEMP_X264/lib -L$TEMP_MP3LAME/lib -L$LOCAL_BZ2/lib -L$LOCAL_Z/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$TEMP_FFMPEG" --libdir="$TEMP_FFMPEG"/lib
 	else
-		./configure --enable-gpl --enable-nonfree --enable-version3 --enable-pthreads  $FFMPEG_CONFIG --extra-cflags="$FFMPEG_EXTRA_CFLAGS -I$LOCAL_BZ2/include  -I$LOCAL_Z/include" --extra-ldflags="-L$TEMP_X264/lib -L$TEMP_MP3LAME/lib -L$LOCAL_BZ2/lib -L$LOCAL_Z/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$TEMP_FFMPEG"
+		./configure --enable-gpl --enable-nonfree --enable-version3 --enable-pthreads  $FFMPEG_CONFIG --extra-cflags="$FFMPEG_EXTRA_CFLAGS -I$LOCAL_BZ2/include  -I$LOCAL_Z/include" --extra-ldflags="-L$TEMP_X264/lib -L$TEMP_MP3LAME/lib -L$LOCAL_BZ2/lib -L$LOCAL_Z/lib" --disable-doc --disable-ffplay --disable-ffprobe --disable-ffserver --prefix="$TEMP_FFMPEG" --libdir="$TEMP_FFMPEG"/lib
 	fi
 	$MAKE && $MAKE install || exit 1
 fi
@@ -409,9 +409,9 @@ if [ -n "$BUILD_MHD" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MHD" ]; then
 	
 	autoreconf -fi
 	if [ -n "$MINGW" ]; then
-		CFLAGS="$CFLAGS $LIBMICROHHTPD_FLAGS" CPPFLAGS="$CPPFLAGS $LIBMICROHHTPD_FLAGS" LDFLAGS="$LDFLAGS $LIBMICROHHTPD_LDFLAGS" ./configure ${HOSTARCH:+--host=$HOSTARCH} --disable-curl --disable-https --enable-messages --disable-client-side --prefix="$TEMP_MHD"
+		CFLAGS="$CFLAGS $LIBMICROHHTPD_FLAGS" CPPFLAGS="$CPPFLAGS $LIBMICROHHTPD_FLAGS" LDFLAGS="$LDFLAGS $LIBMICROHHTPD_LDFLAGS" ./configure ${HOSTARCH:+--host=$HOSTARCH} --disable-curl --disable-https --enable-messages --disable-client-side --prefix="$TEMP_MHD" --libdir="$TEMP_MHD"/lib
 	else
-		./configure --disable-curl --disable-https --enable-messages --disable-client-side --prefix="$TEMP_MHD"
+		./configure --disable-curl --disable-https --enable-messages --disable-client-side --prefix="$TEMP_MHD" --libdir="$TEMP_MHD"/lib
 	fi
 	$MAKE && $MAKE install || exit 1
 fi
@@ -439,7 +439,7 @@ if [ -n "$BUILD_SDL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL" ]; then
 			$WGET_OR_CURL $WGET_OR_CURLOPT http://www.libsdl.org/release/SDL-1.2.14.tar.gz; tar xzf SDL-1.2.14.tar.gz; rm -f SDL-1.2.14.tar.gz; mv SDL-1.2.14 sdl_mingw
 			cd sdl_mingw
 			#make and install in local folder
-			./configure ${HOSTARCH:+--host=$HOSTARCH} --disable-video-directfb --disable-shared --prefix="$TEMP_SDL"
+			./configure ${HOSTARCH:+--host=$HOSTARCH} --disable-video-directfb --disable-shared --prefix="$TEMP_SDL" --libdir="$TEMP_SDL"/lib
 			$MAKE && $MAKE install || exit 1
 #		fi
 	else
@@ -455,7 +455,7 @@ if [ -n "$BUILD_SDL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL" ]; then
 		fi
 		#make and install in local folder
 		./autogen.sh
-		./configure --disable-video-directfb --prefix="$TEMP_SDL"
+		./configure --disable-video-directfb --prefix="$TEMP_SDL" --libdir="$TEMP_SDL"/lib
 		$MAKE && $MAKE install || exit 1
 	fi
 fi
@@ -476,11 +476,11 @@ if [ -n "$BUILD_SDLIMAGE" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_i
 	
 	#make and install in local SDL folder
         ./autogen.sh
-	echo "./configure LIBPNG_CFLAGS=\"-I$LOCAL_LIBPNG/include\" LIBPNG_LIBS=\"-L$LOCAL_LIBPNG/lib\" CFLAGS=\"$CFLAGS $LIBSDLIMAGE_FLAGS -static\" CPPFLAGS=\"$CPPFLAGS $LIBSDLIMAGE_FLAGS -static\" LDFLAGS=\"$LDFLAGS $LIBSDLIMAGE_LDFLAGS -static\" ${HOSTARCH:+--host=$HOSTARCH} --prefix=\"$TEMP_SDL\" --with-sdl-prefix=\"$TEMP_SDL\" --disable-png-shared"
+	echo "./configure LIBPNG_CFLAGS=\"-I$LOCAL_LIBPNG/include\" LIBPNG_LIBS=\"-L$LOCAL_LIBPNG/lib\" CFLAGS=\"$CFLAGS $LIBSDLIMAGE_FLAGS -static\" CPPFLAGS=\"$CPPFLAGS $LIBSDLIMAGE_FLAGS -static\" LDFLAGS=\"$LDFLAGS $LIBSDLIMAGE_LDFLAGS -static\" ${HOSTARCH:+--host=$HOSTARCH} --prefix=\"$TEMP_SDL\" --libdir=\"$TEMP_SDL\"/lib --with-sdl-prefix=\"$TEMP_SDL\" --disable-png-shared"
 
-	echo "./configure CFLAGS=\"$CFLAGS -I$LOCAL_LIBPNG/include\" CPPFLAGS=\"$CPPFLAGS -I$LOCAL_LIBPNG/include\" LDFLAGS=\"$LDFLAGS -L$LOCAL_LIBPNG/lib\" ${HOSTARCH:+--host=$HOSTARCH} --prefix=\"$TEMP_SDL\" --with-sdl-prefix=\"$TEMP_SDL\" --disable-png-shared"
+	echo "./configure CFLAGS=\"$CFLAGS -I$LOCAL_LIBPNG/include\" CPPFLAGS=\"$CPPFLAGS -I$LOCAL_LIBPNG/include\" LDFLAGS=\"$LDFLAGS -L$LOCAL_LIBPNG/lib\" ${HOSTARCH:+--host=$HOSTARCH} --prefix=\"$TEMP_SDL\" --libdir=\"$TEMP_SDL\"/lib --with-sdl-prefix=\"$TEMP_SDL\" --disable-png-shared"
 
-	./configure CFLAGS="$CFLAGS $LIBSDLIMAGE_FLAGS -I$LOCAL_LIBPNG/include" CPPFLAGS="$CPPFLAGS -I$LOCAL_LIBPNG/include" LDFLAGS="$LDFLAGS $LIBSDLIMAGE_LDFLAGS -L$LOCAL_LIBPNG/lib" ${HOSTARCH:+--host=$HOSTARCH} --prefix="$TEMP_SDL" --with-sdl-prefix="$TEMP_SDL" --disable-png-shared  --disable-shared --disable-sdltest
+	./configure CFLAGS="$CFLAGS $LIBSDLIMAGE_FLAGS -I$LOCAL_LIBPNG/include" CPPFLAGS="$CPPFLAGS -I$LOCAL_LIBPNG/include" LDFLAGS="$LDFLAGS $LIBSDLIMAGE_LDFLAGS -L$LOCAL_LIBPNG/lib" ${HOSTARCH:+--host=$HOSTARCH} --prefix="$TEMP_SDL" --libdir="$TEMP_SDL"/lib --with-sdl-prefix="$TEMP_SDL" --disable-png-shared  --disable-shared --disable-sdltest
 
 	$MAKE && $MAKE install || exit 1
 fi
@@ -505,7 +505,7 @@ if [ -n "$BUILD_FREETYPE" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_FREETYPE" ]; the
 	fi
 
 	#make and install in local folder
-	./configure ${HOSTARCH:+--host=$HOSTARCH} --prefix="$TEMP_FREETYPE"
+	./configure ${HOSTARCH:+--host=$HOSTARCH} --prefix="$TEMP_FREETYPE" --libdir="$TEMP_FREETYPE"/lib
 	$MAKE && $MAKE install || exit 1
 fi
 
@@ -524,7 +524,7 @@ if [ -n "$BUILD_SDLTTF" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL/lib/libSDL_ttf
 	fi
 
 	#make and install in local SDL folder
-	./configure ${HOSTARCH:+--host=$HOSTARCH} --with-freetype-prefix="$TEMP_FREETYPE" --with-sdl-prefix="$TEMP_SDL" --prefix="$TEMP_SDL" --disable-shared --disable-sdltest
+	./configure ${HOSTARCH:+--host=$HOSTARCH} --with-freetype-prefix="$TEMP_FREETYPE" --with-sdl-prefix="$TEMP_SDL" --prefix="$TEMP_SDL" --libdir="$TEMP_SDL"/lib --disable-shared --disable-sdltest
 	$MAKE && $MAKE install || exit 1
 fi
 
@@ -547,7 +547,7 @@ if [ -n "$BUILD_CURL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_CURL" ]; then
 	fi
 
 	#make and install in local folder
-	./configure ${HOSTARCH:+--host=$HOSTARCH} --without-librtmp --disable-ftp --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --without-libssh2 --without-ssl --without-krb4 --enable-static --disable-shared --without-zlib --without-libidn --prefix="$TEMP_CURL"
+	./configure ${HOSTARCH:+--host=$HOSTARCH} --without-librtmp --disable-ftp --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --without-libssh2 --without-ssl --without-krb4 --enable-static --disable-shared --without-zlib --without-libidn --prefix="$TEMP_CURL" --libdir="$TEMP_CURL"/lib
 	$MAKE && $MAKE install || exit 1
 fi
 
