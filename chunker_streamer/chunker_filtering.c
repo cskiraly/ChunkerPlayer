@@ -32,7 +32,6 @@
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavfilter/avfiltergraph.h>
-#include <libavfilter/vsink_buffer.h>
 #include <libavfilter/vsrc_buffer.h>
 
 #include <libavfilter/avcodec.h>	//might not be needed in newer versions of ffmpeg
