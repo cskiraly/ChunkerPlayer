@@ -29,7 +29,7 @@ ifdef WINDOWS
 LOCAL_FFMPEG_LDLIBS += -lws2_32
 endif
 ifdef USE_AVFILTER
-LOCAL_FFMPEG_LDLIBS += $(LOCAL_FFMPEG)/lib/libavfilter.a
+LOCAL_FFMPEG_LDLIBS += $(LOCAL_FFMPEG)/lib/libavfilter.a $(LOCAL_FFMPEG)/lib/libavcodec.a
 endif
 
 LOCAL_COMMON_CPPFLAGS = -I$(LOCAL_X264)/include -I$(LOCAL_BZ2)/include -I$(LOCAL_Z)/include -I$(LOCAL_MP3LAME)/include
