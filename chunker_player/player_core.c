@@ -129,7 +129,7 @@ int timeval_subtract(struct timeval* x, struct timeval* y, struct timeval* resul
 void PacketQueueInit(PacketQueue *q, short int Type)
 {
 #ifdef DEBUG_QUEUE
-	printf("QUEUE: INIT BEGIN: NPackets=%d Type=%s\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
+	fprintf(stderr,"QUEUE: INIT BEGIN: NPackets=%d Type=%s\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
 #endif
 	memset(q,0,sizeof(PacketQueue));
 	q->mutex = SDL_CreateMutex();
@@ -150,7 +150,7 @@ void PacketQueueInit(PacketQueue *q, short int Type)
 	PacketQueueClearStats(q);
 	
 #ifdef DEBUG_QUEUE
-	printf("QUEUE: INIT END: NPackets=%d Type=%s\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
+	fprintf(stderr,"QUEUE: INIT END: NPackets=%d Type=%s\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
 #endif
 }
 
@@ -158,7 +158,7 @@ void PacketQueueReset(PacketQueue *q)
 {
 	AVPacketList *tmp,*tmp1;
 #ifdef DEBUG_QUEUE
-	printf("QUEUE: RESET BEGIN: NPackets=%d Type=%s LastExtr=%d\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->last_frame_extracted);
+	fprintf(stderr,"QUEUE: RESET BEGIN: NPackets=%d Type=%s LastExtr=%d\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->last_frame_extracted);
 #endif
 	SDL_LockMutex(q->mutex);
 
@@ -169,12 +169,12 @@ void PacketQueueReset(PacketQueue *q)
 		av_free_packet(&(tmp1->pkt));
 		av_free(tmp1);
 #ifdef DEBUG_QUEUE
-		printf("F ");
+		fprintf(stderr,"F ");
 #endif
 		q->PacketHistory.LostCount++;
 	}
 #ifdef DEBUG_QUEUE
-	printf("\n");
+	fprintf(stderr,"\n");
 #endif
 
 	QueueFillingMode=1;
@@ -193,7 +193,7 @@ void PacketQueueReset(PacketQueue *q)
 	//clean up statistics
 	PacketQueueClearStats(q);
 #ifdef DEBUG_QUEUE
-	printf("QUEUE: RESET END: NPackets=%d Type=%s LastExtr=%d\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->last_frame_extracted);
+	fprintf(stderr,"QUEUE: RESET END: NPackets=%d Type=%s LastExtr=%d\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->last_frame_extracted);
 #endif
 	SDL_UnlockMutex(q->mutex);
 }
@@ -215,14 +215,14 @@ void PacketQueueClearStats(PacketQueue *q)
 
 int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 {
-	//~ printf("\tSTREAM_INDEX=%d\n", pkt->stream_index);
+	//~ fprintf(stderr,"\tSTREAM_INDEX=%d\n", pkt->stream_index);
 	short int skip = 0;
 	AVPacketList *pkt1, *tmp, *prevtmp;
 	int res = 0;
 
 	if(q->nb_packets > queue_filling_threshold*QUEUE_MAX_GROW_FACTOR) {
 #ifdef DEBUG_QUEUE
-		printf("QUEUE: PUT i have TOO MANY packets %d Type=%s, RESETTING\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
+		fprintf(stderr,"QUEUE: PUT i have TOO MANY packets %d Type=%s, RESETTING\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
 #endif
 		PacketQueueReset(q);
 	}
@@ -230,7 +230,7 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 	//make a copy of the incoming packet
 	if(av_dup_packet(pkt) < 0) {
 #ifdef DEBUG_QUEUE
-		printf("QUEUE: PUT in Queue cannot duplicate in packet	: NPackets=%d Type=%s\n",q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
+		fprintf(stderr,"QUEUE: PUT in Queue cannot duplicate in packet	: NPackets=%d Type=%s\n",q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
 #endif
 		return -1;
 	}
@@ -251,7 +251,7 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 		&& ((time(NULL) - last_auto_switch) > 10)
 	)
 	{
-		printf("file streaming loop detected => re-tune channel and start grabbing statistics\n");
+		fprintf(stderr,"file streaming loop detected => re-tune channel and start grabbing statistics\n");
 		last_auto_switch = time(NULL);
 		SDL_LockMutex(q->mutex);
 		ReTune(&(Channels[SelectedChannel]));
@@ -292,7 +292,7 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 					//we already have a frame with that index
 					skip = 1;
 #ifdef DEBUG_QUEUE
-					printf("%s QUEUE: PUT: we already have frame with index %d, skipping\n", ((q->queueType == AUDIO) ? "AUDIO" : "VIDEO"), pkt->stream_index);
+					fprintf(stderr,"%s QUEUE: PUT: we already have frame with index %d, skipping\n", ((q->queueType == AUDIO) ? "AUDIO" : "VIDEO"), pkt->stream_index);
 #endif
 				}
 				else {
@@ -311,7 +311,7 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 				{
 					QueueFillingMode=0;
 #ifdef DEBUG_QUEUE
-					printf("QUEUE: PUT: FillingMode set to zero\n");
+					fprintf(stderr,"QUEUE: PUT: FillingMode set to zero\n");
 #endif
 				}
 				//set min
@@ -324,7 +324,7 @@ int ChunkerPlayerCore_PacketQueuePut(PacketQueue *q, AVPacket *pkt)
 			av_free_packet(&pkt1->pkt);
 			av_free(pkt1);
 #ifdef DEBUG_QUEUE
-			printf("QUEUE: PUT: NOT inserting because index %d <= last extracted %d\n", pkt->stream_index, q->last_frame_extracted);
+			fprintf(stderr,"QUEUE: PUT: NOT inserting because index %d <= last extracted %d\n", pkt->stream_index, q->last_frame_extracted);
 #endif
 			res = 1;
 		}
@@ -344,16 +344,16 @@ int OpenACodec (char *audio_codec, int sample_rate, short int audio_channels)
 	aCodecCtx->channels = audio_channels;
 	aCodec = avcodec_find_decoder_by_name(audio_codec);
 	if(!aCodec) {
-		printf("Codec not found!\n");
+		fprintf(stderr,"Codec not found!\n");
 		return -1;
 	}
 	if(avcodec_open(aCodecCtx, aCodec)<0) {
 		fprintf(stderr, "could not open codec\n");
 		return -1; // Could not open codec
 	}
-	printf("using audio Codecid: %d ",aCodecCtx->codec_id);
-	printf("samplerate: %d ",aCodecCtx->sample_rate);
-	printf("channels: %d\n",aCodecCtx->channels);
+	fprintf(stderr,"using audio Codecid: %d ",aCodecCtx->codec_id);
+	fprintf(stderr,"samplerate: %d ",aCodecCtx->sample_rate);
+	fprintf(stderr,"channels: %d\n",aCodecCtx->channels);
 
 	return 1;
 }
@@ -376,11 +376,11 @@ int OpenAudio(AVCodecContext  *aCodecCtx)
 	wanted_spec->userdata = aCodecCtx;
 
 #ifdef DEBUG_AUDIO
-	printf("wanted freq:%d\n",wanted_spec->freq);
-	printf("wanted format:%d\n",wanted_spec->format);
-	printf("wanted channels:%d\n",wanted_spec->channels);
-	printf("wanted silence:%d\n",wanted_spec->silence);
-	printf("wanted samples:%d\n",wanted_spec->samples);
+	fprintf(stderr,"wanted freq:%d\n",wanted_spec->freq);
+	fprintf(stderr,"wanted format:%d\n",wanted_spec->format);
+	fprintf(stderr,"wanted channels:%d\n",wanted_spec->channels);
+	fprintf(stderr,"wanted silence:%d\n",wanted_spec->silence);
+	fprintf(stderr,"wanted samples:%d\n",wanted_spec->samples);
 #endif
 
 	if (wanted_spec_old && 
@@ -411,13 +411,13 @@ int OpenAudio(AVCodecContext  *aCodecCtx)
 	CurrentAudioSilence = wanted_spec->silence;
 
 #ifdef DEBUG_AUDIO
-	printf("freq:%d\n",wanted_spec->freq);
-	printf("format:%d\n",wanted_spec->format);
-	printf("channels:%d\n",wanted_spec->channels);
-	printf("silence:%d\n",wanted_spec->silence);
-	printf("samples:%d\n",wanted_spec->samples);
-	printf("size:%d\n",wanted_spec->size);
-	printf("deltaAudioQ: %f\n",deltaAudioQ);
+	fprintf(stderr,"freq:%d\n",wanted_spec->freq);
+	fprintf(stderr,"format:%d\n",wanted_spec->format);
+	fprintf(stderr,"channels:%d\n",wanted_spec->channels);
+	fprintf(stderr,"silence:%d\n",wanted_spec->silence);
+	fprintf(stderr,"samples:%d\n",wanted_spec->samples);
+	fprintf(stderr,"size:%d\n",wanted_spec->size);
+	fprintf(stderr,"deltaAudioQ: %f\n",deltaAudioQ);
 #endif
 
 	return 1;
@@ -450,7 +450,7 @@ int ChunkerPlayerCore_InitAudioCodecs(char *audio_codec, int sample_rate, short 
 	
 	// Init audio buffers
 	av_init_packet(&AudioPkt);
-	//printf("AVCODEC_MAX_AUDIO_FRAME_SIZE=%d\n", AVCODEC_MAX_AUDIO_FRAME_SIZE);
+	//fprintf(stderr,"AVCODEC_MAX_AUDIO_FRAME_SIZE=%d\n", AVCODEC_MAX_AUDIO_FRAME_SIZE);
 	AudioPkt.data=(uint8_t *)malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
 	if(!AudioPkt.data) return -1;
 
@@ -516,7 +516,7 @@ int DecodeEnqueuedAudio(AVPacket *pkt, PacketQueue *q, int* size)
 	audio_bufQ = (uint16_t *)av_malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
 	if(audio_bufQ) {
 #ifdef DEBUG_AUDIO_BUFFER
-		printf("AUDIO_BUFFER: about to decode packet %d, size %d, data %d\n", pkt->stream_index, pkt->size, pkt->data);
+		fprintf(stderr,"AUDIO_BUFFER: about to decode packet %d, size %d, data %d\n", pkt->stream_index, pkt->size, pkt->data);
 #endif
 		//decode the packet data
 		lenQ = avcodec_decode_audio3(aCodecCtx, (int16_t *)audio_bufQ, &data_sizeQ, pkt);
@@ -540,20 +540,20 @@ int DecodeEnqueuedAudio(AVPacket *pkt, PacketQueue *q, int* size)
 			}
 			else {
 #ifdef DEBUG_AUDIO_BUFFER
-				printf("AUDIO_BUFFER: cannot alloc space for decoded packet %d\n", pkt->stream_index);
+				fprintf(stderr,"AUDIO_BUFFER: cannot alloc space for decoded packet %d\n", pkt->stream_index);
 #endif
 			}
 		}
 		else {
 #ifdef DEBUG_AUDIO_BUFFER
-			printf("AUDIO_BUFFER: cannot decode packet %d\n", pkt->stream_index);
+			fprintf(stderr,"AUDIO_BUFFER: cannot decode packet %d\n", pkt->stream_index);
 #endif
 		}
 		av_free(audio_bufQ);
 	}
 	else {
 #ifdef DEBUG_AUDIO_BUFFER
-		printf("AUDIO_BUFFER: cannot alloc decode buffer for packet %d\n", pkt->stream_index);
+		fprintf(stderr,"AUDIO_BUFFER: cannot alloc decode buffer for packet %d\n", pkt->stream_index);
 #endif
 	}
 	return ret; //problems occurred
@@ -625,7 +625,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 	SDL_LockMutex(q->mutex);
 
 #ifdef DEBUG_QUEUE
-	printf("QUEUE: Get NPackets=%d Type=%s\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
+	fprintf(stderr,"QUEUE: Get NPackets=%d Type=%s\n", q->nb_packets, (q->queueType==AUDIO) ? "AUDIO" : "VIDEO");
 #endif
 
 	if((q->queueType==AUDIO && QueueFillingMode) || QueueStopped)
@@ -665,7 +665,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 			}
 
 #ifdef DEBUG_AUDIO_BUFFER
-			printf("2: idx %d    \taqo %d    \tstc %d    \taqe %f    \tpsz %d\n", pkt1->pkt.stream_index, AudioQueueOffset, SizeToCopy, deltaAudioQError, pkt1->pkt.size);
+			fprintf(stderr,"2: idx %d    \taqo %d    \tstc %d    \taqe %f    \tpsz %d\n", pkt1->pkt.stream_index, AudioQueueOffset, SizeToCopy, deltaAudioQError, pkt1->pkt.size);
 #endif
 
 			//update index of last frame extracted
@@ -679,7 +679,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 		pkt1 = q->first_pkt;
 		if(pkt1) {
 #ifdef DEBUG_QUEUE_DEEP
-			printf("  AV not 1\n");
+			fprintf(stderr,"  AV not 1\n");
 #endif
 			pkt->size = pkt1->pkt.size;
 			pkt->dts = pkt1->pkt.dts;
@@ -706,7 +706,7 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 		}
 #ifdef DEBUG_QUEUE
 		else {
-			printf("  VIDEO pk1 NULL!!!!\n");
+			fprintf(stderr,"  VIDEO pk1 NULL!!!!\n");
 		}
 #endif
 	}
@@ -714,11 +714,11 @@ int PacketQueueGet(PacketQueue *q, AVPacket *pkt, short int av, int* size)
 	if(q->nb_packets==0 && q->queueType==AUDIO) {
 		QueueFillingMode=1;
 #ifdef DEBUG_QUEUE
-		printf("QUEUE: Get FillingMode ON\n");
+		fprintf(stderr,"QUEUE: Get FillingMode ON\n");
 #endif
 	}
 #ifdef DEBUG_QUEUE
-	printf("QUEUE: Get Last %s Frame Extracted = %d\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->last_frame_extracted);
+	fprintf(stderr,"QUEUE: Get Last %s Frame Extracted = %d\n", (q->queueType==AUDIO) ? "AUDIO" : "VIDEO", q->last_frame_extracted);
 #endif
 
 	SDL_UnlockMutex(q->mutex);
@@ -755,7 +755,7 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 			FirstTime = 0;
 			//SDL_UnlockMutex(timing_mutex);
 #ifdef DEBUG_AUDIO 
-		 	printf("AUDIO: audio_decode_frame - DeltaTimeAudio=%lld\n",DeltaTime);
+		 	fprintf(stderr,"AUDIO: audio_decode_frame - DeltaTimeAudio=%lld\n",DeltaTime);
 #endif
 		}
 	}
@@ -763,12 +763,12 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 #ifdef DEBUG_AUDIO 
 	if(audioq.first_pkt)
 	{
-		printf("AUDIO: audio_decode_frame - Syncro params: Delta:%lld Now:%lld pts=%lld pts+Delta=%lld ",(long long)DeltaTime,Now,(long long)audioq.first_pkt->pkt.pts,(long long)audioq.first_pkt->pkt.pts+DeltaTime);
-		printf("AUDIO: QueueLen=%d ",(int)audioq.nb_packets);
-		printf("AUDIO: QueueSize=%d\n",(int)audioq.size);
+		fprintf(stderr,"AUDIO: audio_decode_frame - Syncro params: Delta:%lld Now:%lld pts=%lld pts+Delta=%lld ",(long long)DeltaTime,Now,(long long)audioq.first_pkt->pkt.pts,(long long)audioq.first_pkt->pkt.pts+DeltaTime);
+		fprintf(stderr,"AUDIO: QueueLen=%d ",(int)audioq.nb_packets);
+		fprintf(stderr,"AUDIO: QueueSize=%d\n",(int)audioq.size);
 	}
 	else
-		printf("AUDIO: audio_decode_frame - Empty queue\n");
+		fprintf(stderr,"AUDIO: audio_decode_frame - Empty queue\n");
 #endif
 
 	if(audioq.nb_packets>0)
@@ -789,7 +789,7 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 	{
 		SkipAudio = 0;
 #ifdef DEBUG_AUDIO
- 		printf("AUDIO: skipaudio: queue size=%d\n",audioq.size);
+ 		fprintf(stderr,"AUDIO: skipaudio: queue size=%d\n",audioq.size);
 #endif
 		if(PacketQueueGet(&audioq,&AudioPkt,1, &compressed_size) < 0) {
 			return -1;
@@ -820,7 +820,7 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 		memcpy(audio_buf,AudioPkt.data,AudioPkt.size);
 		audio_pkt_size = AudioPkt.size;
 #ifdef DEBUG_AUDIO
- 		printf("AUDIO: Decode audio\n");
+ 		fprintf(stderr,"AUDIO: Decode audio\n");
 #endif
 
 		ChunkerPlayerStats_UpdateAudioPlayedHistory(&(audioq.PacketHistory), AudioPkt.stream_index, compressed_size);
@@ -957,12 +957,12 @@ int VideoCallback(void *valthread)
 	}
 	pFrame=avcodec_alloc_frame();
 	if(pFrame==NULL) {
-		printf("Memory error!!!\n");
+		fprintf(stderr,"Memory error!!!\n");
 		return -1;
 	}
 	
 #ifdef DEBUG_VIDEO
- 	printf("VIDEO: video_callback entering main cycle\n");
+ 	fprintf(stderr,"VIDEO: video_callback entering main cycle\n");
 #endif
 
 	while(AVPlaying && !quit) {
@@ -989,24 +989,24 @@ int VideoCallback(void *valthread)
 				//SDL_UnlockMutex(timing_mutex);
 			}
 #ifdef DEBUG_VIDEO 
-		 	printf("VIDEO: VideoCallback - DeltaTimeAudio=%lld\n",DeltaTime);
+		 	fprintf(stderr,"VIDEO: VideoCallback - DeltaTimeAudio=%lld\n",DeltaTime);
 #endif
 		}
 
 #ifdef DEBUG_VIDEO 
 		if(videoq.first_pkt)
 		{
-			printf("VIDEO: VideoCallback - Syncro params: Delta:%lld Now:%lld pts=%lld pts+Delta=%lld ",(long long)DeltaTime,Now,(long long)videoq.first_pkt->pkt.pts,(long long)videoq.first_pkt->pkt.pts+DeltaTime);
-			printf("VIDEO: Index=%d ", (int)videoq.first_pkt->pkt.stream_index);
-			printf("VIDEO: QueueLen=%d ", (int)videoq.nb_packets);
-			printf("VIDEO: QueueSize=%d\n", (int)videoq.size);
+			fprintf(stderr,"VIDEO: VideoCallback - Syncro params: Delta:%lld Now:%lld pts=%lld pts+Delta=%lld ",(long long)DeltaTime,Now,(long long)videoq.first_pkt->pkt.pts,(long long)videoq.first_pkt->pkt.pts+DeltaTime);
+			fprintf(stderr,"VIDEO: Index=%d ", (int)videoq.first_pkt->pkt.stream_index);
+			fprintf(stderr,"VIDEO: QueueLen=%d ", (int)videoq.nb_packets);
+			fprintf(stderr,"VIDEO: QueueSize=%d\n", (int)videoq.size);
 		}
 		else
-			printf("VIDEO: VideoCallback - Empty queue\n");
+			fprintf(stderr,"VIDEO: VideoCallback - Empty queue\n");
 #endif
 
 #ifdef DEBUG_VIDEO
-		printf("VIDEO: skipvideo:%d decodevideo:%d\n",SkipVideo,DecodeVideo);
+		fprintf(stderr,"VIDEO: skipvideo:%d decodevideo:%d\n",SkipVideo,DecodeVideo);
 #endif
 //			ChunkerPlayerStats_UpdateVideoSkipHistory(&(videoq.PacketHistory), VideoPkt.stream_index, pFrame->pict_type, VideoPkt.size, pFrame);
 
@@ -1040,7 +1040,7 @@ int VideoCallback(void *valthread)
 					long long earlier = target_pts - Now;
 
 #ifdef DEBUG_VIDEO
-					printf("VIDEO: FrameFinished\n");
+					fprintf(stderr,"VIDEO: FrameFinished\n");
 #endif
 					decoded_vframes++;
 					
@@ -1128,7 +1128,7 @@ int VideoCallback(void *valthread)
 	av_free(pFrame);
 	//fclose(frecon);
 #ifdef DEBUG_VIDEO
- 	printf("VIDEO: video callback end\n");
+ 	fprintf(stderr,"VIDEO: video callback end\n");
 #endif
 
 #ifdef SAVE_YUV
@@ -1239,7 +1239,7 @@ void ChunkerPlayerCore_Stop()
 	* Doesn't seem to be necessary -> disabled
 	*/
 	//int delay = 2 * 1000 * CurrentAudioSamples / CurrentAudioFreq;
-	// printf("SDL_Delay(%d)\n", delay*10);
+	// fprintf(stderr,"SDL_Delay(%d)\n", delay*10);
 	//SDL_Delay(delay*10);
 }
 
@@ -1276,7 +1276,7 @@ int ChunkerPlayerCore_AudioEnded()
 void ChunkerPlayerCore_ResetAVQueues()
 {
 #ifdef DEBUG_QUEUE
-	printf("QUEUE: MAIN SHOULD RESET\n");
+	fprintf(stderr,"QUEUE: MAIN SHOULD RESET\n");
 #endif
 	PacketQueueReset(&audioq);
 	PacketQueueReset(&videoq);
@@ -1307,7 +1307,7 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 			else
 				random_threshold = ScheduledChunkLosses[CurrChunkLossIndex].Value;
 			
-			printf("new ScheduledChunkLoss, time: %d, value: %d\n", (int)ScheduledChunkLosses[CurrChunkLossIndex].Time, random_threshold);
+			fprintf(stderr,"new ScheduledChunkLoss, time: %d, value: %d\n", (int)ScheduledChunkLosses[CurrChunkLossIndex].Time, random_threshold);
 		}
 	
 		if(clp_frames > 0)
@@ -1347,13 +1347,13 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 
 	audio_bufQ = (uint16_t *)av_malloc(AVCODEC_MAX_AUDIO_FRAME_SIZE);
 	if(!audio_bufQ) {
-		printf("Memory error in audio_bufQ!\n");
+		fprintf(stderr,"Memory error in audio_bufQ!\n");
 		return PLAYER_FAIL_RETURN;
 	}
 
 	gchunk = (Chunk *)malloc(sizeof(Chunk));
 	if(!gchunk) {
-		printf("Memory error in gchunk!\n");
+		fprintf(stderr,"Memory error in gchunk!\n");
 		av_free(audio_bufQ);
 		return PLAYER_FAIL_RETURN;
 	}
@@ -1369,12 +1369,12 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 	last_chunk_id = gchunk->id;
 
 #ifdef DEBUG_CHUNKER
-	printf("CHUNKER: enqueueBlock: id %d decoded_size %d target size %d - out_of_order %d\n", gchunk->id, decoded_size, GRAPES_ENCODED_CHUNK_HEADER_SIZE + ExternalChunk_header_size + gchunk->size, chunks_out_of_order);
+	fprintf(stderr,"CHUNKER: enqueueBlock: id %d decoded_size %d target size %d - out_of_order %d\n", gchunk->id, decoded_size, GRAPES_ENCODED_CHUNK_HEADER_SIZE + gchunk->size, chunks_out_of_order);
 #endif
   if(decoded_size < 0) {
 		//HINT here i should differentiate between various return values of the decode
 		//in order to free what has been allocated there
-		printf("chunk probably corrupted!\n");
+		fprintf(stderr,"chunk probably corrupted!\n");
 		av_free(audio_bufQ);
 		free(gchunk);
 		return PLAYER_FAIL_RETURN;
@@ -1382,7 +1382,7 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 
 	frame = (Frame *)malloc(sizeof(Frame));
 	if(!frame) {
-		printf("Memory error in Frame!\n");
+		fprintf(stderr,"Memory error in Frame!\n");
 		if(gchunk) {
 			if(gchunk->attributes) {
 				free(gchunk->attributes);
@@ -1427,7 +1427,7 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 			}
 
 #ifdef DEBUG_SOURCE
-			printf("SOURCE: Insert video in queue pts=%lld %d %d sindex:%d\n",packet.pts,(int)frame->timestamp.tv_sec,(int)frame->timestamp.tv_usec,packet.stream_index);
+			fprintf(stderr,"SOURCE: Insert video in queue pts=%lld %d %d sindex:%d\n",packet.pts,(int)frame->timestamp.tv_sec,(int)frame->timestamp.tv_usec,packet.stream_index);
 #endif
 		}
 		else if(frame->type == 5) { // audio frame
@@ -1454,16 +1454,16 @@ int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size)
 			}
 
 #ifdef DEBUG_SOURCE
-			printf("SOURCE: Insert audio in queue pts=%lld sindex:%d\n", packetaudio.pts, packetaudio.stream_index);
+			fprintf(stderr,"SOURCE: Insert audio in queue pts=%lld sindex:%d\n", packetaudio.pts, packetaudio.stream_index);
 #endif
 		}
 		else {
-			printf("SOURCE: Unknown frame type %d. Size %d\n", frame->type, frame->size);
+			fprintf(stderr,"SOURCE: Unknown frame type %d. Size %d\n", frame->type, frame->size);
 		}
 		if(frame->size > 0)
 			j = j - sizeFrameHeader - frame->size;
 		else {
-			printf("SOURCE: Corrupt frames (size %d) in chunk. Skipping it...\n", frame->size);
+			fprintf(stderr,"SOURCE: Corrupt frames (size %d) in chunk. Skipping it...\n", frame->size);
 			j = -1;
 		}
 	}
@@ -1488,7 +1488,7 @@ void ChunkerPlayerCore_SetupOverlay(int width, int height)
 {
 	// if(!MainScreen && !SilentMode)
 	// {
-		// printf("Cannot find main screen, exiting...\n");
+		// fprintf(stderr,"Cannot find main screen, exiting...\n");
 		// exit(1);
 	// }
 	
@@ -1507,7 +1507,7 @@ void ChunkerPlayerCore_SetupOverlay(int width, int height)
 	}
 	
 	// create video overlay for display of video frames
-	// printf("SDL_CreateYUVOverlay(%d, %d, SDL_YV12_OVERLAY, MainScreen)\n", width, height);
+	// fprintf(stderr,"SDL_CreateYUVOverlay(%d, %d, SDL_YV12_OVERLAY, MainScreen)\n", width, height);
 	YUVOverlay = SDL_CreateYUVOverlay(width, height, SDL_YV12_OVERLAY, MainScreen);
 	if ( YUVOverlay == NULL )
 	{
@@ -1563,8 +1563,8 @@ int CollectStatisticsThread(void *params)
 			video_avg_bitrate = (int)( ((double)videoq.cumulative_bitrate) / ((double)videoq.cumulative_samples) );
 
 #ifdef DEBUG_STATS
-			printf("VIDEO: %d Kbit/sec; ", video_statistics.Bitrate);
-			printf("AUDIO: %d Kbit/sec\n", audio_statistics.Bitrate);
+			fprintf(stderr,"VIDEO: %d Kbit/sec; ", video_statistics.Bitrate);
+			fprintf(stderr,"AUDIO: %d Kbit/sec\n", audio_statistics.Bitrate);
 #endif
 
 			// QUEUE DENSITY EVALUATION
@@ -1628,7 +1628,7 @@ int CollectStatisticsThread(void *params)
                             LastTimeRepoPublish=r.timestamp;
                             if(repPublish(repoclient,NULL,NULL,&r)!=NULL) {
 #ifdef DEBUG_PSNR
-                               printf("PSNR publish: %s  %e  %s\n",r.originator,qoe,r.channel);
+                               fprintf(stderr,"PSNR publish: %s  %e  %s\n",r.originator,qoe,r.channel);
 #endif
 														}
                         }
@@ -1668,7 +1668,7 @@ int CollectStatisticsThread(void *params)
 			//double input_bitrate = a*((double)video_statistics.Bitrate) + b*((double)video_avg_bitrate);
 			ChunkerPlayerStats_GetMeanVideoQuality(&(videoq.PacketHistory), input_bitrate, &qoe);
 #ifdef DEBUG_STATS
-			printf("rate %d avg %d wghtd %d cum_samp %d PSNR %f\n", video_statistics.Bitrate, video_avg_bitrate, (int)input_bitrate, videoq.cumulative_samples, (float)qoe);
+			fprintf(stderr,"rate %d avg %d wghtd %d cum_samp %d PSNR %f\n", video_statistics.Bitrate, video_avg_bitrate, (int)input_bitrate, videoq.cumulative_samples, (float)qoe);
 #endif
 			last_qoe_evaluation = now;
 		}
