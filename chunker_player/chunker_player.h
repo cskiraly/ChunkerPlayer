@@ -18,6 +18,7 @@ typedef struct SChannel
 {
 	char LaunchString[255];
 	char Title[255];
+	char ChannelGroup[255];	//channel group name. If specified, overrides title when publishing results
 	int Width;
 	int Height;
 	float Ratio;

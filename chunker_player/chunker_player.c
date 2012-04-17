@@ -513,6 +513,20 @@ int cb_validate_conffile(cfg_t *cfg)
     return 0;
 }
 
+// helper funcion to trim the end of the channel name
+int strtrim(char *h, const char *n)
+{
+	int hlen = strlen(h);
+	int nlen = strlen(n);
+
+	if (hlen >= nlen && strstr(h+hlen-nlen, n)) {
+		h[hlen-nlen] = 0;
+		return 1;
+	}
+
+	return 0;
+}
+
 int ParseConf(char *file, char *uri)
 {
 	int j,r;
@@ -522,6 +536,7 @@ int ParseConf(char *file, char *uri)
 	cfg_opt_t channel_opts[] =
 	{
 		CFG_STR("Title", "", CFGF_NONE),
+		CFG_STR("ChannelGroup", "", CFGF_NONE),
 		CFG_STR("LaunchString", "", CFGF_NONE),
 		CFG_INT("AudioChannels", 2, CFGF_NONE),
 		CFG_INT("SampleRate", 48000, CFGF_NONE),
@@ -586,6 +601,11 @@ int ParseConf(char *file, char *uri)
 	{
 		cfg_channel = cfg_getnsec(cfg, "Channel", j);
 		sprintf(Channels[j].Title, "%s", cfg_title(cfg_channel));
+		strcpy(Channels[j].ChannelGroup, cfg_getstr(cfg_channel, "ChannelGroup"));
+		if (strlen(Channels[j].ChannelGroup) == 0) {
+			strcpy(Channels[j].ChannelGroup,Channels[j].Title);
+			strtrim(Channels[j].ChannelGroup, "-HQ") || strtrim(Channels[j].ChannelGroup, "-SQ") || strtrim(Channels[j].ChannelGroup, "-LQ") || strtrim(Channels[j].ChannelGroup, "-orig");
+		}
 		strcpy(Channels[j].LaunchString, cfg_getstr(cfg_channel, "LaunchString"));
 		strcpy(Channels[j].VideoCodec, cfg_getstr(cfg_channel, "VideoCodec"));
 		strcpy(Channels[j].AudioCodec, cfg_getstr(cfg_channel, "AudioCodec"));
@@ -623,11 +643,11 @@ int StartStreamer(SChannel* channel)
 	sprintf(argv0, "%s", StreamerFilename);
 
 #ifdef HTTPIO
-	sprintf(parameters_string, "%s %s %s %d %s %s %d", "-C", channel->Title, "-P", (Port+channel->Index), channel->LaunchString, "-F", Port);
+	sprintf(parameters_string, "%s %s %s %d %s %s %d", "-C", channel->ChannelGroup, "-P", (Port+channel->Index), channel->LaunchString, "-F", Port);
 #endif
 
 #ifdef TCPIO
-	sprintf(parameters_string, "%s %s %s %d %s %s tcp://127.0.0.1:%d", "-C", channel->Title, "-P", (Port+channel->Index), channel->LaunchString, "-F", Port);
+	sprintf(parameters_string, "%s %s %s %d %s %s tcp://127.0.0.1:%d", "-C", channel->ChannelGroup, "-P", (Port+channel->Index), channel->LaunchString, "-F", Port);
 #endif
 
 	printf("OFFERSTREAMER LAUNCH STRING: %s %s\n", argv0, parameters_string);
