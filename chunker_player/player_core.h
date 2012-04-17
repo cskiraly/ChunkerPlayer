@@ -20,5 +20,6 @@ void ChunkerPlayerCore_ResetAVQueues();
 int ChunkerPlayerCore_EnqueueBlocks(const uint8_t *block, const int block_size);
 void ChunkerPlayerCore_SetupOverlay(int width, int height);
 void ChunkerPlayerCore_ChangeDelay(int ms); // positive to increase delay
+void ChunkerPlayerCore_SetYCrop(float ycrop);
 
 #endif // _CHUNKER_PLAYER_CORE_H
