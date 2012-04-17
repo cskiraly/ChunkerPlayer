@@ -92,8 +92,7 @@ char VideoFrameSkipRateLogFilename[256];
 long int decoded_vframes;
 long int LastSavedVFrame;
 
-int tcrop = 0;
-int bcrop = 0;
+float ycrop = 0;
 
 void SaveFrame(AVFrame *pFrame, int width, int height);
 int VideoCallback(void *valthread);
@@ -833,9 +832,8 @@ int AudioDecodeFrame(uint8_t *audio_buf, int buf_size) {
 }
 
 
-void ChunkerPlayerCore_SetYCrop(int t, int b){
-	tcrop = t;
-	bcrop = b;
+void ChunkerPlayerCore_SetYCrop(float yc){
+	ycrop = yc;
 }
 
 // Render a Frame to a YUV Overlay. Note that the Overlay is already bound to an SDL Surface
@@ -844,7 +842,6 @@ void ChunkerPlayerCore_SetYCrop(int t, int b){
 int RenderFrame2Overlay(AVFrame *pFrame, int frame_width, int frame_height, int tcrop, int bcrop,  SDL_Overlay *YUVOverlay)
 {
 	AVPicture pict;
-	unsigned int ycrop = 50;
 	static struct SwsContext *img_convert_ctx = NULL;	//if the function is used for more streams, this could be made part of some context passed as a parameter (to optimize performance)
 
 					if(SDL_LockYUVOverlay(YUVOverlay) < 0) {
@@ -1048,6 +1045,7 @@ int VideoCallback(void *valthread)
 
 					long long target_pts = pFrame->pkt_pts + DeltaTime;
 					long long earlier = target_pts - Now;
+					int halfcrop;
 
 #ifdef DEBUG_VIDEO
 					printf("VIDEO: FrameFinished\n");
@@ -1094,7 +1092,8 @@ int VideoCallback(void *valthread)
 						continue;
 
 					SDL_LockMutex(OverlayMutex);
-					if (RenderFrame2Overlay(pFrame, pCodecCtx->width, pCodecCtx->height, tcrop, bcrop, YUVOverlay) < 0){
+					halfcrop = ycrop * pCodecCtx->height /2;
+					if (RenderFrame2Overlay(pFrame, pCodecCtx->width, pCodecCtx->height, halfcrop, halfcrop, YUVOverlay) < 0){
 						SDL_UnlockMutex(OverlayMutex);
 						continue;
 					}

@@ -512,7 +512,7 @@ void UpdateOverlaySize(struct aspect a, int width, int height)
 	}
 
 	//handle crop
-	ChunkerPlayerCore_SetYCrop(a.ycrop*h/2, a.ycrop*h/2);
+	ChunkerPlayerCore_SetYCrop(a.ycrop);
 
 	SDL_UnlockMutex(OverlayMutex);
 }
