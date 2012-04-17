@@ -522,6 +522,7 @@ int ParseConf(char *file, char *uri)
 	cfg_opt_t channel_opts[] =
 	{
 		CFG_STR("Title", "", CFGF_NONE),
+		CFG_STR("ChannelGroup", "", CFGF_NONE),
 		CFG_STR("LaunchString", "", CFGF_NONE),
 		CFG_INT("AudioChannels", 2, CFGF_NONE),
 		CFG_INT("SampleRate", 48000, CFGF_NONE),
@@ -586,6 +587,8 @@ int ParseConf(char *file, char *uri)
 	{
 		cfg_channel = cfg_getnsec(cfg, "Channel", j);
 		sprintf(Channels[j].Title, "%s", cfg_title(cfg_channel));
+		strcpy(Channels[j].ChannelGroup, cfg_getstr(cfg_channel, "ChannelGroup"));
+		if (strlen(Channels[j].ChannelGroup) == 0) strcpy(Channels[j].ChannelGroup,Channels[j].Title);
 		strcpy(Channels[j].LaunchString, cfg_getstr(cfg_channel, "LaunchString"));
 		strcpy(Channels[j].VideoCodec, cfg_getstr(cfg_channel, "VideoCodec"));
 		strcpy(Channels[j].AudioCodec, cfg_getstr(cfg_channel, "AudioCodec"));
