@@ -23,7 +23,7 @@
 #endif
 
 #define LOOP_MODE 1
-#define YUV_RECORD_ENABLED
+//#define YUV_RECORD_ENABLED
 //~ #define STREAMER_X264_USE_SSIM
 //~ #define VIDEO_DEINTERLACE
 
