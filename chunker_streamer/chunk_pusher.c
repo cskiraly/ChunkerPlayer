@@ -9,8 +9,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#ifndef _WIN32
 #include <sys/socket.h>
 #include <netinet/in.h>
+#else
+#include <winsock2.h>
+#endif
 #include <unistd.h>
 
 #include "external_chunk_transcoding.h"
@@ -239,7 +243,11 @@ int sendViaTcp(struct output *o, Chunk gchunk, uint32_t buffer_size)
 #endif
 		//fprintf(stderr, "TCP IO-MODULE: sending %d bytes, %d sent\n", buffer_size, ret);
 		if (ret < 0) {
+#ifndef _WIN32
 			if (errno != EAGAIN && errno != EWOULDBLOCK) {
+#else
+			if (WSAGetLastError() != WSAEWOULDBLOCK) {
+#endif
 				fprintf(stderr, "TCP IO-MODULE: closing connection\n");
 				close(o->tcp_fd);
 				o->tcp_fd = -1;

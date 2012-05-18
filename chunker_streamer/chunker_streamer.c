@@ -663,6 +663,20 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
+#ifdef _WIN32
+	{
+		WORD wVersionRequested;
+		WSADATA wsaData;
+		int err;
+		wVersionRequested = MAKEWORD(2, 2);
+		err = WSAStartup(wVersionRequested, &wsaData);
+		if (err != 0) {
+			fprintf(stderr, "WSAStartup failed with error: %d\n", err);
+			return -2;
+		}
+	}
+#endif
+
 #ifdef YUV_RECORD_ENABLED
 	if(ChunkerStreamerTestMode)
 	{

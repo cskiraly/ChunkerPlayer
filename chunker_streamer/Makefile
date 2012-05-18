@@ -33,12 +33,20 @@ LDLIBS += $(call ld-option, -lrt)
 
 LDLIBS += $(DYNAMIC_LDLIBS)
 
-all: chunker_streamer
 
-chunker_streamer: ../chunk_transcoding/external_chunk_transcoding.o chunker_metadata.o chunker_streamer.o $(OBJECTS)
+ifdef WINDOWS
+OUTPUTFILE = chunker_streamer.exe
+else
+OUTPUTFILE = chunker_streamer
+endif
+
+all: $(OUTPUTFILE)
+
+$(OUTPUTFILE): ../chunk_transcoding/external_chunk_transcoding.o chunker_metadata.o chunker_streamer.o $(OBJECTS)
+	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 clean:
-	rm -f chunker_streamer
+	rm -f $(OUTPUTFILE)
 	rm -f *.o
 
 ### Automatic generation of headers dependencies ###
