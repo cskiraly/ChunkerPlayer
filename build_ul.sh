@@ -436,7 +436,7 @@ if [ -n "$BUILD_SDL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL" ]; then
 #			mv bin $TEMP_SDL/; mv lib $TEMP_SDL/; mv include $TEMP_SDL/; mv share $TEMP_SDL/
 
 			# build from sources
-			$WGET_OR_CURL $WGET_OR_CURLOPT http://www.libsdl.org/release/SDL-1.2.14.tar.gz; tar xzf SDL-1.2.14.tar.gz; rm -f SDL-1.2.14.tar.gz; mv SDL-1.2.14 sdl_mingw
+			$WGET_OR_CURL $WGET_OR_CURLOPT http://www.libsdl.org/release/SDL-1.2.15.tar.gz; tar xzf SDL-1.2.15.tar.gz; rm -f SDL-1.2.15.tar.gz; mv SDL-1.2.15 sdl_mingw
 			cd sdl_mingw
 			#make and install in local folder
 			./configure ${HOSTARCH:+--host=$HOSTARCH} --disable-video-directfb --disable-shared --prefix="$TEMP_SDL" --libdir="$TEMP_SDL"/lib
@@ -448,9 +448,8 @@ if [ -n "$BUILD_SDL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_SDL" ]; then
 			make clean
 		else
 			#get and compile SDL lib
-			# we use a daily build because of OS X problems in 1.2.14
-			#$WGET_OR_CURL $WGET_OR_CURLOPT http://www.libsdl.org/release/SDL-1.2.14.tar.gz; tar xzf SDL-1.2.14.tar.gz; mv SDL-1.2.14 sdl; rm -f SDL-1.2.14.tar.gz
-			$WGET_OR_CURL $WGET_OR_CURLOPT http://peerstreamer.org/files/release/SDL-1.2.tar.gz; tar xzf SDL-1.2.tar.gz; mv SDL-1.2.14 sdl; rm -f SDL-1.2.tar.gz
+			#$WGET_OR_CURL $WGET_OR_CURLOPT http://www.libsdl.org/release/SDL-1.2.15.tar.gz; tar xzf SDL-1.2.15.tar.gz; mv SDL-1.2.15 sdl; rm -f SDL-1.2.15.tar.gz
+			$WGET_OR_CURL $WGET_OR_CURLOPT http://peerstreamer.org/files/release/SDL-1.2.15.tar.gz; tar xzf SDL-1.2.15.tar.gz; mv SDL-1.2.15 sdl; rm -f SDL-1.2.15.tar.gz
 			cd sdl
 		fi
 		#make and install in local folder
