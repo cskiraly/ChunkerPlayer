@@ -5,6 +5,8 @@ EXTERN_DIR="external_libs"
 MAKE="make -j 4"
 cd "$BASE_UL_DIR"
 
+VERSION_LIBMICROHTTPD=21651
+
 REBUILD=
 [ "$1" == "-r" ] && REBUILD=1
 
@@ -399,9 +401,9 @@ if [ -n "$BUILD_MHD" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MHD" ]; then
 	else
 		#get and compile libmicrohttpd lib
 		if [ X`svn --version|head -1|cut -c14-16` = X1.6 ]; then
-			svn --non-interactive --trust-server-cert checkout https://gnunet.org/svn/libmicrohttpd
+			svn --non-interactive --trust-server-cert checkout https://gnunet.org/svn/libmicrohttpd -r$VERSION_LIBMICROHTTPD
 		else
-			svn --non-interactive checkout https://gnunet.org/svn/libmicrohttpd
+			svn --non-interactive checkout https://gnunet.org/svn/libmicrohttpd -r$VERSION_LIBMICROHTTPD
 		fi
 		cd libmicrohttpd || { echo "CANNOT download libmicrohttpd"; exit 1; }
  
