@@ -7,6 +7,7 @@ cd "$BASE_UL_DIR"
 
 VERSION_LIBMICROHTTPD=21651
 VERSION_PTHREADS=2-9-1
+VERSION_PLIBC=0.1.5
 
 REBUILD=
 [ "$1" == "-r" ] && REBUILD=1
@@ -157,10 +158,10 @@ if [ -n "$MINGW" ]; then
 	else
 		cd "$BASE_UL_DIR/$EXTERN_DIR"
 		rm -fR plibc
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://sourceforge.net/projects/plibc/files/plibc/0.1.5/plibc-0.1.5.zip
-		unzip plibc-0.1.5.zip -d plibc;
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://sourceforge.net/projects/plibc/files/plibc/${VERSION_PLIBC}/plibc-${VERSION_PLIBC}.zip
+		unzip plibc-${VERSION_PLIBC}.zip -d plibc;
 		rm -f plibc/lib/*.la
-		rm -f plibc-0.1.5.zip
+		rm -f plibc-${VERSION_PLIBC}.zip
 	fi
 	LIBMICROHHTPD_FLAGS="-I$BASE_UL_DIR/$EXTERN_DIR/plibc/include"
 	LIBMICROHHTPD_LDFLAGS="-L$BASE_UL_DIR/$EXTERN_DIR/plibc/lib"
