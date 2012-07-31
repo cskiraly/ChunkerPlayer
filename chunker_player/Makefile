@@ -56,11 +56,13 @@ LOCAL_SDLTTF_CPPFLAGS = -I$(LOCAL_SDLTTF)/include/SDL
 LOCAL_SDLTTF_LDLIBS = $(LOCAL_SDLTTF)/lib/libSDL_ttf.a
 
 #microhttpd config here
+ifdef MHD
 LOCAL_MHD_CPPFLAGS = -I$(LOCAL_MHD)/include
 ifdef WINDOWS
 LOCAL_MHD_LDLIBS = $(LOCAL_MHD)/lib/libmicrohttpd.a $(LOCAL_PLIBC)/lib/libplibc.dll.a $(LOCAL_PTHREAD)/lib/libpthread.a
 else
 LOCAL_MHD_LDLIBS = $(LOCAL_MHD)/lib/libmicrohttpd.a
+endif
 endif
 
 LOCAL_CONFUSE_CPPFLAGS = -I$(LOCAL_CONFUSE)/include
