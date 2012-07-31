@@ -395,7 +395,7 @@ if [ -n "$MINGW" ]; then
 else
 	TEMP_MHD="$BASE_UL_DIR/$EXTERN_DIR/libmicrohttpd/temp_mhd_install_linux"
 fi
-if [ -n "$BUILD_MHD" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MHD" ]; then
+if [ -n "$BUILD_MHD" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	
 	if [ -e "libmicrohttpd" ]; then
