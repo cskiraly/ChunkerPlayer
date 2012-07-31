@@ -8,6 +8,7 @@ cd "$BASE_UL_DIR"
 VERSION_LIBMICROHTTPD=21651
 VERSION_PTHREADS=2-9-1
 VERSION_PLIBC=0.1.5
+VERSION_CURL=7.21.0
 
 REBUILD=
 [ "$1" == "-r" ] && REBUILD=1
@@ -545,7 +546,7 @@ if [ -n "$BUILD_CURL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_CURL" ]; then
 	else
 		#get and compile CURL lib
 		rm -f curl-7.21.0.tar.bz2
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://curl.haxx.se/download/curl-7.21.0.tar.bz2; tar xjf curl-7.21.0.tar.bz2; rm -f curl-7.21.0.tar.bz2; mv curl-7.21.0 curl
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://curl.haxx.se/download/curl-${VERSION_CURL}.tar.bz2; tar xjf curl-${VERSION_CURL}.tar.bz2; rm -f curl-${VERSION_CURL}.tar.bz2; mv curl-${VERSION_CURL} curl
 		cd curl
 	fi
 
