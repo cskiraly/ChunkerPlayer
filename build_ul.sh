@@ -233,7 +233,7 @@ if [ -n "$MINGW" ]; then
 		tar zxvf pthreads-w32-2-8-0-release.tar.gz; mv pthreads-w32-2-8-0-release pthreads; rm -f pthreads-w32-2-8-0-release.tar.gz;
 		cd pthreads
 		mkdir -p ./{include,lib,bin}
-		make CROSS=i586-mingw32msvc- GC-inlined
+		make CROSS=${CROSSPREFIX} GC-inlined
 		mv libpthreadGC2.a ./lib
 		mv *.h ./include
 		mv pthreadGC2.dll ./bin
