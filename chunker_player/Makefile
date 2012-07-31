@@ -96,7 +96,7 @@ LDLIBS += $(LOCAL_CURL)/lib/libcurl.a
 endif
 
 ifdef WINDOWS
-LDLIBS += -lmsvcrt -lwsock32 -lws2_32 -liberty
+LDLIBS += -lmsvcrt -lwsock32 -lws2_32
 LDLIBS += $(DYNAMIC_LDLIBS) -lmingw32 $(LOCAL_ABS_SDL)/lib/libSDLmain.a $(LOCAL_ABS_SDL)/lib/libSDL.a -lwinmm -lgdi32
 else
 LDLIBS += $(DYNAMIC_LDLIBS)
