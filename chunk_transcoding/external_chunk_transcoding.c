@@ -1,6 +1,11 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdio.h>
+#ifndef _WIN32
+#include <netinet/in.h>
+#else
+#include <winsock2.h>
+#endif
 
 #include "external_chunk_transcoding.h"
 
