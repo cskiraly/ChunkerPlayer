@@ -6,6 +6,7 @@ MAKE="make -j 4"
 cd "$BASE_UL_DIR"
 
 VERSION_LIBMICROHTTPD=21651
+VERSION_PTHREADS=2-8-0
 
 REBUILD=
 [ "$1" == "-r" ] && REBUILD=1
@@ -229,8 +230,8 @@ if [ -n "$MINGW" ]; then
 	else
 		cd "$BASE_UL_DIR/$EXTERN_DIR"
 		rm -fR pthreads
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://www.mirrorservice.org/sites/sourceware.org/pub/pthreads-win32/pthreads-w32-2-8-0-release.tar.gz
-		tar zxvf pthreads-w32-2-8-0-release.tar.gz; mv pthreads-w32-2-8-0-release pthreads; rm -f pthreads-w32-2-8-0-release.tar.gz;
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://www.mirrorservice.org/sites/sourceware.org/pub/pthreads-win32/pthreads-w32-${VERSION_PTHREADS}-release.tar.gz
+		tar zxvf pthreads-w32-${VERSION_PTHREADS}-release.tar.gz; mv pthreads-w32-${VERSION_PTHREADS}-release pthreads; rm -f pthreads-w32-${VERSION_PTHREADS}-release.tar.gz;
 		cd pthreads
 		mkdir -p ./{include,lib,bin}
 		make CROSS=${CROSSPREFIX} GC-inlined
