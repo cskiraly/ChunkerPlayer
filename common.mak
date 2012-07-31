@@ -6,6 +6,9 @@
 ifeq ($(LD),i586-mingw32msvc-ld)
 WINDOWS = 1
 endif
+ifeq ($(LD),i686-w64-mingw32-ld)
+WINDOWS = 1
+endif
 
 ifdef WINDOWS
 CFLAGS = -g -O0 -Wall
