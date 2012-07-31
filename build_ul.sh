@@ -156,7 +156,7 @@ if [ -n "$MINGW" ]; then
 	else
 		cd "$BASE_UL_DIR/$EXTERN_DIR"
 		rm -fR plibc
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://ovh.dl.sourceforge.net/project/plibc/plibc/0.1.5/plibc-0.1.5.zip
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://sourceforge.net/projects/plibc/files/plibc/0.1.5/plibc-0.1.5.zip
 		unzip plibc-0.1.5.zip -d plibc;
 		rm -f plibc/lib/*.la
 		rm -f plibc-0.1.5.zip
