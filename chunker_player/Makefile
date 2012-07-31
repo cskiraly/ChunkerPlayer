@@ -98,6 +98,7 @@ endif
 ifdef WINDOWS
 LDLIBS += -lmsvcrt -lwsock32 -lws2_32
 LDLIBS += $(DYNAMIC_LDLIBS) -lmingw32 $(LOCAL_ABS_SDL)/lib/libSDLmain.a $(LOCAL_ABS_SDL)/lib/libSDL.a -lwinmm -lgdi32
+LDLIBS += $(call ld-option, -ldxguid)
 else
 LDLIBS += $(DYNAMIC_LDLIBS)
 LDLIBS += $(call ld-option, -lrt)
