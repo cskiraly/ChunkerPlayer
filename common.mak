@@ -6,6 +6,9 @@
 ifeq ($(LD),i586-mingw32msvc-ld)
 WINDOWS = 1
 endif
+ifeq ($(LD),i686-w64-mingw32-ld)
+WINDOWS = 1
+endif
 
 ifdef WINDOWS
 CFLAGS = -g -O0 -Wall
@@ -52,7 +55,7 @@ cc-option = $(shell if $(CC) $(1) -S -o /dev/null -xc /dev/null \
               > /dev/null 2>&1; then echo "$(1)"; fi ;)
 
 ld-option = $(shell if echo "int main(){return 0;}" | \
-		$(CC) $(LDFLAGS) $(CFLAGS) $(1) -o /dev/null -xc - \
+		$(CC) $(LDFLAGS) $(CFLAGS) $(1) -o /dev/stdout -xc - \
 		> /dev/null 2>&1; then echo "$(1)"; fi ;)
 
 LDLIBS += $(call ld-option, -lva)

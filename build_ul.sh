@@ -6,6 +6,9 @@ MAKE="make -j 4"
 cd "$BASE_UL_DIR"
 
 VERSION_LIBMICROHTTPD=21651
+VERSION_PTHREADS=2-9-1
+VERSION_PLIBC=0.1.5
+VERSION_CURL=7.27.0
 
 REBUILD=
 [ "$1" == "-r" ] && REBUILD=1
@@ -156,10 +159,10 @@ if [ -n "$MINGW" ]; then
 	else
 		cd "$BASE_UL_DIR/$EXTERN_DIR"
 		rm -fR plibc
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://ovh.dl.sourceforge.net/project/plibc/plibc/0.1.5/plibc-0.1.5.zip
-		unzip plibc-0.1.5.zip -d plibc;
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://sourceforge.net/projects/plibc/files/plibc/${VERSION_PLIBC}/plibc-${VERSION_PLIBC}.zip
+		unzip plibc-${VERSION_PLIBC}.zip -d plibc;
 		rm -f plibc/lib/*.la
-		rm -f plibc-0.1.5.zip
+		rm -f plibc-${VERSION_PLIBC}.zip
 	fi
 	LIBMICROHHTPD_FLAGS="-I$BASE_UL_DIR/$EXTERN_DIR/plibc/include"
 	LIBMICROHHTPD_LDFLAGS="-L$BASE_UL_DIR/$EXTERN_DIR/plibc/lib"
@@ -229,11 +232,11 @@ if [ -n "$MINGW" ]; then
 	else
 		cd "$BASE_UL_DIR/$EXTERN_DIR"
 		rm -fR pthreads
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://www.mirrorservice.org/sites/sourceware.org/pub/pthreads-win32/pthreads-w32-2-8-0-release.tar.gz
-		tar zxvf pthreads-w32-2-8-0-release.tar.gz; mv pthreads-w32-2-8-0-release pthreads; rm -f pthreads-w32-2-8-0-release.tar.gz;
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://www.mirrorservice.org/sites/sourceware.org/pub/pthreads-win32/pthreads-w32-${VERSION_PTHREADS}-release.tar.gz
+		tar zxvf pthreads-w32-${VERSION_PTHREADS}-release.tar.gz; mv pthreads-w32-${VERSION_PTHREADS}-release pthreads; rm -f pthreads-w32-${VERSION_PTHREADS}-release.tar.gz;
 		cd pthreads
 		mkdir -p ./{include,lib,bin}
-		make CROSS=i586-mingw32msvc- GC-inlined
+		make CROSS=${CROSSPREFIX} GC-inlined
 		mv libpthreadGC2.a ./lib
 		mv *.h ./include
 		mv pthreadGC2.dll ./bin
@@ -392,7 +395,7 @@ if [ -n "$MINGW" ]; then
 else
 	TEMP_MHD="$BASE_UL_DIR/$EXTERN_DIR/libmicrohttpd/temp_mhd_install_linux"
 fi
-if [ -n "$BUILD_MHD" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_MHD" ]; then
+if [ -n "$BUILD_MHD" ]; then
 	cd "$BASE_UL_DIR/$EXTERN_DIR"
 	
 	if [ -e "libmicrohttpd" ]; then
@@ -543,7 +546,7 @@ if [ -n "$BUILD_CURL" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_CURL" ]; then
 	else
 		#get and compile CURL lib
 		rm -f curl-7.21.0.tar.bz2
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://curl.haxx.se/download/curl-7.21.0.tar.bz2; tar xjf curl-7.21.0.tar.bz2; rm -f curl-7.21.0.tar.bz2; mv curl-7.21.0 curl
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://curl.haxx.se/download/curl-${VERSION_CURL}.tar.bz2; tar xjf curl-${VERSION_CURL}.tar.bz2; rm -f curl-${VERSION_CURL}.tar.bz2; mv curl-${VERSION_CURL} curl
 		cd curl
 	fi
 

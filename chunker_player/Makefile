@@ -56,11 +56,13 @@ LOCAL_SDLTTF_CPPFLAGS = -I$(LOCAL_SDLTTF)/include/SDL
 LOCAL_SDLTTF_LDLIBS = $(LOCAL_SDLTTF)/lib/libSDL_ttf.a
 
 #microhttpd config here
+ifdef MHD
 LOCAL_MHD_CPPFLAGS = -I$(LOCAL_MHD)/include
 ifdef WINDOWS
 LOCAL_MHD_LDLIBS = $(LOCAL_MHD)/lib/libmicrohttpd.a $(LOCAL_PLIBC)/lib/libplibc.dll.a $(LOCAL_PTHREAD)/lib/libpthread.a
 else
 LOCAL_MHD_LDLIBS = $(LOCAL_MHD)/lib/libmicrohttpd.a
+endif
 endif
 
 LOCAL_CONFUSE_CPPFLAGS = -I$(LOCAL_CONFUSE)/include
@@ -94,8 +96,9 @@ LDLIBS += $(LOCAL_CURL)/lib/libcurl.a
 endif
 
 ifdef WINDOWS
-LDLIBS += -lmsvcrt -lwsock32 -lws2_32 -liberty
+LDLIBS += -lmsvcrt -lwsock32 -lws2_32
 LDLIBS += $(DYNAMIC_LDLIBS) -lmingw32 $(LOCAL_ABS_SDL)/lib/libSDLmain.a $(LOCAL_ABS_SDL)/lib/libSDL.a -lwinmm -lgdi32
+LDLIBS += $(call ld-option, -ldxguid)
 else
 LDLIBS += $(DYNAMIC_LDLIBS)
 LDLIBS += $(call ld-option, -lrt)
