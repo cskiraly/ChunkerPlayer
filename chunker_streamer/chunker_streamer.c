@@ -687,6 +687,20 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 
+	// read the configuration file
+	cmeta = chunkerInit();
+	if (!outside_world_url) {
+		outside_world_url = strdup(cmeta->outside_world_url);
+	}
+	switch(cmeta->strategy)
+	{
+		case 1:
+			chunkFilled = chunkFilledSizeStrategy;
+			break;
+		default:
+			chunkFilled = chunkFilledFramesStrategy;
+	}
+
 #ifdef TCPIO
 	static char peer_ip[16];
 	static int peer_port;
@@ -706,20 +720,6 @@ int main(int argc, char *argv[]) {
 #endif
 
 restart:
-	// read the configuration file
-	cmeta = chunkerInit();
-	if (!outside_world_url) {
-		outside_world_url = strdup(cmeta->outside_world_url);
-	}
-	switch(cmeta->strategy)
-	{
-		case 1:
-			chunkFilled = chunkFilledSizeStrategy;
-			break;
-		default:
-			chunkFilled = chunkFilledFramesStrategy;
-	}
-		
 	if(live_source)
 		fprintf(stderr, "INIT: Using LIVE SOURCE TimeStamps\n");
 	if(offset_av)
@@ -1348,7 +1348,6 @@ close:
 	free(frame);
 	av_free(video_outbuf);
 	av_free(audio_outbuf);
-	free(cmeta);
 
 	// Free the YUV frame
 	av_free(pFrame1);
@@ -1415,6 +1414,8 @@ close:
 
 		goto restart;
 	}
+
+	free(cmeta);
 
 #ifdef TCPIO
 	for (i=0; i < (passthrough?1:0) + qualitylevels + (indexchannel?1:0); i++) {
