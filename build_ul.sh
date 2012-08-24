@@ -67,8 +67,8 @@ if [ -n "$MINGW" ]; then
 		cd "$BASE_UL_DIR/$EXTERN_DIR"
 		rm -r -f bzip2_mingw
 		#get the latest bzip2 library
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://switch.dl.sourceforge.net/project/gnuwin32/bzip2/1.0.5/bzip2-1.0.5-bin.zip; unzip bzip2-1.0.5-bin.zip -d bzip2_mingw
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://sunet.dl.sourceforge.net/project/gnuwin32/bzip2/1.0.5/bzip2-1.0.5-lib.zip; unzip -o bzip2-1.0.5-lib.zip -d bzip2_mingw
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://downloads.sourceforge.net/project/gnuwin32/bzip2/1.0.5/bzip2-1.0.5-bin.zip; unzip bzip2-1.0.5-bin.zip -d bzip2_mingw
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://downloads.sourceforge.net/project/gnuwin32/bzip2/1.0.5/bzip2-1.0.5-lib.zip; unzip -o bzip2-1.0.5-lib.zip -d bzip2_mingw
 		rm -f bzip2-1.0.5-lib.zip; rm -f bzip2-1.0.5-bin.zip;
 	fi
 	LOCAL_BZ2=$TEMP_BZ2
@@ -96,8 +96,8 @@ if [ -n "$MINGW" ]; then
 		cd "$BASE_UL_DIR/$EXTERN_DIR"
 		rm -r -f zlib_mingw;
 		#get the latest zlib libraries
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://sunet.dl.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-bin.zip; unzip zlib-1.2.3-bin.zip -d zlib_mingw
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://kent.dl.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-lib.zip; unzip -o zlib-1.2.3-lib.zip -d zlib_mingw
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://downloads.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-bin.zip; unzip zlib-1.2.3-bin.zip -d zlib_mingw
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://downloads.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-lib.zip; unzip -o zlib-1.2.3-lib.zip -d zlib_mingw
 		rm -f zlib-1.2.3-bin.zip; rm -f zlib-1.2.3-lib.zip;
 	fi
 	LOCAL_Z=$TEMP_Z
@@ -198,8 +198,8 @@ if [ -n "$MINGW" ]; then
 		cd "$BASE_UL_DIR/$EXTERN_DIR"
 		#download binaries
 		rm -fR libintl
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://garr.dl.sourceforge.net/project/gnuwin32/libintl/0.14.4/libintl-0.14.4-lib.zip; unzip -o libintl-0.14.4-lib.zip -d libintl
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://switch.dl.sourceforge.net/project/gnuwin32/libintl/0.14.4/libintl-0.14.4-bin.zip; unzip -o libintl-0.14.4-bin.zip -d libintl
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://downloads.sourceforge.net/project/gnuwin32/libintl/0.14.4/libintl-0.14.4-lib.zip; unzip -o libintl-0.14.4-lib.zip -d libintl
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://downloads.sourceforge.net/project/gnuwin32/libintl/0.14.4/libintl-0.14.4-bin.zip; unzip -o libintl-0.14.4-bin.zip -d libintl
 		rm -f libintl-0.14.4-bin.zip; rm -f libintl-0.14.4-lib.zip
 		cd libintl
 		mkdir -p $LOCAL_LIBINTL;
