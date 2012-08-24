@@ -39,9 +39,11 @@ IO=${IO:-"tcp"}
 MONL=${MONL:-1}
 ML=${ML:-1}
 
-if [ "$HOSTARCH" = "mingw32" ]; then
+case $HOSTARCH in
+  *mingw*)
 	MINGW=1
-fi
+	;;
+esac
 
 #by default build an check
 BUILD_ALL=1
