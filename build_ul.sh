@@ -51,13 +51,13 @@ BUILD_ALL=1
 LIBTOOLIZE_PATH=`whereis libtoolize`
 if [ "$LIBTOOLIZE_PATH" = "libtoolize:" ]; then
 	echo "Can't find libtoolize. Try sudo apt-get install libtool"
-	exit
+	exit 1
 fi
 
 YASM_PATH=`whereis yasm`
 if [ "$YASM_PATH" = "yasm:" ]; then
 	echo "Can't find yasm assembler. Try sudo apt-get install yasm"
-	exit
+	exit 1
 fi
 
 mkdir -p $EXTERN_DIR
@@ -607,7 +607,7 @@ else
 			LOCAL_CONFUSE="/usr"
 		else
 			echo "you seem not to have file libconfuse.a. EXITING."
-			exit
+			exit 1
 		fi
 	else
 		LOCAL_CONFUSE=`dirname $LOCAL_CONFUSE_A`/..
