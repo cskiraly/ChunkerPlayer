@@ -506,7 +506,7 @@ if [ -n "$BUILD_FREETYPE" ] || [ -n "$BUILD_ALL" -a ! -e "$TEMP_FREETYPE" ]; the
 	else
 		#get and compile SDLTTF lib
 		rm -f freetype-2.1.10.tar.gz
-		$WGET_OR_CURL $WGET_OR_CURLOPT http://mirror.lihnidos.org/GNU/savannah/freetype/freetype-2.1.10.tar.gz; tar xzf freetype-2.1.10.tar.gz; rm -f freetype-2.1.10.tar.gz; mv freetype-2.1.10 freetype
+		$WGET_OR_CURL $WGET_OR_CURLOPT http://download.savannah.gnu.org/releases/freetype/freetype-old/freetype-2.1.10.tar.gz; tar xzf freetype-2.1.10.tar.gz; rm -f freetype-2.1.10.tar.gz; mv freetype-2.1.10 freetype
 		cd freetype
 	fi
 
