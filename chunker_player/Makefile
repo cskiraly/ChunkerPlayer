@@ -103,6 +103,7 @@ else
 LDLIBS += $(DYNAMIC_LDLIBS)
 LDLIBS += $(call ld-option, -lrt)
 LDLIBS += $(call ld-option, -lX11)
+LDLIBS += $(call ld-option, -lvga)
 endif
 
 LINKER = $(CC)

@@ -59,4 +59,3 @@ ld-option = $(shell if echo "int main(){return 0;}" | \
 		> /dev/null 2>&1; then echo "$(1)"; fi ;)
 
 LDLIBS += $(call ld-option, -lva)
-LDLIBS += $(call ld-option, -lvga)
